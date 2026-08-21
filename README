@@ -75,7 +75,7 @@ The host platform is detected automatically, or it can be selected explicitly:
 
 macOS uses the native Metal backend and does not require OpenGL or XQuartz.
 Linux and the historical Unix targets keep the X11/GLX backend. Build products
-are written to build/<platform>-<graphics>-<audio>-<maps>/ so configurations do
+are written to build/<platform>-<graphics>-<audio>/ so configurations do
 not reuse incompatible object files.
 
 Game content is external and required at runtime. The `assets/manifest.txt`
@@ -83,15 +83,14 @@ file declares models, textures, and animation clips. Models are Khronos glTF
 2.0 binary files under `assets/models`; textures are under `assets/textures`.
 The normal game build does not compile the old C model factories as a fallback.
 
-Battlefields have versioned JSON packages under `assets/maps`. Use
-`MAPS=hybrid` to load JSON with fallback to the original `road/tree/tank.data`
-files, `MAPS=json` to require JSON, or `MAPS=legacy` for the unchanged old
-loader. Linux and macOS default to `hybrid`; historical Unix targets default to
-`legacy`. Rebuild every JSON package deterministically with `make export-maps`.
+Battlefields are versioned JSON packages under `assets/maps`. The old split
+`road/tree/tank.data` representation and its fallback loader have been removed;
+`map.json` is the only runtime and source format on every platform.
 
 Run `make help` to see all supported values. Run the game with `--map 0`,
 `--map Andyville`, or another entry shown by `-help` to select one of the
 existing external battlefields. See `assets/readme.md` and
-`docs/assets-and-maps.md` for the migration format and compatibility policy.
-The checked-in GLB files are reproducibly regenerated from the original source
-material with `make export-assets` on macOS.
+`docs/assets-and-maps.md` for the asset format and compatibility policy. The
+checked-in GLB files are now the source assets; the removed C geometry
+factories and primitive model generator are no longer part of the build or
+repository.

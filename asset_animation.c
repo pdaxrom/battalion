@@ -23,6 +23,9 @@ void assetPoseInitialize(struct AssetPose *pose)
     {
     pose->nodes = NULL;
     pose->nodeCount = 0;
+    pose->colorOffset[0] = 0.0f;
+    pose->colorOffset[1] = 0.0f;
+    pose->colorOffset[2] = 0.0f;
     }
 
 void assetPoseDestroy(struct AssetPose *pose)
@@ -33,7 +36,8 @@ void assetPoseDestroy(struct AssetPose *pose)
     assetPoseInitialize(pose);
     }
 
-static void resetPose(const struct AssetModel *model, struct AssetPose *pose)
+static void resetPoseValues(const struct AssetModel *model,
+                            struct AssetPose *pose)
     {
     size_t node;
 
@@ -45,7 +49,28 @@ static void resetPose(const struct AssetModel *model, struct AssetPose *pose)
                sizeof(pose->nodes[node].rotation));
         memcpy(pose->nodes[node].scale, model->nodes[node].scale,
                sizeof(pose->nodes[node].scale));
+        pose->nodes[node].visible = 1;
         }
+    }
+
+int assetPoseReset(const struct AssetModel *model, struct AssetPose *pose)
+    {
+    if (model == NULL || pose == NULL)
+        return 0;
+    if (pose->nodeCount != model->nodeCount)
+        {
+        assetPoseDestroy(pose);
+        pose->nodes = (struct AssetNodePose *)calloc(model->nodeCount,
+                                                     sizeof(*pose->nodes));
+        if (pose->nodes == NULL && model->nodeCount > 0)
+            return 0;
+        pose->nodeCount = model->nodeCount;
+        }
+    resetPoseValues(model, pose);
+    pose->colorOffset[0] = 0.0f;
+    pose->colorOffset[1] = 0.0f;
+    pose->colorOffset[2] = 0.0f;
+    return 1;
     }
 
 static void normalizeQuaternion(float value[4])
@@ -125,8 +150,8 @@ static void sampleTrack(const struct AssetAnimationTrack *track, float time,
         normalizeQuaternion(destination);
     }
 
-int assetPoseSample(const struct AssetModel *model, size_t animationIndex,
-                    float timeSeconds, int loop, struct AssetPose *pose)
+int assetPoseApply(const struct AssetModel *model, size_t animationIndex,
+                   float timeSeconds, int loop, struct AssetPose *pose)
     {
     const struct AssetAnimation *animation;
     const struct AssetAnimationTrack *track;
@@ -135,16 +160,8 @@ int assetPoseSample(const struct AssetModel *model, size_t animationIndex,
 
     if (model == NULL || pose == NULL || animationIndex >= model->animationCount)
         return 0;
-    if (pose->nodeCount != model->nodeCount)
-        {
-        assetPoseDestroy(pose);
-        pose->nodes = (struct AssetNodePose *)calloc(model->nodeCount,
-                                                     sizeof(*pose->nodes));
-        if (pose->nodes == NULL && model->nodeCount > 0)
-            return 0;
-        pose->nodeCount = model->nodeCount;
-        }
-    resetPose(model, pose);
+    if (pose->nodeCount != model->nodeCount && !assetPoseReset(model, pose))
+        return 0;
     animation = &model->animations[animationIndex];
     if (timeSeconds < 0.0f)
         timeSeconds = 0.0f;
@@ -169,4 +186,12 @@ int assetPoseSample(const struct AssetModel *model, size_t animationIndex,
         sampleTrack(track, timeSeconds, destination);
         }
     return 1;
+    }
+
+int assetPoseSample(const struct AssetModel *model, size_t animationIndex,
+                    float timeSeconds, int loop, struct AssetPose *pose)
+    {
+    if (!assetPoseReset(model, pose))
+        return 0;
+    return assetPoseApply(model, animationIndex, timeSeconds, loop, pose);
     }

@@ -15,17 +15,10 @@
 
 #include "battalion.h"
 
-#ifndef BATTALION_ASSET_EXPORT
 #include "asset.h"
 #include "asset_animation.h"
 #include "asset_manifest.h"
 #include "asset_render.h"
-#endif
-
-#ifdef BATTALION_ASSET_EXPORT
-#include "asset.h"
-#include "asset_write.h"
-#endif
 
     /*************/
     /* colours   */
@@ -85,52 +78,44 @@
     GLuint 
 	plaintank, slagtank, masertank, slagmasertank,  
 	launchertank, slaglaunchertank, helo, slagHelo, 
-	bigRotor, smallRotor, propeller,  
+	bigRotor, smallRotor,
 
-	airplaneBody, fighterBody,  
-    
-	monsterleg, monsterHead,
-	monsterTail, monsterBody,
-	monsterSimpleHead, monsterSimpleTail, 
-	flutterHead,  
-
-	techsBody, techsHead, techsShadow, 
-	techsSimpleBody, techsSimpleHead, 
+	fighterBody,
 	
 	watershellObj, heroshellObj,  
 
 	tankShadow, planeShadow, fighterShadow, 
 
-	flutterShadow, flutterBody, flutterXMas, 
-	flutterWing1, flutterWing2, 
-
 	planeDotsObj, planeDotsObjD0,
     
-	shellObj, shell2Obj, 
+	shell2Obj, 
  
 	titleObj, titleObjOO, titleObjOOO, 
 	lowDPlane, highDPlane, bigPlane, 
 		
-	roundTreeShadow,   
-
-	boom1Obj, boom2Obj, boom3Obj, boom4Obj, boom5Obj, 
-	boom6Obj, boom7Obj, boom8Obj, boom9Obj, boom10Obj, 
-
-	boom1ObjD0, boom2ObjD0, boom3ObjD0, boom4ObjD0, boom5ObjD0, 
-	boom6ObjD0, boom7ObjD0, boom8ObjD0, boom9ObjD0, boom10ObjD0, 
-	
 	strip1Obj, strip2Obj, strip3Obj, 
 	strip1ObjD0, strip2ObjD0, strip3ObjD0, 
-    
-	powerTower,
-	genericWindows, 
- 
+
 	building1Obj, building2Obj, building7Obj, building9Obj,  building9ObjOO,  
 	building10Obj, building12Obj, building14Obj, building19Obj,  
 	building20Obj, building21Obj, building31Obj, building32Obj,  
 	building5Obj,
 	building1ObjD0, building2ObjD0, building5ObjD0, building12ObjD0,
 	building19ObjD0, building20ObjD0, building21ObjD0;
+
+    static GLuint building0Models[2][2];
+    static GLuint building4Models[3];
+    static GLuint building6Low, building8Models[2], building11Models[2];
+    static GLuint building22Obj, building23Obj, building24Obj, building25Obj;
+    static GLuint building28Low, building29Models[2], building30Models[2];
+    static GLuint building34Obj, building36Obj;
+    static GLuint waterModels[2][2];
+    static GLuint hillCenterModels[2];
+    static GLuint hillSideModels[3][2];
+    static GLuint hillCornerModels[2][2];
+    static GLuint hillInsideModels[2][2];
+    static GLuint effectSphereLow, effectSphereHigh, fireModel;
+    static GLuint shadowRectangle, directionArrow;
 
     /***************************/
     /* texture mapping stuff   */
@@ -139,7 +124,6 @@
     GLuint leftScreen, rightScreen;
     GLuint treeWood, roadtex, officeLogo;
 
-#ifndef BATTALION_ASSET_EXPORT
     static struct AssetManifest externalAssets;
     static const struct AssetManifestModel *externalHeloModels[2];
     static size_t externalHeloClips[2];
@@ -149,7 +133,58 @@
     static size_t externalProjectileClips[4];
     static int externalProjectileLoops[4];
     static struct AssetPose externalProjectilePoses[4];
-#endif
+    static const struct AssetManifestModel *externalAirplaneModel;
+    static size_t externalAirplaneClip;
+    static int externalAirplaneLoop;
+    static struct AssetPose externalAirplanePose;
+    static const struct AssetManifestModel *externalGoogelonModel;
+    static size_t externalGoogelonClip;
+    static int externalGoogelonLoop;
+    static struct AssetPose externalGoogelonPose;
+    static const struct AssetManifestModel *externalFlutterModel;
+    static size_t externalFlutterClip;
+    static int externalFlutterLoop;
+    static struct AssetPose externalFlutterPose;
+    static const struct AssetManifestModel *externalTechsModel;
+    static struct AssetPose externalTechsPose;
+    static const struct AssetManifestModel *externalHeroModels[2];
+    static size_t externalHeroWalkClips[2];
+    static size_t externalHeroFireClips[2];
+    static int externalHeroWalkLoops[2];
+    static int externalHeroFireLoops[2];
+    static struct AssetPose externalHeroPoses[2];
+    static const struct AssetManifestModel *externalMechaModel;
+    static size_t externalMechaClip;
+    static int externalMechaLoop;
+    static struct AssetPose externalMechaPose;
+    static const struct AssetManifestModel *externalBoomModels[2];
+    static struct AssetPose externalBoomPoses[2];
+    static const struct AssetManifestModel *externalHunterModel;
+    static struct AssetPose externalHunterPose;
+    static const struct AssetManifestModel *externalPineTreeModel;
+    static struct AssetPose externalPineTreePose;
+    static const struct AssetManifestModel *externalRoundTreeModel;
+    static struct AssetPose externalRoundTreePose;
+    static const struct AssetManifestModel *externalBuilding26Model;
+    static struct AssetPose externalBuilding26Pose;
+    static const struct AssetManifestModel *externalBuilding37Model;
+    static struct AssetPose externalBuilding37Pose;
+    static const struct AssetManifestModel *externalBuilding6Model;
+    static size_t externalBuilding6Clip;
+    static int externalBuilding6Loop;
+    static struct AssetPose externalBuilding6Pose;
+    static const struct AssetManifestModel *externalBuilding28Model;
+    static size_t externalBuilding28Clip;
+    static int externalBuilding28Loop;
+    static struct AssetPose externalBuilding28Pose;
+    static const struct AssetManifestModel *externalBuilding33Model;
+    static size_t externalBuilding33Clip;
+    static int externalBuilding33Loop;
+    static struct AssetPose externalBuilding33Pose;
+    static const struct AssetManifestModel *externalPowerTowerModel;
+    static size_t externalPowerTowerClip;
+    static int externalPowerTowerLoop;
+    static struct AssetPose externalPowerTowerPose;
     
 
     struct road roadsOnPlane[MAXROADSONPLANE];
@@ -160,8 +195,7 @@
 /* create the objects to be used in the game                     */
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
-#ifndef BATTALION_ASSET_EXPORT
-static GLuint requiredModel(const char *key)
+static const struct AssetManifestModel *requiredModelEntry(const char *key)
     {
     const struct AssetManifestModel *model;
 
@@ -172,6 +206,14 @@ static GLuint requiredModel(const char *key)
 	showError("Required model is missing from manifest.txt");
 	exit(1);
 	}
+    return model;
+    }
+
+static GLuint requiredModel(const char *key)
+    {
+    const struct AssetManifestModel *model;
+
+    model = requiredModelEntry(key);
     return model->displayList;
     }
 
@@ -188,11 +230,25 @@ static GLuint requiredTexture(const char *key)
 	}
     return texture->displayList;
     }
-#endif
+
+static int requiredNode(const struct AssetManifestModel *entry,
+                        const char *name)
+    {
+    int node;
+
+    node = assetModelFindNode(&entry->model, name);
+    if (node < 0)
+        {
+        fprintf(stderr, "Required node is missing from model %s: %s\n",
+                entry->key, name);
+        showError("Required model node is missing");
+        exit(1);
+        }
+    return node;
+    }
 
 void makeObjects(char * dataPath)
     {
-#ifndef BATTALION_ASSET_EXPORT
     char assetError[256];
 
     assetManifestInitialize(&externalAssets);
@@ -202,6 +258,24 @@ void makeObjects(char * dataPath)
     assetPoseInitialize(&externalProjectilePoses[1]);
     assetPoseInitialize(&externalProjectilePoses[2]);
     assetPoseInitialize(&externalProjectilePoses[3]);
+    assetPoseInitialize(&externalAirplanePose);
+    assetPoseInitialize(&externalGoogelonPose);
+    assetPoseInitialize(&externalFlutterPose);
+    assetPoseInitialize(&externalTechsPose);
+    assetPoseInitialize(&externalHeroPoses[0]);
+    assetPoseInitialize(&externalHeroPoses[1]);
+    assetPoseInitialize(&externalMechaPose);
+    assetPoseInitialize(&externalBoomPoses[0]);
+    assetPoseInitialize(&externalBoomPoses[1]);
+    assetPoseInitialize(&externalHunterPose);
+    assetPoseInitialize(&externalPineTreePose);
+    assetPoseInitialize(&externalRoundTreePose);
+    assetPoseInitialize(&externalBuilding26Pose);
+    assetPoseInitialize(&externalBuilding37Pose);
+    assetPoseInitialize(&externalBuilding6Pose);
+    assetPoseInitialize(&externalBuilding28Pose);
+    assetPoseInitialize(&externalBuilding33Pose);
+    assetPoseInitialize(&externalPowerTowerPose);
     if (!assetManifestLoad(dataPath, &externalAssets,
 			   assetError, sizeof(assetError)))
 	{
@@ -223,26 +297,7 @@ void makeObjects(char * dataPath)
     LOAD_MODEL(slagmasertank, "tank-maser-slag");
     LOAD_MODEL(launchertank, "tank-launcher");
     LOAD_MODEL(slaglaunchertank, "tank-launcher-slag");
-    LOAD_MODEL(propeller, "propeller");
-    LOAD_MODEL(airplaneBody, "airplane-body");
     LOAD_MODEL(fighterBody, "fighter-body");
-    LOAD_MODEL(monsterleg, "googelon-leg");
-    LOAD_MODEL(monsterHead, "googelon-head");
-    LOAD_MODEL(monsterSimpleHead, "googelon-head-simple");
-    LOAD_MODEL(monsterTail, "googelon-tail");
-    LOAD_MODEL(monsterSimpleTail, "googelon-tail-simple");
-    LOAD_MODEL(monsterBody, "googelon-body");
-    LOAD_MODEL(flutterHead, "flutter-head");
-    LOAD_MODEL(flutterShadow, "flutter-shadow");
-    LOAD_MODEL(flutterXMas, "flutter-xmas");
-    LOAD_MODEL(flutterBody, "flutter-body");
-    LOAD_MODEL(flutterWing1, "flutter-wing-1");
-    LOAD_MODEL(flutterWing2, "flutter-wing-2");
-    LOAD_MODEL(techsBody, "techs-body");
-    LOAD_MODEL(techsHead, "techs-head");
-    LOAD_MODEL(techsSimpleBody, "techs-body-simple");
-    LOAD_MODEL(techsSimpleHead, "techs-head-simple");
-    LOAD_MODEL(techsShadow, "techs-shadow");
     LOAD_MODEL(shell2Obj, "projectile-techs");
     LOAD_MODEL(heroshellObj, "projectile-hero");
     LOAD_MODEL(watershellObj, "projectile-water");
@@ -254,8 +309,6 @@ void makeObjects(char * dataPath)
     LOAD_MODEL(titleObjOOO, "title-low");
     LOAD_MODEL(planeDotsObj, "plane-dots-high");
     LOAD_MODEL(planeDotsObjD0, "plane-dots-low");
-    LOAD_MODEL(powerTower, "power-tower");
-    LOAD_MODEL(genericWindows, "generic-windows");
     LOAD_MODEL(strip1Obj, "strip-1-high");
     LOAD_MODEL(strip1ObjD0, "strip-1-low");
     LOAD_MODEL(strip2Obj, "strip-2-high");
@@ -286,27 +339,54 @@ void makeObjects(char * dataPath)
     LOAD_MODEL(lowDPlane, "plane-ground-low");
     LOAD_MODEL(highDPlane, "plane-ground-high");
     LOAD_MODEL(bigPlane, "plane-ground-large");
-    LOAD_MODEL(roundTreeShadow, "round-tree-shadow");
-    LOAD_MODEL(boom1Obj, "boom-01-high");
-    LOAD_MODEL(boom1ObjD0, "boom-01-low");
-    LOAD_MODEL(boom2Obj, "boom-02-high");
-    LOAD_MODEL(boom2ObjD0, "boom-02-low");
-    LOAD_MODEL(boom3Obj, "boom-03-high");
-    LOAD_MODEL(boom3ObjD0, "boom-03-low");
-    LOAD_MODEL(boom4Obj, "boom-04-high");
-    LOAD_MODEL(boom4ObjD0, "boom-04-low");
-    LOAD_MODEL(boom5Obj, "boom-05-high");
-    LOAD_MODEL(boom5ObjD0, "boom-05-low");
-    LOAD_MODEL(boom6Obj, "boom-06-high");
-    LOAD_MODEL(boom6ObjD0, "boom-06-low");
-    LOAD_MODEL(boom7Obj, "boom-07-high");
-    LOAD_MODEL(boom7ObjD0, "boom-07-low");
-    LOAD_MODEL(boom8Obj, "boom-08-high");
-    LOAD_MODEL(boom8ObjD0, "boom-08-low");
-    LOAD_MODEL(boom9Obj, "boom-09-high");
-    LOAD_MODEL(boom9ObjD0, "boom-09-low");
-    LOAD_MODEL(boom10Obj, "boom-10-high");
-    LOAD_MODEL(boom10ObjD0, "boom-10-low");
+    LOAD_MODEL(building0Models[0][0], "building-0-white-low");
+    LOAD_MODEL(building0Models[0][1], "building-0-white-high");
+    LOAD_MODEL(building0Models[1][0], "building-0-grey-low");
+    LOAD_MODEL(building0Models[1][1], "building-0-grey-high");
+    LOAD_MODEL(building4Models[0], "building-4-vector");
+    LOAD_MODEL(building4Models[1], "building-4-low");
+    LOAD_MODEL(building4Models[2], "building-4-high");
+    LOAD_MODEL(building6Low, "building-6-low");
+    LOAD_MODEL(building8Models[0], "building-8-low");
+    LOAD_MODEL(building8Models[1], "building-8-high");
+    LOAD_MODEL(building11Models[0], "building-11-low");
+    LOAD_MODEL(building11Models[1], "building-11-high");
+    LOAD_MODEL(building22Obj, "building-22-dark");
+    LOAD_MODEL(building23Obj, "building-23-light");
+    LOAD_MODEL(building24Obj, "building-24-white");
+    LOAD_MODEL(building25Obj, "building-25");
+    LOAD_MODEL(building28Low, "building-28-low");
+    LOAD_MODEL(building29Models[0], "building-29");
+    LOAD_MODEL(building29Models[1], "building-29-xmas");
+    LOAD_MODEL(building30Models[0], "building-30-low");
+    LOAD_MODEL(building30Models[1], "building-30-high");
+    LOAD_MODEL(building34Obj, "building-34");
+    LOAD_MODEL(building36Obj, "building-36");
+    LOAD_MODEL(waterModels[0][0], "water-square");
+    LOAD_MODEL(waterModels[0][1], "water-square-xmas");
+    LOAD_MODEL(waterModels[1][0], "water-triangle");
+    LOAD_MODEL(waterModels[1][1], "water-triangle-xmas");
+    LOAD_MODEL(hillCenterModels[0], "hill-center");
+    LOAD_MODEL(hillCenterModels[1], "hill-center-xmas");
+    LOAD_MODEL(hillSideModels[0][0], "hill-side-0");
+    LOAD_MODEL(hillSideModels[0][1], "hill-side-0-xmas");
+    LOAD_MODEL(hillSideModels[1][0], "hill-side-1");
+    LOAD_MODEL(hillSideModels[1][1], "hill-side-1-xmas");
+    LOAD_MODEL(hillSideModels[2][0], "hill-side-2");
+    LOAD_MODEL(hillSideModels[2][1], "hill-side-2-xmas");
+    LOAD_MODEL(hillCornerModels[0][0], "hill-corner-0");
+    LOAD_MODEL(hillCornerModels[0][1], "hill-corner-0-xmas");
+    LOAD_MODEL(hillCornerModels[1][0], "hill-corner-1");
+    LOAD_MODEL(hillCornerModels[1][1], "hill-corner-1-xmas");
+    LOAD_MODEL(hillInsideModels[0][0], "hill-inside-0");
+    LOAD_MODEL(hillInsideModels[0][1], "hill-inside-0-xmas");
+    LOAD_MODEL(hillInsideModels[1][0], "hill-inside-1");
+    LOAD_MODEL(hillInsideModels[1][1], "hill-inside-1-xmas");
+    LOAD_MODEL(effectSphereLow, "sphere-low");
+    LOAD_MODEL(effectSphereHigh, "sphere-high");
+    LOAD_MODEL(fireModel, "fire");
+    LOAD_MODEL(shadowRectangle, "shadow-rectangle");
+    LOAD_MODEL(directionArrow, "direction-arrow");
 #undef LOAD_MODEL
 
     if (!assetManifestFindAnimation(
@@ -319,6 +399,95 @@ void makeObjects(char * dataPath)
 	showError("Required helo-rotors animation is missing from external assets");
 	exit(1);
 	}
+
+    if (!assetManifestFindAnimation(
+        &externalAssets, "airplane-propellers", &externalAirplaneModel,
+        &externalAirplaneClip, &externalAirplaneLoop) ||
+        !assetManifestFindAnimation(
+        &externalAssets, "googelon-tail-sway", &externalGoogelonModel,
+        &externalGoogelonClip, &externalGoogelonLoop) ||
+        !assetManifestFindAnimation(
+        &externalAssets, "flutter-wing-flap", &externalFlutterModel,
+        &externalFlutterClip, &externalFlutterLoop))
+        {
+        showError("Required compound model animation is missing");
+        exit(1);
+        }
+    externalTechsModel = requiredModelEntry("techs");
+    externalBoomModels[0] = requiredModelEntry("boom-high");
+    externalBoomModels[1] = requiredModelEntry("boom-low");
+    externalHunterModel = requiredModelEntry("hunter");
+    externalPineTreeModel = requiredModelEntry("pine-tree");
+    externalRoundTreeModel = requiredModelEntry("round-tree");
+    externalBuilding26Model = requiredModelEntry("building-26");
+    externalBuilding37Model = requiredModelEntry("building-37");
+
+    if (!assetManifestFindAnimation(
+        &externalAssets, "hero-typhoon-walk", &externalHeroModels[0],
+        &externalHeroWalkClips[0], &externalHeroWalkLoops[0]) ||
+        !assetManifestFindAnimation(
+        &externalAssets, "hero-typhoon-fire", &externalHeroModels[0],
+        &externalHeroFireClips[0], &externalHeroFireLoops[0]) ||
+        !assetManifestFindAnimation(
+        &externalAssets, "hero-beam-walk", &externalHeroModels[1],
+        &externalHeroWalkClips[1], &externalHeroWalkLoops[1]) ||
+        !assetManifestFindAnimation(
+        &externalAssets, "hero-beam-fire", &externalHeroModels[1],
+        &externalHeroFireClips[1], &externalHeroFireLoops[1]) ||
+        !assetManifestFindAnimation(
+        &externalAssets, "mecha-eye-scan", &externalMechaModel,
+        &externalMechaClip, &externalMechaLoop))
+        {
+        showError("Required hero animation is missing");
+        exit(1);
+        }
+
+    requiredNode(externalAirplaneModel, "body");
+    requiredNode(externalGoogelonModel, "head");
+    requiredNode(externalGoogelonModel, "head-simple");
+    requiredNode(externalGoogelonModel, "xmas-head");
+    requiredNode(externalGoogelonModel, "xmas-tail");
+    requiredNode(externalGoogelonModel, "shadow-body");
+    requiredNode(externalGoogelonModel, "shadow-leg");
+    requiredNode(externalGoogelonModel, "shadow-tail");
+    requiredNode(externalFlutterModel, "wing-left");
+    requiredNode(externalFlutterModel, "wing-right");
+    requiredNode(externalTechsModel, "head");
+    requiredNode(externalTechsModel, "head-simple");
+    requiredNode(externalTechsModel, "hand-right");
+    requiredNode(externalTechsModel, "hand-left");
+    requiredNode(externalBoomModels[0], "frame-10");
+    requiredNode(externalBoomModels[1], "frame-10");
+    requiredNode(externalHunterModel, "damage-00");
+    requiredNode(externalPineTreeModel, "pine-trunk");
+    requiredNode(externalPineTreeModel, "pine-crown");
+    requiredNode(externalPineTreeModel, "pine-crown-vector");
+    requiredNode(externalPineTreeModel, "pine-lights");
+    requiredNode(externalPineTreeModel, "pine-shadow");
+    requiredNode(externalRoundTreeModel, "round-trunk");
+    requiredNode(externalRoundTreeModel, "round-crown");
+    requiredNode(externalRoundTreeModel, "round-shadow");
+    requiredNode(externalBuilding26Model, "body");
+    requiredNode(externalBuilding26Model, "screen");
+    requiredNode(externalBuilding37Model, "body");
+    requiredNode(externalBuilding37Model, "logo");
+
+    if (!assetManifestFindAnimation(
+        &externalAssets, "building-6-sign-spin", &externalBuilding6Model,
+        &externalBuilding6Clip, &externalBuilding6Loop) ||
+        !assetManifestFindAnimation(
+        &externalAssets, "building-28-sign-spin", &externalBuilding28Model,
+        &externalBuilding28Clip, &externalBuilding28Loop) ||
+        !assetManifestFindAnimation(
+        &externalAssets, "building-33-collapse", &externalBuilding33Model,
+        &externalBuilding33Clip, &externalBuilding33Loop) ||
+        !assetManifestFindAnimation(
+        &externalAssets, "power-tower-collapse", &externalPowerTowerModel,
+        &externalPowerTowerClip, &externalPowerTowerLoop))
+        {
+        showError("Required structure animation is missing");
+        exit(1);
+        }
 
     if (!assetManifestFindAnimation(
 	&externalAssets, "projectile-standard-low-spin",
@@ -343,559 +512,7 @@ void makeObjects(char * dataPath)
 
     initFonts();
     return;
-#else
-    GLfloat lineWidthNow;
-
-    /********************/
-    /* make the objects */
-    /********************/
-    plaintank		= makeTank();
-    slagtank		= makeSlagTank();
-    masertank		= makeMaserTank();
-    slagmasertank	= makeSlagMaserTank();
-    launchertank	= makeLauncherTank();
-    slaglaunchertank	= makeSlagLauncherTank();
-    helo		= makeHelo();
-    slagHelo		= makeSlagHelo();
-    bigRotor		= makeBigRotor();
-    smallRotor		= makeSmallRotor();
-    propeller		= makePropeller();
-    
-    monsterleg		= makeLeg();
-    monsterHead		= makeHead();
-    monsterSimpleHead	= makeSimpleHead();
-    monsterSimpleTail	= makeSimpleTail();
-    monsterTail		= makeTail();
-    monsterBody		= makeBody();
-    flutterHead		= makeFlutterHead();
-    techsBody		= makeTechsBody();
-    techsHead		= makeTechsHead();
-    techsSimpleBody	= makeTechsSimpleBody();
-    techsSimpleHead	= makeTechsSimpleHead();
-    techsShadow		= makeTechsShadow();
-
-    tankShadow		= makeTankShadow();
-    planeShadow		= makePlaneShadow();
-    fighterShadow	= makeFighterShadow();
- 
-    shellObj		= glGenLists(1);     
-    shell2Obj		= makeshell2();
-    heroshellObj	= makeHeroShell();
-    watershellObj	= makeWaterShell();
-
-    titleObj		= makeTitles(1);
-    titleObjOO		= makeTitles(0);
-    titleObjOOO		= makeTitles(-1);
-    
-    planeDotsObj	= makePlaneDots(1);
-    planeDotsObjD0	= makePlaneDots(0);
-
-    powerTower		= makePowerTower(); 
-    genericWindows	= makeGenericWindows(); 
-
-    strip1Obj		= makeStrip1(1);
-    strip2Obj		= makeStrip2(1);
-    strip3Obj		= makeStrip3(1);
-    strip1ObjD0		= makeStrip1(0);
-    strip2ObjD0		= makeStrip2(0);
-    strip3ObjD0		= makeStrip3(0);
-
-    building1Obj	= makebuilding1(1); 
-    building1ObjD0	= makebuilding1(0); 
-    building2Obj	= makebuilding2(1);
-    building2ObjD0	= makebuilding2(0);
-    building5Obj	= makebuilding5(1);
-    building5ObjD0	= makebuilding5(0);
-    building7Obj	= makebuilding7();
-    building9Obj	= makebuilding9(0);
-    building9ObjOO	= makebuilding9(1);
-    
-    glGetFloatv(GL_LINE_WIDTH, &lineWidthNow);
-    building10Obj	= makebuilding10();
-    glLineWidth(lineWidthNow);
-    
-    building12Obj	= makebuilding12(1);
-    building12ObjD0	= makebuilding12(0);
-    building14Obj	= makebuilding14();
-    building19Obj	= makebuilding19(1);
-    building19ObjD0	= makebuilding19(0);
-    building20Obj	= makebuilding20(1);
-    building20ObjD0	= makebuilding20(0);
-    building21Obj	= makebuilding21(1);
-    building21ObjD0	= makebuilding21(0);
-    building31Obj	= makebuilding31();
-    building32Obj	= makebuilding32();
-
-    lowDPlane		= makeLowDPlane();
-    highDPlane		= makeHighDPlane();
-    bigPlane		= makeBigPlane();
-
-    airplaneBody	= makeAirplaneBody();
-    fighterBody		= makeFighterBody();
-    flutterShadow	= makeFlutterShadow();
-    flutterXMas		= makeFlutterXMas();
-    flutterBody		= makeFlutterBody();
-    flutterWing1	= makeFlutterWing1();
-    flutterWing2	= makeFlutterWing2();
-
-    roundTreeShadow	= makeRoundTreeShadow();
-
-    makeBooms();
-
-    initFonts();
-#endif
     }
-
-#ifdef BATTALION_ASSET_EXPORT
-struct ExportModelEntry
-    {
-    const char *name;
-    GLuint *displayList;
-    };
-
-#define EXPORT_MODEL(name, variable) {name, &variable}
-
-static struct ExportModelEntry exportModels[] =
-    {
-    EXPORT_MODEL("tank", plaintank),
-    EXPORT_MODEL("tank-slag", slagtank),
-    EXPORT_MODEL("tank-maser", masertank),
-    EXPORT_MODEL("tank-maser-slag", slagmasertank),
-    EXPORT_MODEL("tank-launcher", launchertank),
-    EXPORT_MODEL("tank-launcher-slag", slaglaunchertank),
-    EXPORT_MODEL("propeller", propeller),
-    EXPORT_MODEL("airplane-body", airplaneBody),
-    EXPORT_MODEL("fighter-body", fighterBody),
-    EXPORT_MODEL("googelon-leg", monsterleg),
-    EXPORT_MODEL("googelon-head", monsterHead),
-    EXPORT_MODEL("googelon-head-simple", monsterSimpleHead),
-    EXPORT_MODEL("googelon-tail", monsterTail),
-    EXPORT_MODEL("googelon-tail-simple", monsterSimpleTail),
-    EXPORT_MODEL("googelon-body", monsterBody),
-    EXPORT_MODEL("flutter-head", flutterHead),
-    EXPORT_MODEL("flutter-shadow", flutterShadow),
-    EXPORT_MODEL("flutter-xmas", flutterXMas),
-    EXPORT_MODEL("flutter-body", flutterBody),
-    EXPORT_MODEL("flutter-wing-1", flutterWing1),
-    EXPORT_MODEL("flutter-wing-2", flutterWing2),
-    EXPORT_MODEL("techs-body", techsBody),
-    EXPORT_MODEL("techs-head", techsHead),
-    EXPORT_MODEL("techs-body-simple", techsSimpleBody),
-    EXPORT_MODEL("techs-head-simple", techsSimpleHead),
-    EXPORT_MODEL("techs-shadow", techsShadow),
-    EXPORT_MODEL("projectile-techs", shell2Obj),
-    EXPORT_MODEL("projectile-hero", heroshellObj),
-    EXPORT_MODEL("projectile-water", watershellObj),
-    EXPORT_MODEL("tank-shadow", tankShadow),
-    EXPORT_MODEL("plane-shadow", planeShadow),
-    EXPORT_MODEL("fighter-shadow", fighterShadow),
-    EXPORT_MODEL("title-high", titleObj),
-    EXPORT_MODEL("title-medium", titleObjOO),
-    EXPORT_MODEL("title-low", titleObjOOO),
-    EXPORT_MODEL("plane-dots-high", planeDotsObj),
-    EXPORT_MODEL("plane-dots-low", planeDotsObjD0),
-    EXPORT_MODEL("power-tower", powerTower),
-    EXPORT_MODEL("generic-windows", genericWindows),
-    EXPORT_MODEL("strip-1-high", strip1Obj),
-    EXPORT_MODEL("strip-2-high", strip2Obj),
-    EXPORT_MODEL("strip-3-high", strip3Obj),
-    EXPORT_MODEL("strip-1-low", strip1ObjD0),
-    EXPORT_MODEL("strip-2-low", strip2ObjD0),
-    EXPORT_MODEL("strip-3-low", strip3ObjD0),
-    EXPORT_MODEL("building-1-high", building1Obj),
-    EXPORT_MODEL("building-1-low", building1ObjD0),
-    EXPORT_MODEL("building-2-high", building2Obj),
-    EXPORT_MODEL("building-2-low", building2ObjD0),
-    EXPORT_MODEL("building-5-high", building5Obj),
-    EXPORT_MODEL("building-5-low", building5ObjD0),
-    EXPORT_MODEL("building-7", building7Obj),
-    EXPORT_MODEL("building-9", building9Obj),
-    EXPORT_MODEL("building-9-alternate", building9ObjOO),
-    EXPORT_MODEL("building-10", building10Obj),
-    EXPORT_MODEL("building-12-high", building12Obj),
-    EXPORT_MODEL("building-12-low", building12ObjD0),
-    EXPORT_MODEL("building-14", building14Obj),
-    EXPORT_MODEL("building-19-high", building19Obj),
-    EXPORT_MODEL("building-19-low", building19ObjD0),
-    EXPORT_MODEL("building-20-high", building20Obj),
-    EXPORT_MODEL("building-20-low", building20ObjD0),
-    EXPORT_MODEL("building-21-high", building21Obj),
-    EXPORT_MODEL("building-21-low", building21ObjD0),
-    EXPORT_MODEL("building-31", building31Obj),
-    EXPORT_MODEL("building-32", building32Obj),
-    EXPORT_MODEL("plane-ground-low", lowDPlane),
-    EXPORT_MODEL("plane-ground-high", highDPlane),
-    EXPORT_MODEL("plane-ground-large", bigPlane),
-    EXPORT_MODEL("round-tree-shadow", roundTreeShadow),
-    EXPORT_MODEL("boom-01-high", boom1Obj),
-    EXPORT_MODEL("boom-02-high", boom2Obj),
-    EXPORT_MODEL("boom-03-high", boom3Obj),
-    EXPORT_MODEL("boom-04-high", boom4Obj),
-    EXPORT_MODEL("boom-05-high", boom5Obj),
-    EXPORT_MODEL("boom-06-high", boom6Obj),
-    EXPORT_MODEL("boom-07-high", boom7Obj),
-    EXPORT_MODEL("boom-08-high", boom8Obj),
-    EXPORT_MODEL("boom-09-high", boom9Obj),
-    EXPORT_MODEL("boom-10-high", boom10Obj),
-    EXPORT_MODEL("boom-01-low", boom1ObjD0),
-    EXPORT_MODEL("boom-02-low", boom2ObjD0),
-    EXPORT_MODEL("boom-03-low", boom3ObjD0),
-    EXPORT_MODEL("boom-04-low", boom4ObjD0),
-    EXPORT_MODEL("boom-05-low", boom5ObjD0),
-    EXPORT_MODEL("boom-06-low", boom6ObjD0),
-    EXPORT_MODEL("boom-07-low", boom7ObjD0),
-    EXPORT_MODEL("boom-08-low", boom8ObjD0),
-    EXPORT_MODEL("boom-09-low", boom9ObjD0),
-    EXPORT_MODEL("boom-10-low", boom10ObjD0)
-    };
-
-#undef EXPORT_MODEL
-
-static void setExportError(char *error, size_t errorSize, const char *message)
-    {
-    if (error == NULL || errorSize == 0)
-	return;
-    strncpy(error, message, errorSize - 1);
-    error[errorSize - 1] = '\0';
-    }
-
-static void initializeExportNode(struct AssetNode *node, int mesh)
-    {
-    node->mesh = mesh;
-    node->rotation[3] = 1.0f;
-    node->scale[0] = 1.0f;
-    node->scale[1] = 1.0f;
-    node->scale[2] = 1.0f;
-    }
-
-static int exportHelicopterGLB(const char *path, GLuint body,
-			       char *error, size_t errorSize)
-    {
-    static const float times[5] = {
-	0.0f, 0.25f, 0.5f, 0.75f, 1.0f
-	};
-    static const float mainRotorRotations[20] = {
-	0.0f,  0.0f,       0.0f,  1.0f,
-	0.0f, -0.70710678f, 0.0f,  0.70710678f,
-	0.0f, -1.0f,       0.0f,  0.0f,
-	0.0f, -0.70710678f, 0.0f, -0.70710678f,
-	0.0f,  0.0f,       0.0f, -1.0f
-	};
-    static const float tailRotorRotations[20] = {
-	 0.0f,       0.0f, 0.0f,  1.0f,
-	-0.70710678f, 0.0f, 0.0f,  0.70710678f,
-	-1.0f,       0.0f, 0.0f,  0.0f,
-	-0.70710678f, 0.0f, 0.0f, -0.70710678f,
-	 0.0f,       0.0f, 0.0f, -1.0f
-	};
-    GLuint displayLists[3];
-    struct AssetModel parts[3];
-    struct AssetModel model;
-    struct AssetAnimationTrack *track;
-    size_t part;
-    int result;
-
-    displayLists[0] = body;
-    displayLists[1] = bigRotor;
-    displayLists[2] = smallRotor;
-    for (part = 0; part < 3; part++)
-	assetModelInitialize(&parts[part]);
-    assetModelInitialize(&model);
-    result = 0;
-
-    for (part = 0; part < 3; part++)
-	if (!legacyGLCaptureDisplayList(displayLists[part], &parts[part],
-					error, errorSize))
-	    goto cleanup;
-
-    model.meshes = (struct AssetMesh *)calloc(3, sizeof(*model.meshes));
-    model.nodes = (struct AssetNode *)calloc(3, sizeof(*model.nodes));
-    model.sceneRoots = (int *)calloc(3, sizeof(*model.sceneRoots));
-    model.animations = (struct AssetAnimation *)calloc(
-	1, sizeof(*model.animations));
-    if (model.meshes == NULL || model.nodes == NULL ||
-	model.sceneRoots == NULL || model.animations == NULL)
-	{
-	setExportError(error, errorSize,
-		       "Out of memory building helicopter asset");
-	goto cleanup;
-	}
-    model.meshCount = 3;
-    model.nodeCount = 3;
-    model.sceneRootCount = 3;
-    model.animationCount = 1;
-    for (part = 0; part < 3; part++)
-	{
-	model.meshes[part] = parts[part].meshes[0];
-	parts[part].meshes[0].vertices = NULL;
-	initializeExportNode(&model.nodes[part], (int)part);
-	model.sceneRoots[part] = (int)part;
-	}
-    model.nodes[2].translation[0] = 0.04f;
-    model.nodes[2].translation[2] = 0.375f;
-
-    model.animations[0].name = (char *)malloc(7);
-    model.animations[0].tracks = (struct AssetAnimationTrack *)calloc(
-	2, sizeof(*model.animations[0].tracks));
-    if (model.animations[0].name == NULL ||
-	model.animations[0].tracks == NULL)
-	{
-	setExportError(error, errorSize,
-		       "Out of memory building helicopter animation");
-	goto cleanup;
-	}
-    strcpy(model.animations[0].name, "rotors");
-    model.animations[0].trackCount = 2;
-    model.animations[0].duration = 1.0f;
-    for (part = 0; part < 2; part++)
-	{
-	track = &model.animations[0].tracks[part];
-	track->node = (int)part + 1;
-	track->path = ASSET_ANIMATION_ROTATION;
-	track->interpolation = ASSET_INTERPOLATION_LINEAR;
-	track->components = 4;
-	track->keyframeCount = 5;
-	track->times = (float *)malloc(sizeof(times));
-	track->values = (float *)malloc(sizeof(mainRotorRotations));
-	if (track->times == NULL || track->values == NULL)
-	    {
-	    setExportError(error, errorSize,
-			   "Out of memory building helicopter keyframes");
-	    goto cleanup;
-	    }
-	memcpy(track->times, times, sizeof(times));
-	memcpy(track->values,
-	       part == 0 ? mainRotorRotations : tailRotorRotations,
-	       sizeof(mainRotorRotations));
-	}
-
-    result = assetModelWriteGLB(path, &model, error, errorSize);
-
-cleanup:
-    assetModelDestroy(&model);
-    for (part = 0; part < 3; part++)
-	assetModelDestroy(&parts[part]);
-    return result;
-    }
-
-static int exportProjectileGLB(const char *path, int highDetail,
-			       int christmas, char *error, size_t errorSize)
-    {
-    struct AssetModel model;
-    struct AssetAnimation *animation;
-    struct AssetAnimationTrack *track;
-    GLuint displayList;
-    size_t key;
-    float angle;
-    float sine;
-    float cosine;
-    int result;
-
-    displayList = glGenLists(1);
-    glNewList(displayList, GL_COMPILE);
-    if (highDetail)
-	makerrotcubexy(0.05, 0.05, 0.05, 0, colorwhite);
-    else
-	makerrotcubexyflat(0.035, 0.035, 0.035, 0, colorwhite);
-    if (christmas)
-	{
-	makerrotcubexy(0.01, 0.051, 0.051, 0, colorred);
-	makerrotcubexy(0.051, 0.051, 0.01, 0, colorred);
-	}
-    glEndList();
-
-    assetModelInitialize(&model);
-    if (!legacyGLCaptureDisplayList(displayList, &model, error, errorSize))
-	return 0;
-    model.nodes = (struct AssetNode *)calloc(model.meshCount + 1,
-					     sizeof(*model.nodes));
-    model.sceneRoots = (int *)calloc(1, sizeof(*model.sceneRoots));
-    model.nodes[0].children = (int *)calloc(model.meshCount,
-					    sizeof(*model.nodes[0].children));
-    if (model.nodes == NULL || model.sceneRoots == NULL ||
-	model.nodes[0].children == NULL)
-	{
-	setExportError(error, errorSize,
-		       "Out of memory building projectile scene");
-	assetModelDestroy(&model);
-	return 0;
-	}
-    model.nodeCount = model.meshCount + 1;
-    model.sceneRootCount = 1;
-    initializeExportNode(&model.nodes[0], -1);
-    model.nodes[0].childCount = model.meshCount;
-    for (key = 0; key < model.meshCount; key++)
-	{
-	model.nodes[0].children[key] = (int)key + 1;
-	initializeExportNode(&model.nodes[key + 1], (int)key);
-	}
-    model.animations = (struct AssetAnimation *)calloc(
-	1, sizeof(*model.animations));
-    if (model.animations == NULL)
-	{
-	setExportError(error, errorSize,
-		       "Out of memory building projectile animation");
-	assetModelDestroy(&model);
-	return 0;
-	}
-    model.animationCount = 1;
-    animation = &model.animations[0];
-    animation->name = (char *)malloc(5);
-    animation->tracks = (struct AssetAnimationTrack *)calloc(
-	1, sizeof(*animation->tracks));
-    if (animation->name == NULL || animation->tracks == NULL)
-	{
-	setExportError(error, errorSize,
-		       "Out of memory building projectile animation");
-	assetModelDestroy(&model);
-	return 0;
-	}
-    strcpy(animation->name, "spin");
-    animation->trackCount = 1;
-    animation->duration = 36.0f;
-    track = &animation->tracks[0];
-    track->node = 0;
-    track->path = ASSET_ANIMATION_ROTATION;
-    track->interpolation = ASSET_INTERPOLATION_LINEAR;
-    track->components = 4;
-    track->keyframeCount = 37;
-    track->times = (float *)malloc(track->keyframeCount * sizeof(float));
-    track->values = (float *)malloc(track->keyframeCount * 4 * sizeof(float));
-    if (track->times == NULL || track->values == NULL)
-	{
-	setExportError(error, errorSize,
-		       "Out of memory building projectile keyframes");
-	assetModelDestroy(&model);
-	return 0;
-	}
-    for (key = 0; key < track->keyframeCount; key++)
-	{
-	track->times[key] = (float)key;
-	angle = (float)key * 10.0f * (float)M_PI / 360.0f;
-	sine = (float)sin((double)angle);
-	cosine = (float)cos((double)angle);
-	track->values[key * 4] = sine * cosine;
-	track->values[key * 4 + 1] = cosine * sine;
-	track->values[key * 4 + 2] = sine * sine;
-	track->values[key * 4 + 3] = cosine * cosine;
-	}
-    result = assetModelWriteGLB(path, &model, error, errorSize);
-    assetModelDestroy(&model);
-    return result;
-    }
-
-static int exportProjectileAssets(const char *directory,
-				  char *error, size_t errorSize)
-    {
-    static const char *names[4] = {
-	"projectile-standard-low.glb",
-	"projectile-standard-high.glb",
-	"projectile-standard-low-xmas.glb",
-	"projectile-standard-high-xmas.glb"
-    };
-    char path[MAXPATH];
-    int variant;
-
-    for (variant = 0; variant < 4; variant++)
-	{
-	if (strlen(directory) + strlen(names[variant]) + 2 > sizeof(path))
-	    {
-	    setExportError(error, errorSize,
-			   "Projectile export path is too long");
-	    return 0;
-	    }
-	strcpy(path, directory);
-	strcat(path, "/");
-	strcat(path, names[variant]);
-	if (!exportProjectileGLB(path, variant & 1, variant >= 2,
-				error, errorSize))
-	    return 0;
-	}
-    return 1;
-    }
-
-int exportBuiltinModelGLB(const char *name, const char *path,
-			  char *error, size_t errorSize)
-    {
-    struct AssetModel model;
-    GLuint displayList;
-    size_t entry;
-    int result;
-
-    if (strcmp(name, "helo") == 0)
-	return exportHelicopterGLB(path, helo, error, errorSize);
-    if (strcmp(name, "helo-slag") == 0)
-	return exportHelicopterGLB(path, slagHelo, error, errorSize);
-    displayList = 0;
-    for (entry = 0; entry < sizeof(exportModels) / sizeof(exportModels[0]);
-	 entry++)
-	if (strcmp(name, exportModels[entry].name) == 0)
-	    {
-	    displayList = *exportModels[entry].displayList;
-	    break;
-	    }
-    if (displayList == 0)
-	{
-	setExportError(error, errorSize, "Unknown built-in model");
-	return 0;
-	}
-
-    if (!legacyGLCaptureDisplayList(displayList, &model, error, errorSize))
-	return 0;
-    result = assetModelWriteGLB(path, &model, error, errorSize);
-    assetModelDestroy(&model);
-    return result;
-    }
-
-int exportAllBuiltinModelsGLB(const char *directory,
-			      char *error, size_t errorSize)
-    {
-    char path[MAXPATH];
-    size_t entry;
-
-    if (!exportProjectileAssets(directory, error, errorSize))
-	return 0;
-
-    if (strlen(directory) + strlen("/helo.glb") + 1 > sizeof(path))
-	{
-	setExportError(error, errorSize, "Model export directory is too long");
-	return 0;
-	}
-    strcpy(path, directory);
-    strcat(path, "/helo.glb");
-    if (!exportHelicopterGLB(path, helo, error, errorSize))
-	return 0;
-
-    if (strlen(directory) + strlen("/helo-slag.glb") + 1 > sizeof(path))
-	{
-	setExportError(error, errorSize, "Model export directory is too long");
-	return 0;
-	}
-    strcpy(path, directory);
-    strcat(path, "/helo-slag.glb");
-    if (!exportHelicopterGLB(path, slagHelo, error, errorSize))
-	return 0;
-
-    for (entry = 0; entry < sizeof(exportModels) / sizeof(exportModels[0]);
-	 entry++)
-	{
-	if (strlen(directory) + strlen(exportModels[entry].name) +
-	    strlen("/.glb") + 1 > sizeof(path))
-	    {
-	    setExportError(error, errorSize, "Model export path is too long");
-	    return 0;
-	    }
-	strcpy(path, directory);
-	strcat(path, "/");
-	strcat(path, exportModels[entry].name);
-	strcat(path, ".glb");
-	if (!exportBuiltinModelGLB(exportModels[entry].name, path,
-				   error, errorSize))
-	    return 0;
-	}
-    return 1;
-    }
-#endif
 
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
@@ -904,22 +521,20 @@ int exportAllBuiltinModelsGLB(const char *directory,
 
 void shadow (float x, float z, float wx, float wz)
     {
-    float v[3];
-    v[1] = SHADOWS;
+    glPushMatrix();
+    glTranslatef(x, 0.0f, z);
+    glScalef(wx, 1.0f, wz);
+    glCallList(shadowRectangle);
+    glPopMatrix();
+    }
 
-    glBegin(GL_QUADS);
-	v[0] = x+wx; v[2] = z+wz;
-	glVertex3fv(v);
-
-	v[2] = z-wz;
-	glVertex3fv(v);
-
-	v[0] = x-wx;
-	glVertex3fv(v);
-
-	v[2] = z+wz;
-	glVertex3fv(v);
-    glEnd();
+static void drawEffectSphere(const float sphere[4], GLuint model)
+    {
+    glPushMatrix();
+    glTranslatef(sphere[0], sphere[1], sphere[2]);
+    glScalef(sphere[3], sphere[3], sphere[3]);
+    glCallList(model);
+    glPopMatrix();
     }
 
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
@@ -929,35 +544,18 @@ void shadow (float x, float z, float wx, float wz)
 
 void makeCHH(int dam)
     {
-    if (dam > 16)
-	makercube(-0.15, -0.05, -0.2, 0.07, 0.07, 0.1, colorblue);
-    else
-	makeitd(0, colorblue,  -0.15, -0.05, -0.2, 0.07, 0.07, 0.1);
+    char node[16];
+    int variant;
 
-    if (dam > 12)
-	makercube(0.15, -0.05, -0.2, 0.07, 0.07, .1, colorblue);
-    else
-	makeitd(1, colorblue, 0.15, -0.05, -0.2, 0.07, 0.07, .1);
-
-    if (dam > 8)
-	makercube(0.0, -0.05, 0.1, 0.2, 0.05, 0.1, colorgrey1);
-    else
-	makeitd(0, colorgrey1,  0.0, -0.05, 0.1, 0.2, 0.05, 0.1);
-
-    if (dam > 4)
-	makercube(0.0, -0.05, -0.2, 0.1, 0.05, 0.2, colorgrey1);
-    else
-	makeitd(1, colorgrey1,  0.0, -0.05, -0.2, 0.1, 0.05, 0.2);
-
-    if (dam > 0)
-	makeitPyr(3, colorgrey2,  0.0, +0.05, 0.1, 0.2, 0.05, 0.1);
-    else
-	makeitPyr(3, colorgrey1,  0.0, +0.05, 0.1, 0.2, 0.05, 0.1);
-
-    makercube( 0.05, -0.1,  0.15, 0.02, 0.01, 0.02, colorwhite);
-    makercube(-0.05, -0.1,  0.15, 0.02, 0.01, 0.02, colorwhite);
-    makercube( 0.05, -0.1, -0.35, 0.02, 0.01, 0.02, colorwhite);
-    makercube(-0.05, -0.1, -0.35, 0.02, 0.01, 0.02, colorwhite);
+    variant = dam <= 0 ? 0 : (dam + 3) / 4;
+    if (variant > 5)
+        variant = 5;
+    if (!assetPoseReset(&externalHunterModel->model, &externalHunterPose))
+        return;
+    sprintf(node, "damage-%02d", variant);
+    assetModelDrawNode(&externalHunterModel->model,
+                       requiredNode(externalHunterModel, node),
+                       &externalHunterPose);
     }
 
 
@@ -969,13 +567,10 @@ void makeCHH(int dam)
 void drawHelo(float percent,  int slag)
     {
     GLint shadeNow;
-#ifndef BATTALION_ASSET_EXPORT
     int variant;
-#endif
     
     glGetIntegerv(GL_SHADE_MODEL, &shadeNow);
 
-#ifndef BATTALION_ASSET_EXPORT
     variant = slag ? 1 : 0;
     if (assetPoseSample(&externalHeloModels[variant]->model,
 			externalHeloClips[variant], percent / 360.0f,
@@ -988,40 +583,6 @@ void drawHelo(float percent,  int slag)
 	glShadeModel(shadeNow);
 	return;
 	}
-#else
-    
-    /*************/
-    /* draw body */
-    /*************/
-
-    glShadeModel(GL_FLAT);
-
-    if (!slag)
-	glCallList(helo);
-    else
-	glCallList(slagHelo);
-	
-    glShadeModel(shadeNow);
-
-    /***************/
-    /* draw rotors */
-    /***************/
-
-    glPushMatrix();
-	glRotatef(-percent, 0, 1, 0);
-	glCallList(bigRotor);	
-    glPopMatrix();
-
-    /********************/
-    /* draw tail rotor  */
-    /********************/
-
-    glPushMatrix();
-	glTranslatef(0.04,  0,  0.375);
-	glRotatef( -percent, 1, 0, 0);
-	glCallList(smallRotor);
-    glPopMatrix();
-#endif
 	}
 
     
@@ -1032,28 +593,10 @@ void drawHelo(float percent,  int slag)
 
 void drawAirplane(int counter)
     {
-    float percent;
-
-    percent = counter * 10.0;
-
-    glCallList(airplaneBody);
-    
-    /*******************/
-    /* draw propellers */
-    /*******************/
-
-    glPushMatrix();
-	glTranslatef(-0.09,  -0.014,  -0.07);
-	glRotatef( -percent, 0, 0, 1);
-	glCallList(propeller);	
-    glPopMatrix();
-
-    glPushMatrix();
-	glTranslatef(+0.09,  -0.014,  -0.07);
-	glRotatef( -percent, 0, 0, 1);
-	glCallList(propeller);	
-    glPopMatrix();
-
+    if (assetPoseSample(&externalAirplaneModel->model,
+                        externalAirplaneClip, (float)counter,
+                        externalAirplaneLoop, &externalAirplanePose))
+        assetModelDraw(&externalAirplaneModel->model, &externalAirplanePose);
     }
 
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
@@ -1075,16 +618,12 @@ void drawFighter(void)
 
 void drawMonster(struct monsterInfo monster, int counter,
 		int itsChristmas, int detail)
-    {    
-    float v[4];
+    {
 
-    /*********************/
-    /* googelon's shadow */
-    /*********************/
-
-static    float googShadow1[3] = {0.1, SHADOWS, -0.5};
-static    float googShadow2[3] = {0.0, SHADOWS, -0.7};
-static    float googShadow3[3] = {-0.1, SHADOWS, -0.5};
+    if (!assetPoseSample(&externalGoogelonModel->model,
+                         externalGoogelonClip, (float)counter,
+                         externalGoogelonLoop, &externalGoogelonPose))
+        return;
 
     glPushMatrix();
 
@@ -1097,39 +636,15 @@ static    float googShadow3[3] = {-0.1, SHADOWS, -0.5};
 	glPushMatrix();
 	    glRotatef(.1*monster.headVertRotate, 1, 0, 0);
 
-	    glCallList(monsterHead);
+	    assetModelDrawNode(&externalGoogelonModel->model,
+	                       requiredNode(externalGoogelonModel, "head"),
+	                       &externalGoogelonPose);
 	    	    
 	    if (itsChristmas)
-		{
-		glPushMatrix();
-		    glScalef(1.2,  .5,  1.2);
-		    glTranslatef(0.0,  PLANEY+1.7,  0.0);
-			glColor3fv(colorwhite);
-			v[0] = v[1] = v[2] = 0;
-			v[3] = .14;
-			andysphdraw(v, 4);
-		glPopMatrix();
-		glPushMatrix();
-		    glTranslatef(-0.15,  PLANEY+1.55,  -0.15);
-		    glScalef(0.15,  0.2,  0.15);
-		    drawClosedCone(colorred, colorred, 1);
-		glPopMatrix();
-
-		glPushMatrix();
-		    glTranslatef(-0.09,  PLANEY+1.75,  0.04);
-		    glRotatef(.1*(1100), 1, 0, 0);
-		    glRotatef(.1*(450), 0, 0, 1);
-		    glScalef(.04,  .11,  .1);
-		    drawClosedCone(colorred, colorred, 1);
-		glPopMatrix();
-
-		glColor3fv(colorwhite);
-		v[0] = -0.15;
-		v[1] = PLANEY+1.6;
-		v[2] = 0.1;
-		v[3] = 0.05;
-		andysphdraw(v, 4);
-		}
+		assetModelDrawNode(&externalGoogelonModel->model,
+		                   requiredNode(externalGoogelonModel,
+		                                "xmas-head"),
+		                   &externalGoogelonPose);
 	    
 	glPopMatrix();   
 
@@ -1137,7 +652,9 @@ static    float googShadow3[3] = {-0.1, SHADOWS, -0.5};
 	/* body */
 	/********/
 
-	glCallList(monsterBody);
+	assetModelDrawNode(&externalGoogelonModel->model,
+	                   requiredNode(externalGoogelonModel, "body"),
+	                   &externalGoogelonPose);
     
 	/***********************/
 	/* legs, feet and toes */
@@ -1145,59 +662,55 @@ static    float googShadow3[3] = {-0.1, SHADOWS, -0.5};
 
 	glPushMatrix();
 	    glTranslatef(0.2,  monster.rot1,  monster.rot2);
-	    glCallList(monsterleg);
+	    assetModelDrawNode(&externalGoogelonModel->model,
+	                       requiredNode(externalGoogelonModel, "leg-left"),
+	                       &externalGoogelonPose);
 	    glTranslatef(-0.4,   -2*monster.rot1,  -2*monster.rot2);
-	    glCallList(monsterleg);
+	    assetModelDrawNode(&externalGoogelonModel->model,
+	                       requiredNode(externalGoogelonModel, "leg-right"),
+	                       &externalGoogelonPose);
 	glPopMatrix();
 
 	if ((!monster.monsterIsDead) && (detail > 0))
 	      {
-	      glColor4fv(colorblack);
-	      
-	      shadow (0.0,   0.0,          0.2, 0.2);
-	      shadow (0.2,   monster.rot2, 0.1, 0.15);
-	      shadow (-0.2, -monster.rot2, 0.1, 0.15);
+	      assetModelDrawNode(&externalGoogelonModel->model,
+	                         requiredNode(externalGoogelonModel,
+	                                      "shadow-body"),
+	                         &externalGoogelonPose);
+	      glPushMatrix();
+	      glTranslatef(0.2f, 0.0f, monster.rot2);
+	      assetModelDrawNode(&externalGoogelonModel->model,
+	                         requiredNode(externalGoogelonModel,
+	                                      "shadow-leg"),
+	                         &externalGoogelonPose);
+	      glTranslatef(-0.4f, 0.0f, -2.0f * monster.rot2);
+	      assetModelDrawNode(&externalGoogelonModel->model,
+	                         requiredNode(externalGoogelonModel,
+	                                      "shadow-leg"),
+	                         &externalGoogelonPose);
+	      glPopMatrix();
 	      }
 
 	/********/
 	/* tail */
 	/********/
     
-	    glRotatef(sin(counter * 0.15915)*10, 0, 1, 0); /* 1/(2 * pi) */
-
-	    glCallList(monsterTail);
+	    assetModelDrawNode(&externalGoogelonModel->model,
+	                       requiredNode(externalGoogelonModel, "tail"),
+	                       &externalGoogelonPose);
 
 	    if (itsChristmas)
-		{
- 		glPushMatrix();
-		    glTranslatef(-0.15,  PLANEY+0.85,  -0.45);
-		    glScalef(0.15,  0.15,  0.15);
-		    drawClosedCone(colorbeige, colorbrown, 1);
-		glPopMatrix();
-   
-		glPushMatrix();
-		    glTranslatef(0.0,  PLANEY+0.5,  -0.3);
-		    glScalef(1,  1.5,  1);
-		    glColor3fv(colorbeige);
-		    v[0] = v[1] = v[2] = 0;
-		    v[3] = 0.2;
-		    andysphdraw(v, 4);
-		glPopMatrix();
-		}
+		assetModelDrawNode(&externalGoogelonModel->model,
+		                   requiredNode(externalGoogelonModel,
+		                                "xmas-tail"),
+		                   &externalGoogelonPose);
 
 	    if ((!monster.monsterIsDead) && (detail > 0))
 		{
-		glColor4fv(colorblack);
-		
-		shadow (0.0,  -0.25,  0.1,  0.25);
-
-		glColor3fv(colorblack);
-
-		glBegin(GL_TRIANGLES);
-		    glVertex3fv(googShadow1);
-		    glVertex3fv(googShadow2);
-		    glVertex3fv(googShadow3);
-		glEnd();
+		assetModelDrawNode(&externalGoogelonModel->model,
+		                   requiredNode(externalGoogelonModel,
+		                                "shadow-tail"),
+		                   &externalGoogelonPose);
 		}
 
     glPopMatrix();
@@ -1210,8 +723,12 @@ static    float googShadow3[3] = {-0.1, SHADOWS, -0.5};
 
 void drawSimpleMonster(struct monsterInfo monster, int counter,
 		int itsChristmas, int detail)
-    {    
-    float v[4];
+    {
+
+    if (!assetPoseSample(&externalGoogelonModel->model,
+                         externalGoogelonClip, (float)counter,
+                         externalGoogelonLoop, &externalGoogelonPose))
+        return;
 
     /*********************/
     /* googelon's shadow */
@@ -1228,39 +745,15 @@ void drawSimpleMonster(struct monsterInfo monster, int counter,
 	glPushMatrix();
 	    glRotatef(.1*monster.headVertRotate, 1, 0, 0);
 
-	    glCallList(monsterSimpleHead);
+	    assetModelDrawNode(&externalGoogelonModel->model,
+	                       requiredNode(externalGoogelonModel, "head-simple"),
+	                       &externalGoogelonPose);
 	    	    
 	    if (itsChristmas)
-		{
-		glPushMatrix();
-		    glScalef(1.2,  .5,  1.2);
-		    glTranslatef(0.0,  PLANEY+1.7,  0.0);
-			glColor3fv(colorwhite);
-			v[0] = v[1] = v[2] = 0;
-			v[3] = .14;
-			andysphdraw(v, 4);
-		glPopMatrix();
-		glPushMatrix();
-		    glTranslatef(-0.15,  PLANEY+1.55,  -0.15);
-		    glScalef(0.15,  0.2,  0.15);
-		    drawClosedCone(colorred, colorred, 1);
-		glPopMatrix();
-
-		glPushMatrix();
-		    glTranslatef(-0.09,  PLANEY+1.75,  0.04);
-		    glRotatef(.1*(1100), 1, 0, 0);
-		    glRotatef(.1*(450), 0, 0, 1);
-		    glScalef(.04,  .11,  .1);
-		    drawClosedCone(colorred, colorred, 1);
-		glPopMatrix();
-
-		glColor3fv(colorwhite);
-		v[0] = -0.15;
-		v[1] = PLANEY+1.6;
-		v[2] = 0.1;
-		v[3] = 0.05;
-		andysphdraw(v, 4);
-		}
+		assetModelDrawNode(&externalGoogelonModel->model,
+		                   requiredNode(externalGoogelonModel,
+		                                "xmas-head"),
+		                   &externalGoogelonPose);
 	    
 	glPopMatrix();   
 
@@ -1268,8 +761,9 @@ void drawSimpleMonster(struct monsterInfo monster, int counter,
 	/* body */
 	/********/
 
-	makercubeTopBack(0.0, PLANEY+0.5, 0.0,  0.2,  0.3, 0.2,  colorred);
-	makercubeTopBack(0.0, PLANEY+0.9, 0.0,  0.15, 0.2, 0.15, colorred);
+	assetModelDrawNode(&externalGoogelonModel->model,
+	                   requiredNode(externalGoogelonModel, "body"),
+	                   &externalGoogelonPose);
     
 	/***********************/
 	/* legs, feet and toes */
@@ -1278,50 +772,51 @@ void drawSimpleMonster(struct monsterInfo monster, int counter,
 	glPushMatrix();
 	    glTranslatef(0.2,  monster.rot1,  monster.rot2);
 
-	    makercubeTopBack( 0.0,   PLANEY+0.2,  0.0,   0.1,  0.2,  0.1,  colorred);
-	    makercubeTopBack( 0.0,   PLANEY+0.06, 0.17,  0.1,  0.06, 0.08, colorred);
+	    assetModelDrawNode(&externalGoogelonModel->model,
+	                       requiredNode(externalGoogelonModel, "leg-left"),
+	                       &externalGoogelonPose);
 
 	    glTranslatef(-0.4,   -2*monster.rot1,  -2*monster.rot2);
 
-	    makercubeTopBack( 0.0,   PLANEY+0.2,  0.0,   0.1,  0.2,  0.1,  colorred);
-	    makercubeTopBack( 0.0,   PLANEY+0.06, 0.17,  0.1,  0.06, 0.08, colorred);
+	    assetModelDrawNode(&externalGoogelonModel->model,
+	                       requiredNode(externalGoogelonModel, "leg-right"),
+	                       &externalGoogelonPose);
 
 	glPopMatrix();
 
 	if ((!monster.monsterIsDead) && (detail > 0))
 	      {
-	      glColor4fv(colorblack);
-	      
-	      shadow (0.0,   0.0,          0.2, 0.2);
-	      shadow (0.2,   monster.rot2, 0.1, 0.15);
-	      shadow (-0.2, -monster.rot2, 0.1, 0.15);
+	      assetModelDrawNode(&externalGoogelonModel->model,
+	                         requiredNode(externalGoogelonModel,
+	                                      "shadow-body"),
+	                         &externalGoogelonPose);
+	      glPushMatrix();
+	      glTranslatef(0.2f, 0.0f, monster.rot2);
+	      assetModelDrawNode(&externalGoogelonModel->model,
+	                         requiredNode(externalGoogelonModel,
+	                                      "shadow-leg"),
+	                         &externalGoogelonPose);
+	      glTranslatef(-0.4f, 0.0f, -2.0f * monster.rot2);
+	      assetModelDrawNode(&externalGoogelonModel->model,
+	                         requiredNode(externalGoogelonModel,
+	                                      "shadow-leg"),
+	                         &externalGoogelonPose);
+	      glPopMatrix();
 	      }
 
 	    /********/
 	    /* tail */
 	    /********/
     
-	    glRotatef(sin(counter * 0.15915)*10, 0, 1, 0); /* 1/(2 * pi) */
-
-	    glCallList(monsterSimpleTail);
+	    assetModelDrawNode(&externalGoogelonModel->model,
+	                       requiredNode(externalGoogelonModel, "tail-simple"),
+	                       &externalGoogelonPose);
 
 	    if (itsChristmas)
-		{
- 		glPushMatrix();
-		    glTranslatef(-0.15,  PLANEY+0.85,  -0.45);
-		    glScalef(0.15,  0.15,  0.15);
-		    drawClosedCone(colorbeige, colorbrown, 1);
-		glPopMatrix();
-   
-		glPushMatrix();
-		    glTranslatef(0.0,  PLANEY+0.5,  -0.3);
-		    glScalef(1,  1.5,  1);
-		    glColor3fv(colorbeige);
-		    v[0] = v[1] = v[2] = 0;
-		    v[3] = 0.2;
-		    andysphdraw(v, 4);
-		glPopMatrix();
-		}
+		assetModelDrawNode(&externalGoogelonModel->model,
+		                   requiredNode(externalGoogelonModel,
+		                                "xmas-tail"),
+		                   &externalGoogelonPose);
 
 
     glPopMatrix();
@@ -1365,10 +860,10 @@ void drawVapour(struct monsterInfo monster, int itsChristmas, int detail)
 
     if (detail == 0)
 	for(i = 0; i < (int) (MAXTRIBUTES/1.5); i++)
-	    andysphdraw(monster.a[i], 0);
+	    drawEffectSphere(monster.a[i], effectSphereLow);
     else
 	for(i=0; i<MAXTRIBUTES; i++)
-	    andysphdraw(monster.a[i], 0);
+	    drawEffectSphere(monster.a[i], effectSphereLow);
 
     glDisable(GL_BLEND);
 
@@ -1385,10 +880,10 @@ void drawVapour(struct monsterInfo monster, int itsChristmas, int detail)
 void drawFlutter(struct monsterInfo monster, int counter,
 		int itsChristmas, float offsetX, int thaView, int detail)
     {
-    float rotAmt;
-    
-    rotAmt = sin(counter * 0.3183) * 15;
-    
+    if (!assetPoseSample(&externalFlutterModel->model,
+                         externalFlutterClip, (float)counter,
+                         externalFlutterLoop, &externalFlutterPose))
+        return;
 
     glPushMatrix();
 	glRotatef(0.1 * monster.headHorzRotate, 0, 1, 0);
@@ -1407,7 +902,9 @@ void drawFlutter(struct monsterInfo monster, int counter,
 		glDisable(GL_DEPTH_TEST);
 		}
     
-	    glCallList(flutterShadow); 
+	    assetModelDrawNode(&externalFlutterModel->model,
+	                       requiredNode(externalFlutterModel, "shadow"),
+	                       &externalFlutterPose);
 		
 	    glPopAttrib();
 	    glPopAttrib();
@@ -1419,26 +916,34 @@ void drawFlutter(struct monsterInfo monster, int counter,
 	    glRotatef(offsetX * 10, 0, 0, 1);
 
 	    if (itsChristmas)
-		glCallList(flutterXMas);		
+		assetModelDrawNode(&externalFlutterModel->model,
+	                           requiredNode(externalFlutterModel, "xmas"),
+	                           &externalFlutterPose);
 		
 	    glPushMatrix();
 		glRotatef(monster.headVertRotate * 0.05, 1, 0, 0);
 
-		glCallList(flutterHead);
+		assetModelDrawNode(&externalFlutterModel->model,
+	                           requiredNode(externalFlutterModel, "head"),
+	                           &externalFlutterPose);
 	    glPopMatrix();
 
-	    glCallList(flutterBody);
-    
-	    glTranslatef(0, PLANEY+1.15, 0);
+	    assetModelDrawNode(&externalFlutterModel->model,
+	                       requiredNode(externalFlutterModel, "body"),
+	                       &externalFlutterPose);
 
 	    glPushMatrix();
-		glRotatef(  rotAmt, 0, 0, 1); /* 1/(2 * pi) */
-		glCallList(flutterWing1);
+		assetModelDrawNode(&externalFlutterModel->model,
+	                           requiredNode(externalFlutterModel,
+	                                        "wing-left"),
+	                           &externalFlutterPose);
 	    glPopMatrix();
 	    
 	    glPushMatrix();
-		glRotatef( - rotAmt, 0, 0, 1); /* 1/(2 * pi) */
-		glCallList(flutterWing2);
+		assetModelDrawNode(&externalFlutterModel->model,
+	                           requiredNode(externalFlutterModel,
+	                                        "wing-right"),
+	                           &externalFlutterPose);
 	    glPopMatrix();
 
 	    
@@ -1457,6 +962,8 @@ void drawFlutter(struct monsterInfo monster, int counter,
 
 void drawTechs(struct monsterInfo monster, int detail)
     {
+    if (!assetPoseReset(&externalTechsModel->model, &externalTechsPose))
+        return;
     glPushMatrix();
 
     glRotatef(0.1 * monster.headHorzRotate, 0, 1, 0);
@@ -1465,15 +972,21 @@ void drawTechs(struct monsterInfo monster, int detail)
 	{    
 	glPushMatrix();
 	    glRotatef(0.1 * monster.headVertRotate, 1, 0, 0);
-	    glCallList(techsHead);    
+	    assetModelDrawNode(&externalTechsModel->model,
+	                       requiredNode(externalTechsModel, "head"),
+	                       &externalTechsPose);
 	glPopMatrix();   
 
-	glCallList(techsBody);
+	assetModelDrawNode(&externalTechsModel->model,
+	                   requiredNode(externalTechsModel, "body"),
+	                   &externalTechsPose);
 	}
     
     if ((!monster.monsterIsDead) && (detail > 0))
 	{
-	glCallList(techsShadow);
+	assetModelDrawNode(&externalTechsModel->model,
+	                   requiredNode(externalTechsModel, "shadow"),
+	                   &externalTechsPose);
 	}
 	
     glPopMatrix();
@@ -1484,16 +997,18 @@ void drawTechs(struct monsterInfo monster, int detail)
 	    glTranslatef(monster.timeDead * 0.05 + 0.2,  -monster.timeDead * 0.05,   monster.timeDead * 0.05);
 	    glRotatef(monster.timeDead*10, 1, 0, 0);
 	    glRotatef(monster.timeDead*15, 0, 1, 0);
-	    makercube(0.0,    0, 0, 0.03, 0.25, 0.2, colorgrey2);
-	    makercube(0.011,  0, 0, 0.02, 0.2, 0.15, colorblack);
+	    assetModelDrawNode(&externalTechsModel->model,
+	                       requiredNode(externalTechsModel, "hand-right"),
+	                       &externalTechsPose);
 	glPopMatrix();
 
 	glPushMatrix();
 	    glTranslatef(-monster.timeDead * 0.05 - 0.2,  monster.timeDead * 0.05,   monster.timeDead * 0.05);
 	    glRotatef(monster.timeDead*10, 1, 0, 0);
 	    glRotatef(monster.timeDead*15, 0, 1, 0);
-	    makercube( 0.0,   0, 0, 0.03, 0.25, 0.2, colorgrey2);
-	    makercube(-0.011, 0, 0, 0.02, 0.2, 0.15, colorblack);
+	    assetModelDrawNode(&externalTechsModel->model,
+	                       requiredNode(externalTechsModel, "hand-left"),
+	                       &externalTechsPose);
 	glPopMatrix();
 	}
     }
@@ -1506,6 +1021,8 @@ void drawTechs(struct monsterInfo monster, int detail)
 
 void drawSimpleTechs(struct monsterInfo monster, int detail)
     {
+    if (!assetPoseReset(&externalTechsModel->model, &externalTechsPose))
+        return;
     glPushMatrix();
 
     glRotatef(0.1 * monster.headHorzRotate, 0, 1, 0);
@@ -1514,15 +1031,21 @@ void drawSimpleTechs(struct monsterInfo monster, int detail)
 	{    
 	glPushMatrix();
 	    glRotatef(0.1 * monster.headVertRotate, 1, 0, 0);
-	    glCallList(techsSimpleHead);    
+	    assetModelDrawNode(&externalTechsModel->model,
+	                       requiredNode(externalTechsModel, "head-simple"),
+	                       &externalTechsPose);
 	glPopMatrix();   
 
-	glCallList(techsSimpleBody);
+	assetModelDrawNode(&externalTechsModel->model,
+	                   requiredNode(externalTechsModel, "body-simple"),
+	                   &externalTechsPose);
 	}
     
     if ((!monster.monsterIsDead) && (detail > 0))
 	{
-	glCallList(techsShadow);
+	assetModelDrawNode(&externalTechsModel->model,
+	                   requiredNode(externalTechsModel, "shadow"),
+	                   &externalTechsPose);
 	}
 	
     glPopMatrix();
@@ -1535,230 +1058,80 @@ void drawSimpleTechs(struct monsterInfo monster, int detail)
 /* draw the energy typhoon hero                                  */
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
-void drawHeroDude(int power, int counter,
-		int mcount, int dCount, int detail)
+static void setDamagePart(const struct AssetManifestModel *model,
+                          struct AssetPose *pose, const char *part,
+                          int intact)
     {
-    float spheredat[4];
-    int ang;
-    int amount, amount2;
-    float dam;
-    float c1[4], c2[4], c3[4], c4[4], c5[4];
-    int sph;
-    
-    if (detail >= 2)
-	sph = 4;
-    else
-	sph = 3;
+    char name[64];
+    int intactNode;
+    int brokenNode;
 
-    c1[3] = c2[3] = c3[3] = c4[3] = c5[3] = 1;
-    dam = dCount * 0.075;
-    
-    c2[0] = (colorwhite[0] + dam) >= 1 ? 1 : (colorwhite[0] + dam);
-    c2[1] = (colorwhite[1] + dam) >= 1 ? 1 : (colorwhite[1] + dam);
-    c2[2] = (colorwhite[2] + dam) >= 1 ? 1 : (colorwhite[2] + dam);
-    
-    c1[0] = (colorwater[0] + dam) >= 1 ? 1 : (colorwater[0] + dam);
-    c1[1] = (colorwater[1] + dam) >= 1 ? 1 : (colorwater[1] + dam);
-    c1[2] = (colorwater[2] + dam) >= 1 ? 1 : (colorwater[2] + dam);
+    sprintf(name, "%s-intact", part);
+    intactNode = requiredNode(model, name);
+    sprintf(name, "%s-broken", part);
+    brokenNode = requiredNode(model, name);
+    pose->nodes[intactNode].visible = intact;
+    pose->nodes[brokenNode].visible = !intact;
+    }
 
-    c3[0] = (colorblack[0] + dam) >= 1 ? 1 : (colorblack[0] + dam);
-    c3[1] = (colorblack[1] + dam) >= 1 ? 1 : (colorblack[1] + dam);
-    c3[2] = (colorblack[2] + dam) >= 1 ? 1 : (colorblack[2] + dam);
+static void setHeroDamage(const struct AssetManifestModel *model,
+                          struct AssetPose *pose, int power)
+    {
+    static const char *parts[] = {
+        "eye-right", "eye-left", "mouth", "neck", "body-upper",
+        "body-lower", "chest", "shoulder-right", "shoulder-left",
+        "arm-right-upper", "arm-right-lower", "hand-right",
+        "arm-left-upper", "arm-left-lower", "hand-left",
+        "leg-right-upper", "leg-right-lower", "foot-right",
+        "leg-left-upper", "leg-left-lower", "foot-left"
+        };
+    static const int thresholds[] = {
+        8, 5, 3, 10, 15, 20, 25, 30, 35, 40, 45, 50,
+        55, 60, 65, 70, 75, 80, 85, 90, 95
+        };
+    size_t part;
 
-    c4[0] = (colorgrey2[0] + dam) >= 1 ? 1 : (colorgrey2[0] + dam);
-    c4[1] = (colorgrey2[1] + dam) >= 1 ? 1 : (colorgrey2[1] + dam);
-    c4[2] = (colorgrey2[2] + dam) >= 1 ? 1 : (colorgrey2[2] + dam);
+    for (part = 0; part < sizeof(parts) / sizeof(parts[0]); part++)
+        setDamagePart(model, pose, parts[part], power > thresholds[part]);
+    }
 
-    c5[0] = (colorwater[0] + dam) >= 1 ? 1 : (colorwater[0] + dam);
-    c5[1] = (colorwater[1] + dam) >= 1 ? 1 : (colorwater[1] + dam);
-    c5[2] = (colorwater[2] + dam) >= 1 ? 1 : (colorwater[2] + dam);
+static void drawHeroModel(int subtype, int power, int counter,
+                          int mcount, int dCount)
+    {
+    const struct AssetManifestModel *model;
+    struct AssetPose *pose;
+    int walkFrame;
+    float brightness;
 
-    /********/
-    /* head */
-    /********/
-    
-    glPushMatrix();
-	    glScalef(0.55,  1,  0.55);  
-	    glColor4fv(c4);
-	    spheredat[0] = 0;
-	    spheredat[1] = PLANEY+1.21;
-	    spheredat[2] = 0;
-	    spheredat[3] = 0.12;
-	    andysphdraw(spheredat, sph);
-	    
-	    if (power > 8)
-		makercube(.06, PLANEY+1.25, .075,  0.03, 0.015, 0.035, c3);
-	    else
-		makeitd(1, c3, .06, PLANEY+1.25, .075,  0.03, 0.015, 0.035);
+    model = externalHeroModels[subtype];
+    pose = &externalHeroPoses[subtype];
+    walkFrame = counter % 24;
+    if (walkFrame < 0)
+        walkFrame += 24;
+    if (mcount < 0)
+        mcount = 0;
+    else if (mcount > 40)
+        mcount = 40;
+    if (!assetPoseSample(&model->model, externalHeroWalkClips[subtype],
+                         (float)walkFrame,
+                         externalHeroWalkLoops[subtype], pose) ||
+        !assetPoseApply(&model->model, externalHeroFireClips[subtype],
+                        (float)mcount,
+                        externalHeroFireLoops[subtype], pose))
+        return;
+    setHeroDamage(model, pose, power);
+    brightness = dCount * 0.075f;
+    pose->colorOffset[0] = brightness;
+    pose->colorOffset[1] = brightness;
+    pose->colorOffset[2] = brightness;
+    assetModelDraw(&model->model, pose);
+    }
 
-	    if (power > 5)	    
-		makercube(-.06, PLANEY+1.25, .075,  0.03, 0.015, 0.035, c3);
-	    else
-		makeitd(0, c3, -.06, PLANEY+1.25, .075,  0.03, 0.015, 0.035);
-		
-	    if (power > 3)
-		makercube(0, PLANEY+1.16, .075,  0.03, 0.014, 0.035, c4);
-	    else
-		makeitd(1,  c4, 0, PLANEY+1.16, .075,  0.03, 0.014, 0.035);
-	    glColor4fv(c5);
-	    spheredat[2] = -0.01;
-	    andysphdraw(spheredat, sph);
-    glPopMatrix();
-
-
-    /********/
-    /* neck */
-    /********/
-    
-    if (power > 10)
-	makercube(0, PLANEY+1.075, 0,  0.025, 0.025, 0.025, c2);
-    else
-	makeitd(1, c2, 0, PLANEY+1.075, 0,  0.025, 0.025, 0.025);
-   
-    /********/
-    /* body */
-    /********/
-   
-    if (power > 15)
-	makercube(0, PLANEY+0.95, 0,  0.075, 0.1, 0.055, c1);
-    else
-	makeitd(0, c1, 0, PLANEY+0.95, 0,  0.075, 0.1, 0.055);
-	
-    if (power > 20)
-	makercube(0, PLANEY+0.75, 0,  0.075, 0.1, 0.055, c2);
-    else
-	makeitd(0, c2, 0, PLANEY+0.75, 0,  0.075, 0.1, 0.055);
-	
-    if (power > 25)
-	makercube(0, PLANEY+1.01, 0.055,  0.02, 0.05, 0.01, c2);
-    else
-	makeitd(1, c2, 0, PLANEY+1.01, 0.055,  0.02, 0.05, 0.01);
-
-    /*************/
-    /* shoulders */
-    /*************/
-
-    if (power > 30)
-	makercube(0.075, PLANEY+1.0, 0,  0.075, 0.051, 0.05, c2);
-    else
-	makeitd(0, c2, 0.075, PLANEY+1.0, 0,  0.075, 0.051, 0.05);
-	
-    if (power > 35)
-	makercube(-0.075, PLANEY+1.0, 0,  0.075, 0.051, 0.05, c2);
-    else
-	makeitd(1, c2, -0.075, PLANEY+1.0, 0,  0.075, 0.051, 0.05);
-
-    /********/
-    /* arms */
-    /********/
-
-    if (mcount > 30)
-	amount = (40 - mcount) * 9;
-    else if (mcount > 10)
-	amount = 90;
-    else
-	amount = mcount * 9;
-    
-    ang = (int) amount * 10;
-
-    glPushMatrix();
-	glRotatef(.1*(-ang), 1, 0, 0);
-
-	if (power > 40)
-	    makercube(0.13, PLANEY+0.875, 0,  0.025, 0.125, 0.025, c1);
-	else
-	    makeitd(1, c1, 0.13, PLANEY+0.875, 0,  0.025, 0.125, 0.025);
-
-	glPushMatrix();
-	    glTranslatef(0.13,  PLANEY+0.75,  0);
-	
-	    if (power > 45)
-		makercube(0, -0.09, 0,  0.024, 0.11, 0.024, c2);
-	    else
-		makeitd(0, c2, 0, -0.09, 0,  0.024, 0.11, 0.024);
-	    
-	    if (power > 50)
-		makercube(0, -0.19, 0,  0.03, 0.03, 0.028, c1);
-	    else
-		makeitd(1, c1, 0, -0.19, 0,  0.03, 0.03, 0.028);
-	glPopMatrix();
-    glPopMatrix();
- 
-    glPushMatrix();
-	glRotatef(.1*(-ang), 1, 0, 0);
-
-	if (power > 55)
-	    makercube(-0.13, PLANEY+0.875, 0,  0.025, 0.125, 0.025, c1);
-	else
-	    makeitd(0, c1, -0.13, PLANEY+0.875, 0,  0.025, 0.125, 0.025);
-   
-	glPushMatrix();
-	    glTranslatef(-0.13,  PLANEY+0.75,  0);
-	    
-	    if (power > 60)
-		makercube(0, -0.09, 0,  0.024, 0.11, 0.024, c2);
-	    else
-		makeitd(0, c2, 0, -0.09, 0,  0.024, 0.11, 0.024);
-	    
-	    if (power > 65)
-		makercube(0, -0.19, 0,  0.03, 0.03, 0.028, c1);
-	    else
-		makeitd(1, c1, 0, -0.19, 0,  0.03, 0.03, 0.028);
-	glPopMatrix();
-    glPopMatrix();
-    
-    /********/
-    /* legs */
-    /********/
-
-    amount = (counter * 100) % 2400;
-    if (amount < 1200)
-        amount2 = 300 + amount;
-    else
-        amount2 = 900 + amount;
-
-    ang = (int) (cos(BIG_DEG_TO_RAD * amount2) * RAD_TO_SMALL_DEG * 2.5);
-
-    glPushMatrix();
-	glTranslatef(0.04,  PLANEY+0.65,  0);
-	glRotatef(.1*(ang ), 1, 0, 0);
-	
-	if (power > 70)
-	    makercube(0, -0.12, 0,  0.035, 0.13, 0.03, c2);
-	else
-	    makeitd(0, c2, 0, -0.12, 0,  0.035, 0.13, 0.03);
-	    
-	if (power > 75)	
-	    makercube(0, -.35, 0,  0.024, 0.2, 0.029, c1);
-	else
-	    makeitd(1, c1, 0, -.35, 0,  0.024, 0.2, 0.029);
-	    
-	if (power > 80)
-	    makercube(0, -.59, +0.025,  0.026, 0.04, 0.075, c2);
-	else
-	    makeitd(0, c2, 0, -.59, +0.025,  0.026, 0.04, 0.075);
-    glPopMatrix();
-    
-    glPushMatrix();
-	glTranslatef(-0.04,  PLANEY+0.65,  0);
-	glRotatef(.1*(-ang), 1, 0, 0);
-	
-	if (power > 85)
-	    makercube(0, -0.12, 0,  0.035, 0.13, 0.03, c2);
-	else
-	    makeitd(1, c2, 0, -0.12, 0,  0.035, 0.13, 0.03);
-	    
-	if (power > 90)
-	    makercube(0, -.35, 0,  0.024, 0.2, 0.029, c1);
-	else
-	    makeitd(0, c1, 0, -.35, 0,  0.024, 0.2, 0.029);
-	    
-	if (power > 95)
-	    makercube(0, -.59, +0.025,  0.026, 0.04, 0.075, c2);
-	else
-	    makeitd(1, c2, 0, -.59, +0.025,  0.026, 0.04, 0.075);
-    glPopMatrix();
-    
+void drawHeroDude(int power, int counter,
+                  int mcount, int dCount, int detail)
+    {
+    (void)detail;
+    drawHeroModel(0, power, counter, mcount, dCount);
     }
 
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
@@ -1767,228 +1140,10 @@ void drawHeroDude(int power, int counter,
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
 void drawHeroDude2(int power, int counter,
-		    int mcount, int dCount, int detail)
+                   int mcount, int dCount, int detail)
     {
-    float spheredat[4];
-    int ang;
-    int amount, amount2;
-    float dam;
-    float c1[4], c2[4], c3[4], c4[4], c5[4];
-    int sph;
-    
-
-    if (detail >= 2)
-	sph=4;
-    else
-	sph=3 ;
-
-
-    c1[3] = c2[3] = c3[3] = c4[3] = c5[3] = 1;
-    dam = dCount * 0.075;
-
-    c1[0] = (colorwhite[0] + dam) >= 1 ? 1 : (colorwhite[0] + dam);
-    c1[1] = (colorwhite[1] + dam) >= 1 ? 1 : (colorwhite[1] + dam);
-    c1[2] = (colorwhite[2] + dam) >= 1 ? 1 : (colorwhite[2] + dam);
-    
-    c2[0] = (colorred[0] + dam) >= 1 ? 1 : (colorred[0] + dam);
-    c2[1] = (colorred[1] + dam) >= 1 ? 1 : (colorred[1] + dam);
-    c2[2] = (colorred[2] + dam) >= 1 ? 1 : (colorred[2] + dam);
-
-    c3[0] = (colorblack[0] + dam) >= 1 ? 1 : (colorblack[0] + dam);
-    c3[1] = (colorblack[1] + dam) >= 1 ? 1 : (colorblack[1] + dam);
-    c3[2] = (colorblack[2] + dam) >= 1 ? 1 : (colorblack[2] + dam);
- 
-    c4[0] = (colorgrey2[0] + dam) >= 1 ? 1 : (colorgrey2[0] + dam);
-    c4[1] = (colorgrey2[1] + dam) >= 1 ? 1 : (colorgrey2[1] + dam);
-    c4[2] = (colorgrey2[2] + dam) >= 1 ? 1 : (colorgrey2[2] + dam);
-
-    c5[0] = (colorred3[0] + dam) >= 1 ? 1 : (colorred3[0] + dam);
-    c5[1] = (colorred3[1] + dam) >= 1 ? 1 : (colorred3[1] + dam);
-    c5[2] = (colorred3[2] + dam) >= 1 ? 1 : (colorred3[2] + dam);
-
-    /********/
-    /* head */
-    /********/
-    
-    glPushMatrix();
-	    glScalef(0.55, 1,   0.55);  
-	    glColor4fv(c4);
-	    spheredat[0] = 0;
-	    spheredat[1] = PLANEY+1.21;
-	    spheredat[2] = 0;
-	    spheredat[3] = 0.12;
-	    andysphdraw(spheredat, sph);
-	    
-	    if (power > 8)
-		makercube(.06, PLANEY+1.25, .075,  0.03, 0.015, 0.035, c3);
-	    else
-		makeitd(1, c3, .06, PLANEY+1.25, .075,  0.03, 0.015, 0.035);
-
-	    if (power > 5)	    
-		makercube(-.06, PLANEY+1.25, .075,  0.03, 0.015, 0.035, c3);
-	    else
-		makeitd(0, c3, -.06, PLANEY+1.25, .075,  0.03, 0.015, 0.035);
-		
-	    if (power > 3)
-		makercube(0, PLANEY+1.16, .075,  0.03, 0.014, 0.035, c4);
-	    else
-		makeitd(1,  c4, 0, PLANEY+1.16, .075,  0.03, 0.014, 0.035);
-	    glColor4fv(c5);
-	    spheredat[2] = -0.01;
-	    andysphdraw(spheredat, sph);
-    glPopMatrix();
-
-    /********/
-    /* neck */
-    /********/
-    
-    if (power > 10)
-	makercube(0, PLANEY+1.075, 0,  0.025, 0.025, 0.025, c2);
-    else
-	makeitd(1, c2, 0, PLANEY+1.075, 0,  0.025, 0.025, 0.025);
-   
-    /********/
-    /* body */
-    /********/
-   
-    if (power > 15)
-	makercube(0, PLANEY+0.95, 0,  0.075, 0.1, 0.055, c1);
-    else
-	makeitd(0, c1, 0, PLANEY+0.95, 0,  0.075, 0.1, 0.055);
-	
-    if (power > 20)
-	makercube(0, PLANEY+0.75, 0,  0.075, 0.1, 0.055, c2);
-    else
-	makeitd(0, c2, 0, PLANEY+0.75, 0,  0.075, 0.1, 0.055);
-	
-    if (power > 25)
-	makercube(0, PLANEY+1.01, 0.055,  0.02, 0.05, 0.01, c2);
-    else
-	makeitd(1, c2, 0, PLANEY+1.01, 0.055,  0.02, 0.05, 0.01);
-
-    /*************/
-    /* shoulders */
-    /*************/
-
-    if (power > 30)
-	makercube(0.075, PLANEY+1.0, 0,  0.075, 0.051, 0.05, c2);
-    else
-	makeitd(0, c2, 0.075, PLANEY+1.0, 0,  0.075, 0.051, 0.05);
-	
-    if (power > 35)
-	makercube(-0.075, PLANEY+1.0, 0,  0.075, 0.051, 0.05, c2);
-    else
-	makeitd(1, c2, -0.075, PLANEY+1.0, 0,  0.075, 0.051, 0.05);
-
-    /********/
-    /* arms */
-    /********/
-
-    if (mcount > 30)
-	amount = (40 - mcount) * 9;
-    else if (mcount > 10)
-	amount = 90;
-    else
-	amount = mcount * 9;
-    
-    ang = (int) amount * 10;
-
-    if (power > 40)
-	makercube(0.13, PLANEY+0.875, 0,  0.025, 0.125, 0.025, c1);
-    else
-	makeitd(1, c1, 0.13, PLANEY+0.875, 0,  0.025, 0.125, 0.025);
-
-    glPushMatrix();
-	glTranslatef(0.13,  PLANEY+0.75,  0);
-	
-	if (power > 45)
-	    makercube(0, -0.09, 0,  0.024, 0.11, 0.024, c2);
-	else
-	    makeitd(0, c2, 0, -0.09, 0,  0.024, 0.11, 0.024);
-	    
-	if (power > 50)
-	    makercube(0, -0.19, 0,  0.03, 0.03, 0.028, c1);
-	else
-	    makeitd(1, c1, 0, -0.19, 0,  0.03, 0.03, 0.028);
-    glPopMatrix();
-
- 
-    glPushMatrix();
-	glRotatef(.1*(-ang/2 ), 1, 0, 0);
-
-	if (power > 55)
-	    makercube(-0.13, PLANEY+0.875, 0,  0.025, 0.125, 0.025, c1);
-	else
-	    makeitd(0, c1, -0.13, PLANEY+0.875, 0,  0.025, 0.125, 0.025);
-   
-	glPushMatrix();
-	    glTranslatef(-0.13,  PLANEY+0.75,  0);
-	    glRotatef(.1*(ang ), 0, 0, 1);
-	    
-	    if (power > 60)
-		makercube(0, -0.09, 0,  0.024, 0.11, 0.024, c2);
-	    else
-		makeitd(0, c2, 0, -0.09, 0,  0.024, 0.11, 0.024);
-	    
-	    if (power > 65)
-		makercube(0, -0.19, 0,  0.03, 0.03, 0.028, c1);
-	    else
-		makeitd(1, c1, 0, -0.19, 0,  0.03, 0.03, 0.028);
-	glPopMatrix();
-    glPopMatrix();
-    
-    /********/
-    /* legs */
-    /********/
-
-    amount = (counter *100) % 2400;
-    if (amount < 1200)
-        amount2 = 300 + amount;
-    else
-        amount2 = 900 + amount;
-
-    ang = (int) (cos(BIG_DEG_TO_RAD * amount2) * RAD_TO_SMALL_DEG * 2.5);
-
-    glPushMatrix();
-	glTranslatef(0.04,  PLANEY+0.65,  0);
-	glRotatef(.1*(ang ), 1, 0, 0);
-	
-	if (power > 70)
-	    makercube(0, -0.12, 0,  0.035, 0.13, 0.03, c2);
-	else
-	    makeitd(0, c2, 0, -0.12, 0,  0.035, 0.13, 0.03);
-	    
-	if (power > 75)	
-	    makercube(0, -.35, 0,  0.024, 0.2, 0.029, c1);
-	else
-	    makeitd(1, c1, 0, -.35, 0,  0.024, 0.2, 0.029);
-	    
-	if (power > 80)
-	    makercube(0, -.59, +0.025,  0.026, 0.04, 0.075, c2);
-	else
-	    makeitd(0, c2, 0, -.59, +0.025,  0.026, 0.04, 0.075);
-    glPopMatrix();
-    
-    glPushMatrix();
-	glTranslatef(-0.04,  PLANEY+0.65,  0);
-	glRotatef(.1*(-ang), 1, 0, 0);
-	
-	if (power > 85)
-	    makercube(0, -0.12, 0,  0.035, 0.13, 0.03, c2);
-	else
-	    makeitd(1, c2, 0, -0.12, 0,  0.035, 0.13, 0.03);
-	    
-	if (power > 90)
-	    makercube(0, -.35, 0,  0.024, 0.2, 0.029, c1);
-	else
-	    makeitd(0, c1, 0, -.35, 0,  0.024, 0.2, 0.029);
-	    
-	if (power > 95)
-	    makercube(0, -.59, +0.025,  0.026, 0.04, 0.075, c2);
-	else
-	    makeitd(1, c2, 0, -.59, +0.025,  0.026, 0.04, 0.075);
-    glPopMatrix();
-    
+    (void)detail;
+    drawHeroModel(1, power, counter, mcount, dCount);
     }
 
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
@@ -1996,231 +1151,39 @@ void drawHeroDude2(int power, int counter,
 /* draw MechaGoogelon                                            */
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
-
 void drawMechaMonster(int dam, int counter, int detail)
     {
-    if (dam > 48)
-       makercube(0.2, PLANEY+0.7, 0,  0.05, 0.05, 0.15, colorblue);
-    else
-       makeitd(1, colorblue, 0.2, PLANEY+0.7, 0,  0.05, 0.05, 0.15);
+    static const char *parts[] = {
+        "arm-right", "arm-left", "leg-right", "foot-right",
+        "leg-left", "foot-left", "tail-front", "tail-back", "head",
+        "head-back", "eye-bar", "eye", "body-upper", "body-front",
+        "body"
+        };
+    static const int thresholds[] = {
+        48, 45, 43, 40, 38, 35, 30, 30, 26, 22, 18, 14, 10, 5, 0
+        };
+    static const char *shadows[] = {
+        "shadow-body", "shadow-tail-front", "shadow-tail-back"
+        };
+    size_t part;
+    int frame;
 
-    if (dam > 45)
-       makercube(-0.2, PLANEY+0.7, 0,  0.05, 0.05, 0.15, colorblue);
-    else
-       makeitd(0, colorblue, -0.2, PLANEY+0.7, 0,  0.05, 0.05, 0.15);
-
-    /**************************/
-    /* legs, feet of one side */
-    /**************************/
-
-    if (dam > 43)
-       makercube(0.2, PLANEY+0.2, 0,  0.12, 0.2, 0.1, colorgrey2);
-    else
-       makeitd(0, colorgrey2, 0.2, PLANEY+0.2, 0,  0.12, 0.2, 0.1);
-
-    if (dam > 40)
-       makercube(0.2, PLANEY+0.06, 0.1,  0.1, 0.06, 0.15, colorwhite);
-    else
-       makeitd(1, colorwhite, 0.2, PLANEY+0.06, 0.1,  0.1, 0.06, 0.15);
-
-    /****************************/
-    /* legs, feet of other side */
-    /****************************/
-
-    if (dam > 38)
-       makercube(-0.2, PLANEY+0.2, 0,  0.12, 0.2, 0.1, colorgrey2);
-    else
-        makeitd(1, colorgrey2, -0.2, PLANEY+0.2, 0,  0.12, 0.2, 0.1);
-
-    if (dam > 35)
-        makercube(-0.2, PLANEY+0.06, 0.1,  0.1, 0.06, 0.15, colorwhite);
-    else
-        makeitd(0, colorwhite, -0.2, PLANEY+0.06, 0.1,  0.1, 0.06, 0.15);
-  
-    /********/
-    /* tail */
-    /********/
-
-    if (dam > 30)
-        {
-        makercube(0, PLANEY+0.2, -0.2,  0.1, 0.15, 0.2, colorwhite);
-        makercube(0, PLANEY+0.1, -0.4,  0.08, 0.1, 0.2, colorgrey2);
-        }
-    else
-        {
-        makeitd(0, colorwhite, 0, PLANEY+0.2, -0.2,  0.1, 0.15, 0.2);
-        makeitd(1, colorgrey2, 0, PLANEY+0.1, -0.4,  0.08, 0.1, 0.2);
-        }
-
-    glColor4fv(colorblack);
-
-    if (detail > 0)
-	{    
-	shadow (0,  -0.2,  0.1,  0.2);
-	shadow (0,  -0.4,  0.08,  0.2);
-	}
-    
-    /********/
-    /* head */
-    /********/
-
-    if (dam > 26)
-        makercube(0, PLANEY + 1.15, 0,  0.25, 0.15, 0.12, colorwhite);
-    else
-        makeitd(0, colorwhite, 0, PLANEY + 1.15, 0,  0.25, 0.15, 0.12);
-
-    makeitPyr(2, colorwhite, 0, PLANEY + 1.15, -.24,  0.25, 0.15, 0.12);
-
-    if (dam > 22)
-        makercube(0, PLANEY + 1.15, -0.24,  0.13, 0.08, 0.1, colorgrey2);
-    else
-        makeitd(1, colorgrey2, 0, PLANEY + 1.15, -0.24,  0.13, 0.08, 0.1);
-
-    /*******/
-    /* eye */
-    /*******/
-
-    if (dam > 18)
-        makercube(0, PLANEY + 1.20, 0.1, 0.15, 0.06, 0.05, colorblack);
-    else
-        makeitd(1, colorblack,  0, PLANEY + 1.20, 0.1, 0.15, 0.06, 0.05);
-
-    if (dam > 14)
-       makercube(sin((counter % 20) * 0.314) * 0.14, PLANEY + 1.20, 0.14,  0.04, 0.04, 0.04, colorred);
-    else
-       makeitd(0, colorred, sin((counter % 20) * 0.314) * 0.14, PLANEY + 1.20, 0.14,  0.04, 0.04, 0.04);
-
-    /********/
-    /* body */
-    /********/
-
-    if (dam > 10)
-       makercube(0, PLANEY + 0.9, 0,  0.1, 0.2, 0.1, colorgrey2);
-    else
-       makeitd(0, colorgrey2, 0, PLANEY + 0.9, 0,  0.1, 0.2, 0.1);
-
-
-    if (dam > 5)
-       makercube(0, PLANEY + 0.5, 0.2, 0.1, 0.15, 0.05, colorgrey1);
-    else
-       makeitd(1, colorgrey1, 0, PLANEY + 0.5, 0.2, 0.1, 0.15, 0.05);
-
-
-    if (dam > 0)
-       makercube(0, PLANEY + 0.5, 0, 0.2, 0.3, 0.2, colorwhite);
-    else
-       makeitd(0, colorwhite, 0, PLANEY + 0.5, 0, 0.2, 0.3, 0.2);
-
-    glColor4fv(colorblack);
-
-    if (detail > 0)    
-	shadow (0,  0,  0.2,  0.2);
+    frame = counter % 20;
+    if (frame < 0)
+        frame += 20;
+    if (!assetPoseSample(&externalMechaModel->model, externalMechaClip,
+                         (float)frame, externalMechaLoop,
+                         &externalMechaPose))
+        return;
+    for (part = 0; part < sizeof(parts) / sizeof(parts[0]); part++)
+        setDamagePart(externalMechaModel, &externalMechaPose, parts[part],
+                      dam > thresholds[part]);
+    for (part = 0; part < sizeof(shadows) / sizeof(shadows[0]); part++)
+        externalMechaPose.nodes[
+            requiredNode(externalMechaModel, shadows[part])].visible =
+                detail > 0;
+    assetModelDraw(&externalMechaModel->model, &externalMechaPose);
     }
-
-/*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
-/*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
-/* draw a window on the negative z side of a building            */
-/*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
-
-void wzminus(float x,  float y,  float z,  float wx,  float wy)
-    {
-    float v[3];
-
-    v[2] = z;
-
-    glBegin(GL_QUADS);
-	v[0] = x-wx; v[1] = y-wy;   
-	glVertex3fv(v);
-
-	v[1] = y+wy;
-	glVertex3fv(v);
-
-	v[0] = x+wx;
-	glVertex3fv(v);
-
-	v[1] = y-wy;
-	glVertex3fv(v);
-    glEnd();
-    }
-
-/*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
-/*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
-/* draw a window on the positive z side of a building            */
-/*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
-   
-void wzplus(float x,  float y,  float z,  float wx,  float wy)
-    {
-    float v[3];
-
-    v[2] = z;
-
-    glBegin(GL_QUADS);
-	v[0] = x+wx; v[1] = y-wy;
-	glVertex3fv(v);
-
-	v[1] = y+wy;
-	glVertex3fv(v);
-
-	v[0] = x-wx;
-	glVertex3fv(v);
-
-	v[1] = y-wy;
-	glVertex3fv(v);
-    glEnd();
-    }
- 
-/*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
-/*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
-/* draw a window on the positive x side of a building            */
-/*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
-
-void wxplus(float x,  float y,  float z,  float wy,  float wz)
-    {
-    float v[3];
-
-    v[0] = x;
-    
-    glBegin(GL_QUADS);
-	v[1] = y+wy;   v[2] = z-wz;
-	glVertex3fv(v);
-
-	v[2] = z+wz;
-	glVertex3fv(v);
-
-	v[1] = y-wy;
-	glVertex3fv(v);
-
-	v[2] = z-wz;
-	glVertex3fv(v);
-    glEnd();
-    }
-
-/*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
-/*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
-/* draw a window on the negative x side of a building            */
-/*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
-
-void wxminus(float x,  float y,  float z,  float wy,  float wz)
-    {
-    float v[3];
-
-    v[0] = x;
-
-    glBegin(GL_QUADS);
-	v[1] = y-wy;   v[2] = z-wz;
-	glVertex3fv(v);
-
-	v[2] = z+wz;
-	glVertex3fv(v);
-
-	v[1] = y+wy;
-	glVertex3fv(v);
-
-	v[2] = z-wz;
-	glVertex3fv(v);
-    glEnd();
-    }
-
 
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
@@ -2229,9 +1192,8 @@ void wxminus(float x,  float y,  float z,  float wy,  float wz)
 
 void drawBuilding0(float * colour, int detail)
     {
-    makercubenobtm(0.0, 0.4, 0.0, 0.3, 0.4, 0.3, colour);
-    if (detail > 0)
-	glCallList(genericWindows);
+    int grey = colour == colorgrey1;
+    glCallList(building0Models[grey][detail > 0]);
     }
 
 
@@ -2242,33 +1204,25 @@ void drawBuilding0(float * colour, int detail)
    
 void drawBuilding6(int counter, float * c1,  float * c2, int detail)
     {
-    makercubenobtmnotop(  0,  .2, 0,  .3, .2, .35, c1);
-    makeitPyr(1, c2,  0,  .5, 0,  .35, .1, .45);
+    const struct AssetManifestModel *model;
+    struct AssetPose *pose;
+    size_t clip;
+    int loop;
+    int alternate = c1 == colorgrey2;
 
-    makercubenobtm(  .38,  .25, 0.1,  .01, .25, .015, colorgrey2);
-    
-    glPushMatrix();
-    glTranslatef(.38,   .6,  0.1);
-	glRotatef((counter*15) % 360, 0, 1, 0);
-	makercube(0.0, 0.0, 0.0, 0.01,  0.1,  0.14, c2);
-	makercube(0.0, 0.0, 0.0, 0.013, 0.07, 0.11, c1);
-    glPopMatrix();
-
-    /* windows */
-    
-    if (detail > 0)
-	{
-    	glColor3fv(colorblack);
-    
-    	wxplus(0.303, 0.15, -0.15, 0.15,  0.05);
-
-    	wxplus(0.303, 0.2,   0.15, 0.075, 0.075);
-    
-    	wzminus(-0.15, 0.2, -0.352, 0.075, 0.075);
-    	wzplus( -0.15, 0.2,  0.352, 0.075, 0.075);
-    	wzplus(  0.15, 0.2,  0.352, 0.075, 0.075);
-    	wzminus( 0.15, 0.2, -0.352, 0.075, 0.075);
-	}
+    (void)c2;
+    if (detail <= 0)
+        {
+        glCallList(alternate ? building28Low : building6Low);
+        return;
+        }
+    model = alternate ? externalBuilding28Model : externalBuilding6Model;
+    pose = alternate ? &externalBuilding28Pose : &externalBuilding6Pose;
+    clip = alternate ? externalBuilding28Clip : externalBuilding6Clip;
+    loop = alternate ? externalBuilding28Loop : externalBuilding6Loop;
+    if (assetPoseSample(&model->model, clip, (float)(counter % 24), loop,
+                        pose))
+        assetModelDraw(&model->model, pose);
     }
 
 
@@ -2279,18 +1233,9 @@ void drawBuilding6(int counter, float * c1,  float * c2, int detail)
 
 void drawBuilding8(float * c1,  float * c2, int detail)
     {
-    makercubenobtmnotop(0,  .2, 0,  .35, .2, .3, c1);
-    makeitPyr(4, c2,  0,  .5, 0,  .35, .1, .3);
-
-    /* windows */
-    
-    if (detail > 0)    
-	{
-    	glColor3fv(colorblack);
-    
-    	wzminus(0.0, 0.15, -0.303, 0.25, 0.15);
-    	wzplus( 0.0, 0.15,  0.303, 0.25, 0.15);
-	}
+    (void)c1;
+    glCallList(c2 == colorgrey2 ? building30Models[detail > 0] :
+                                 building8Models[detail > 0]);
     }
 
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
@@ -2300,29 +1245,7 @@ void drawBuilding8(float * c1,  float * c2, int detail)
 
 void drawCoolingTower(int detail)
     {
-    GLUquadricObj *qobj;
-
-    glPushMatrix();
-	glTranslatef(-0.3,  0.5,  -0.3);
-	glScalef(0.3,  0.5,  0.3);
-	
-	drawClosedCylinder(colorgrey3,  colorwhite,  0, detail);
-	    
-    glPopMatrix();
-
-    if (detail >= 0)
-	{
-	glPushMatrix();
-	    glColor3fv(colorblack);
-	    glTranslatef(0.0,  0.9,  0.0);
-	    glRotatef(-90, 1, 0, 0);
-	    
-	    qobj = gluNewQuadric();
-	    gluDisk( qobj, 0.,  0.28, 32, 1);
-	    gluDeleteQuadric(qobj);
-    
-	glPopMatrix();
-	}
+    glCallList(building4Models[detail < 0 ? 0 : (detail == 0 ? 1 : 2)]);
     }
 
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
@@ -2332,42 +1255,7 @@ void drawCoolingTower(int detail)
 
 void drawBuilding11(int detail)
     {
-    makercubenobtm(  0,  .05, 0,  .3, .05, .3, colorgrey1);
-
-    glPushMatrix();
-	glTranslatef(-.25,  .8,  -.1);
-	glScalef(.1,  .8,  .1);
-	drawClosedCylinder(colorgrey2,  colorgrey3,  0, detail);
-    glPopMatrix();
-
-    glPushMatrix();
-	glTranslatef(.05,  .8,  -.1);
-	glScalef(.1,  .8,  .1);
-	drawClosedCylinder(colorgrey2,  colorgrey3,  0, detail);
-    glPopMatrix();
-    }
-
-
-/*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
-/*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
-/* draw strip-mall store                                         */
-/*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
-
-void drawBuilding15(float * buildingColour,  float * awningColour, int detail)
-    {
-    makeitPyr(13, awningColour,  +.1,  .54, 0,  .3, .25, .297);
-
-    makercubenobtm(  -.1,  .4, 0,  .3, .4, .3, buildingColour);
-
-    if (detail > 0)
-	{
-	glColor3fv(colorblack);
-    
-	wxplus(0.203,  .15,  -.15,  .15,  .05);
-	wxminus(-0.403,  .15,  -.15,  .15,  .05);
-
-	wxplus(0.203,  .15,  .10,  .08,  .12);
-	}
+    glCallList(building11Models[detail > 0]);
     }
 
 
@@ -2378,10 +1266,8 @@ void drawBuilding15(float * buildingColour,  float * awningColour, int detail)
 
 void drawBuilding22(float * color)
     {
-    makercubenobtm(0,  .75, 0,  .3, .75, .3, color);    
-    makercubenobtmnotop(0,  .4, 0,  .307, .1, .307, colorblack);
-    makercubenobtmnotop(0,  .8, 0,  .307, .1, .307, colorblack);
-    makercubenobtmnotop(0,  1.2, 0,  .307, .1, .307, colorblack);
+    glCallList(color == colorgrey1 ? building22Obj :
+               (color == colorgrey2 ? building23Obj : building24Obj));
     }
 
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
@@ -2391,8 +1277,8 @@ void drawBuilding22(float * color)
 
 void drawBuilding34(float * color)
     {
-    makercubenobtm(0,  .3, 0,  .3, .3, .3, color);    
-    makercubenobtmnotop(0,  .4, 0,  .307, .1, .307, colorblack);
+    (void)color;
+    glCallList(building34Obj);
     }
 
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
@@ -2402,9 +1288,8 @@ void drawBuilding34(float * color)
 
 void drawBuilding36(float * color)
     {
-    makercubenobtm(0,  .5, 0,  .3, .5, .3, color);    
-    makercubenobtmnotop(0,  .4, 0,  .307, .1, .307, colorblack);
-    makercubenobtmnotop(0,  .8, 0,  .307, .1, .307, colorblack);
+    (void)color;
+    glCallList(building36Obj);
     }
 
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
@@ -2414,64 +1299,22 @@ void drawBuilding36(float * color)
 
 void drawBuilding37(float * color, int detail)
     {
-    static float tv1[2] = {0,1};
-    static float tv2[2] = {1,1};
-    static float tv3[2] = {1,0};
-    static float tv4[2] = {0,0};
-
-    static float vec1[3]={0,1,0};
-    static float vec2[3]={1,1,0};
-    static float vec3[3]={1,0,0};
-    static float vec4[3]={0,0,0};
-
-    makercubenobtm(0,  .75, 0,  .3, .75, .3, color);    
-    makercubenobtmnotop(0,  .4, 0,  .307, .1, .307, colorblack);
-    makercubenobtmnotop(0,  .8, 0,  .307, .1, .307, colorblack);
-    makercubenobtmnotop(0, 1.2, -0.01,  .307, .1, .307, colorblack);
-    
-    glPushMatrix();
-    glColor4fv(colorwhite);
-
-    if ((detail >= 2) && (officeLogo != 0))
-	{	
-	glCallList(officeLogo);
-	glEnable(GL_TEXTURE_2D);
-	}	
-	
-    glTranslatef(0.25, 1.1, 0.31);
-    glScalef(0.5, 0.3,  0.01);
-
-    glRotatef(180, 0, 1, 0);
-
-    glBegin(GL_QUADS);
-
-    if ((detail >= 2) && (officeLogo != 0))
-	{	
-	glTexCoord2fv(tv1);
-	glVertex3fv(vec1);
-	
-	glTexCoord2fv(tv2);
-	glVertex3fv(vec2);
-	
-	glTexCoord2fv(tv3);
-	glVertex3fv(vec3);
-	
-	glTexCoord2fv(tv4);
-	glVertex3fv(vec4);
-	}
-    else
-	{
-	glVertex3fv(vec1);
-	glVertex3fv(vec2);
-	glVertex3fv(vec3);
-	glVertex3fv(vec4);
-	} 
-	      
-    glEnd();
-
+    (void)color;
+    if (!assetPoseReset(&externalBuilding37Model->model,
+                        &externalBuilding37Pose))
+        return;
+    assetModelDrawNode(&externalBuilding37Model->model,
+                       requiredNode(externalBuilding37Model, "body"),
+                       &externalBuilding37Pose);
+    if (detail >= 2)
+        {
+        glCallList(officeLogo);
+        glEnable(GL_TEXTURE_2D);
+        }
+    assetModelDrawNode(&externalBuilding37Model->model,
+                       requiredNode(externalBuilding37Model, "logo"),
+                       &externalBuilding37Pose);
     glDisable(GL_TEXTURE_2D);
-
-    glPopMatrix();
     }
 
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
@@ -2481,90 +1324,7 @@ void drawBuilding37(float * color, int detail)
 
 void drawBuilding25()
     {
-    long backNow;
-    GLUquadricObj *qobj;
-    
-    /******************/
-    /* satellite dish */
-    /******************/
-
-    float satSphere[4] = {0, 0.4, 0, 0.075};
-
-    float sat0[3] = { 0.0,  0.35, 0.0};
-    float sat1[3] = { 0.0,  0.0,  0.35};
-    float sat2[3] = { 0.0, -0.35, 0.0};
-    float sat3[3] = { 0.35, 0.0,  0.0};
-    float sat4[3] = {-0.35, 0.0,  0.0};
-
-    GLfloat lineWidthNow;
-    glGetFloatv(GL_LINE_WIDTH, &lineWidthNow);
-  
-    backNow = glIsEnabled(GL_CULL_FACE);
-
-    /* shadow */
-    
-    glColor3fv(colorblack);
-    
-    glPushMatrix();
-	glTranslatef(0,  0,   0);
-	glRotatef(-90, 1, 0, 0);
-
-	qobj = gluNewQuadric();
-	gluDisk( qobj, 0.,   0.3, 32, 1);
-	gluDeleteQuadric(qobj);
-
-    glPopMatrix();
-
-    /* support post */
-    
-    makercubenobtm(  0,  .2, 0,  .05, .2, .05, colorwhite);
-
-        
-    glColor3fv(colorgrey2);
-    andysphdraw(satSphere, 4);
-    
-    /* if line widths are integral Mesa chokes in a large window */
-    glLineWidth(3.01);    
-    glColor3fv(colorwhite);
-    
-    glPushMatrix();
-	glDisable(GL_CULL_FACE);
-	
-	glTranslatef(0,  .4,   0);
-	glRotatef(-45, 1, 0, 0);
-
-	qobj = gluNewQuadric();
-	gluDisk( qobj, 0.,   0.35, 32, 1);
-	gluDeleteQuadric(qobj);
-
-    glPopMatrix();
-
-    if (backNow)
-	glEnable(GL_CULL_FACE);
-    else
-	glDisable(GL_CULL_FACE);
-
-    glPushMatrix();	
-
-	glTranslatef(0,  .4,   0);
-	glRotatef(-45, 1, 0, 0);
-
-	glColor3fv(colorgrey1);
-
-	glBegin(GL_LINE_STRIP);
-	    glVertex3fv(sat0);
-	    glVertex3fv(sat1);
-	    glVertex3fv(sat2);	
-	glEnd();
-
-	glBegin(GL_LINE_STRIP);
-	    glVertex3fv(sat3);
-	    glVertex3fv(sat1);
-	    glVertex3fv(sat4);	
-	glEnd();
-    glPopMatrix();
-    
-    glLineWidth(lineWidthNow);
+    glCallList(building25Obj);
     }
 
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
@@ -2574,99 +1334,22 @@ void drawBuilding25()
   
 void drawBuilding26(int rorl, int detail)
     {
-    /***************************/
-    /* theatre screen supports */
-    /***************************/
-
-    float screen0[3] = {-0.39, 0.01, -0.28};
-    float screen1[3] = {-0.39, 0.01,  0.28};
-    float screen2[3] = { 0.39, 0.01,  0.28};
-    float screen3[3] = { 0.39, 0.01, -0.28};
-    float screen4[3] = {-0.39, 0.79,  0.28};
-    float screen5[3] = { 0.39, 0.79,  0.28};
-    float screen6[3] = { 0.39, 0.01, -0.28};
-
-
-    static float vec1[3]={0,1,0};
-    static float vec2[3]={1,1,0};
-    static float vec3[3]={1,0,0};
-    static float vec4[3]={0,0,0};
-    
-    static float tv1[2] = {0,1};
-    static float tv2[2] = {1,1};
-    static float tv3[2] = {1,0};
-    static float tv4[2] = {0,0};
-
-    GLfloat lineWidthNow;
-    glGetFloatv(GL_LINE_WIDTH, &lineWidthNow);
-
-    /* supports for the screen */
-    
-    glColor4fv(colorgrey2);
-    /* if line widths are integral Mesa chokes in a large window */
-    glLineWidth(3.01);
-    
-    glBegin(GL_LINE_LOOP);
-	glVertex3fv(screen0);
-	glVertex3fv(screen1);
-	glVertex3fv(screen2);
-	glVertex3fv(screen3);
-    glEnd();
-
-    glBegin(GL_LINE_LOOP);
-	glVertex3fv(screen0);
-	glVertex3fv(screen4);
-	glVertex3fv(screen5);
-	glVertex3fv(screen6);
-    glEnd();
-
-
-    /* back of the screen */    
-    makercubenobtm( 0, 0.42, 0.28, 0.4,0.42, 0.01, colorwhite);
-
-    if ((detail >= 2) && (leftScreen != 0) && (rightScreen != 0))
-	{	
-	glPushMatrix();
-	    glColor4fv(colorwhite);
-
-	
-	    if (rorl == 0)
-		glCallList(leftScreen);
-	    else
-		glCallList(rightScreen);
-		
-	    glEnable(GL_TEXTURE_2D);
-	
-	
-	    glTranslatef(0.4, 0, 0.3);
-	    glScalef(0.8, 0.8,  0.01);
-	
-	    glRotatef(180, 0, 1, 0);
-	
-	    glBegin(GL_QUADS);
-
-		glTexCoord2fv(tv1);
-		glVertex3fv(vec1);
-		
-		glTexCoord2fv(tv2);
-		glVertex3fv(vec2);
-		
-		glTexCoord2fv(tv3);
-		glVertex3fv(vec3);
-		
-		glTexCoord2fv(tv4);
-		glVertex3fv(vec4);
-	    
-	    glEnd();
-	
-	    glDisable(GL_TEXTURE_2D);
-
-
-	glPopMatrix();
-	}  
-       
-    glLineWidth(lineWidthNow);
-}
+    if (!assetPoseReset(&externalBuilding26Model->model,
+                        &externalBuilding26Pose))
+        return;
+    assetModelDrawNode(&externalBuilding26Model->model,
+                       requiredNode(externalBuilding26Model, "body"),
+                       &externalBuilding26Pose);
+    if (detail >= 2)
+        {
+        glCallList(rorl == 0 ? leftScreen : rightScreen);
+        glEnable(GL_TEXTURE_2D);
+        assetModelDrawNode(&externalBuilding26Model->model,
+                           requiredNode(externalBuilding26Model, "screen"),
+                           &externalBuilding26Pose);
+        glDisable(GL_TEXTURE_2D);
+        }
+    }
 
 
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
@@ -2676,22 +1359,8 @@ void drawBuilding26(int rorl, int detail)
 
 void drawBuilding29(int itsChristmas, int detail)
     {
-    makercubenobtm(  0,  .05, 0,  .3, .05, .3, colorwhite);
-
-    makercubenobtm(  .25,  .1, 0,  .05, .1, .3, colorwhite);
-    makercubenobtm(  -.25,  .1, 0,  .05, .1, .3, colorwhite);
-    makercubenobtm(  0,  .1, .25,  .3, .1, .05, colorwhite);
-    makercubenobtm(  0,  .1, -.25,  .3, .1, .05, colorwhite);
-
-    makeitPyr(3, colorgrey1,  0,  0.3, 0,  0.1, 0.3, 0.1);
-    
-    if (!itsChristmas)
-	{
-	if (detail > 0)	
-	    glEnable(GL_BLEND);
-	makercubenobtm(  0,  .1, 0,  .19, .11, .19, colormaserblue);
-	glDisable(GL_BLEND);
-	}
+    (void)detail;
+    glCallList(building29Models[itsChristmas != 0]);
     }
 
    
@@ -2702,24 +1371,13 @@ void drawBuilding29(int itsChristmas, int detail)
 
 void drawBuilding33(int count, int detail)
     {
-    float c[4], height;
-   
-    c[0] = colorred[0];
-    c[1] = colorred[1] + (count/40.0);
-    c[2] = colorred[2];
-    c[3] = 1 - (count/20.0);
- 
-    height = .8 - 0.04*count;
-   
-    if (detail > 0)	
-	glEnable(GL_BLEND);
-    
-    glPushMatrix();
-	glTranslatef(-.2,  height,  -.2);
-	glScalef(.2,  height,  .2);
-	drawClosedCylinder(c,  c,  0, detail);
-    glPopMatrix();
-    
+    if (detail > 0)
+        glEnable(GL_BLEND);
+    if (assetPoseSample(&externalBuilding33Model->model,
+                        externalBuilding33Clip, (float)count,
+                        externalBuilding33Loop, &externalBuilding33Pose))
+        assetModelDraw(&externalBuilding33Model->model,
+                       &externalBuilding33Pose);
     glDisable(GL_BLEND);
     }
  
@@ -2730,160 +1388,14 @@ void drawBuilding33(int count, int detail)
 
 void drawTower(int death, int death2)
     {
-    float v1[3], v2[3], v3[3], v4[3];
-    float v5[3], v6[3], v7[3], v8[3];
-    float va[3], vb[3], vc[3], vd[3];
-    float ve[3], vf[3], vg[3];
-    float vh[3], vi[3], vj[3];
-
-    float amt,  amt2;
-    float samt2,  samt,  camt2;
-    float melt1, melt2;
-
-    
-    amt = 2 * death * DEG_TO_RAD;
-    amt2 = death2 * DEG_TO_RAD;
-       
-    samt2   = sin(amt2);
-    samt    = sin(amt);
-    camt2   = cos(amt);
-       
-    melt1 = samt2 * 0.5*samt;
-    melt2 = camt2 * 0.5*samt;
-    
-    if (death > 0)
-	glColor3fv(colorwhite);
-    else
-	glColor3fv(colorgrey1);
-    
-    if (death == 0)
-	v1[1] = v2[1] = v3[1] = v4[1] = 0.7;
-    else
-	v1[1] = v2[1] = v3[1] = v4[1] = 0.3 + 0.4 * camt2;
-
-    v1[0] = v4[0] =  -0.06;   
-    v1[2] = v2[2] =   0.06;  
-    v2[0] = v3[0] =   0.06;
-    v3[2] = v4[2] = - 0.06;
- 
-    v5[0] = v8[0] =  -0.3;
-    v5[1] = v6[1] = v7[1] = v8[1] = 0.0;
-    v5[2] = v6[2] =   0.3;    
-    v6[0] = v7[0] =   0.3;
-    v7[2] = v8[2] = - 0.3;
-    
-    if (death == 0)
-	{
-	va[1] = vb[1] = vc[1] = vd[1] = 1.5;
-	va[0] = v1[0];
-	va[2] = v1[2];
-
-	vb[0] = v2[0];
-	vb[2] = v2[2];
-
-	vc[0] = v3[0];
-	vc[2] = v3[2];
-
-	vd[0] = v4[0];
-	vd[2] = v4[2];
-	}
-    else
-	{
-	va[1] = vb[1] = vc[1] = vd[1] = 1.5 * camt2;
-	va[0] = v1[0]+ melt1;
-	va[2] = v1[2]+ melt2;
-
-	vb[0] = v2[0]+ melt1;
-	vb[2] = v2[2]+ melt2;
-
-	vc[0] = v3[0]+ melt1;
-	vc[2] = v3[2]+ melt2;
-
-	vd[0] = v4[0]+ melt1;
-	vd[2] = v4[2]+ melt2;
-	}
-  
-
-    ve[1] = vf[1] = vc[1] - 0.2;
-    ve[0] = vc[0];
-    ve[2] = vc[2];
-
-    vf[0] = vd[0];
-    vf[2] = vd[2];
-  
-    vg[0] = (vc[0] + vd[0]) * 0.5;
-    vg[1] = vc[1] - 0.1;
-    vg[2] = vc[2] - .2;
-
-
-    vh[0] = va[0];
-    vh[1] = vi[1] = va[1] - 0.2;
-    vh[2] = va[2];
-
-    vi[0] = vb[0];
-    vi[2] = vb[2];
-  
-    vj[0] = (va[0] + vb[0]) * 0.5;
-    vj[1] = va[1] - 0.1;
-    vj[2] = va[2] + .2;
-
-
-    /* if line widths are integral Mesa chokes in a large window */
-    glLineWidth(3.01);
-
-    /********/
-    /* legs */
-    /********/
-   
-    glBegin(GL_LINE_LOOP);
-	glVertex3fv(v1); glVertex3fv(v2); glVertex3fv(v3); glVertex3fv(v4);
-    glEnd();
-    
-    glBegin(GL_LINE_LOOP);
-	glVertex3fv(v4); glVertex3fv(v5); glVertex3fv(v2); glVertex3fv(v7);
-    glEnd();
-
-    glBegin(GL_LINE_LOOP);
-	glVertex3fv(v1); glVertex3fv(v6); glVertex3fv(v3); glVertex3fv(v8);
-    glEnd();
-
- 
-    /* if line widths are integral Mesa chokes in a large window */
-    glLineWidth(2.01);
-
-    /*******/
-    /* top */
-    /*******/
-
-    glBegin(GL_LINE_LOOP);
-	glVertex3fv(va); glVertex3fv(vb); glVertex3fv(vc); glVertex3fv(vd);
-    glEnd();
-
-    /*************************/
-    /* supports and verticals*/
-    /*************************/
-
-    glBegin(GL_LINE_STRIP);
-	glVertex3fv(v7); glVertex3fv(v3); glVertex3fv(vc); glVertex3fv(vg); glVertex3fv(ve);
-    glEnd();
-
-    glBegin(GL_LINE_STRIP);
-	glVertex3fv(v8); glVertex3fv(v4); glVertex3fv(vd); glVertex3fv(vg); glVertex3fv(vf);
-    glEnd();
-
-    glBegin(GL_LINE_STRIP);
-	glVertex3fv(v5); glVertex3fv(v1); glVertex3fv(va); glVertex3fv(vj); glVertex3fv(vh);
-    glEnd();
-
-    glBegin(GL_LINE_STRIP);
-	glVertex3fv(v6); glVertex3fv(v2); glVertex3fv(vb); glVertex3fv(vj); glVertex3fv(vi);
-    glEnd();
-
-
-    glBegin(GL_LINE_LOOP);
-	glVertex3fv(ve); glVertex3fv(vf); glVertex3fv(vh); glVertex3fv(vi);
-    glEnd();    
-
+    glPushMatrix();
+    glRotatef((float)death2, 0.0f, 1.0f, 0.0f);
+    if (assetPoseSample(&externalPowerTowerModel->model,
+                        externalPowerTowerClip, (float)death,
+                        externalPowerTowerLoop, &externalPowerTowerPose))
+        assetModelDraw(&externalPowerTowerModel->model,
+                       &externalPowerTowerPose);
+    glPopMatrix();
     }
 
 
@@ -2903,15 +1415,6 @@ void drawBattlefield(struct road * roads,  float xshift,  float zshift,
     /* 'where is the town' arrow  */
     /******************************/
 
-    static float arrow[4][3] =		{-0.2, PLANEY + 0.01, -1.0, 
-				 	 -0.2, PLANEY + 0.01,  1.0, 
-				  	  0.2, PLANEY + 0.01,  1.0, 
-				  	  0.2, PLANEY + 0.01, -1.0};
-			
-    static float arrowhead[3][3] =	{0.0, PLANEY + 0.01, -1.75, 
-					-0.5, PLANEY + 0.01, -1.0,
-				 	 0.5, PLANEY + 0.01, -1.0};
-         
     if (itsChristmas)
 	glColor3fv(colorsnow);
     else
@@ -2954,20 +1457,7 @@ void drawBattlefield(struct road * roads,  float xshift,  float zshift,
 	glPushMatrix();
 	    glRotatef(angle, 0, 1, 0);
     
-	    glColor3fv(colorred);
-
-	    glBegin(GL_QUADS);
-		glVertex3fv(arrow[0]);
-		glVertex3fv(arrow[1]);
-		glVertex3fv(arrow[2]);
-		glVertex3fv(arrow[3]);
-	    glEnd();
-
-	    glBegin(GL_TRIANGLES);
-		glVertex3fv(arrowhead[0]);
-		glVertex3fv(arrowhead[1]);
-		glVertex3fv(arrowhead[2]);
-	    glEnd();
+	    glCallList(directionArrow);
 	glPopMatrix();
 	}
     }
@@ -2978,23 +1468,8 @@ void drawBattlefield(struct road * roads,  float xshift,  float zshift,
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
 void drawLake0(int itsChristmas)
-    {   
-static    float lake[4][3] =	{-0.3,  0.0, -0.3, 
-				  0.3,  0.0, -0.3, 
-				  0.3,  0.0,  0.3, 
-				 -0.3,  0.0,  0.3};
-
-    if (itsChristmas)
-	glColor3fv(colorblue);
-    else
-        glColor3fv(colorwater);
-        
-    glBegin(GL_QUADS);
-	glVertex3fv(lake[3]);
-	glVertex3fv(lake[2]);
-	glVertex3fv(lake[1]);
-	glVertex3fv(lake[0]);
-    glEnd();
+    {
+    glCallList(waterModels[0][itsChristmas != 0]);
     }
 
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
@@ -3003,21 +1478,8 @@ static    float lake[4][3] =	{-0.3,  0.0, -0.3,
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
 void drawLake1(int itsChristmas)
-    {    
-    float lake2[3][3] =		{-0.3,  0.0, -0.3, 
-				  0.3,  0.0, -0.3, 
-				 -0.3,  0.0,  0.3};
-
-    if (itsChristmas)
-	glColor3fv(colorblue);
-    else
-        glColor3fv(colorwater);
-    
-    glBegin(GL_TRIANGLES);
-	glVertex3fv(lake2[2]);
-	glVertex3fv(lake2[1]);
-	glVertex3fv(lake2[0]);
-    glEnd();
+    {
+    glCallList(waterModels[1][itsChristmas != 0]);
     }
 
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
@@ -3026,25 +1488,8 @@ void drawLake1(int itsChristmas)
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
 void drawHill0(int itsChristmas)
-    {   
-static     float hill[4][3] =	{-0.3, 0.6, -0.3, 
-				  0.3, 0.6, -0.3, 
-				  0.3, 0.6,  0.3, 
-				 -0.3, 0.6,  0.3};
-
-
-    if (itsChristmas)
-	glColor3fv(colorsnow);
-    else
-        glColor3fv(planeGreen2);
-        
-    glBegin(GL_QUADS);
-	glVertex3fv(hill[3]);
-	glVertex3fv(hill[2]);
-	glVertex3fv(hill[1]);
-	glVertex3fv(hill[0]);
-    glEnd();
-    
+    {
+    glCallList(hillCenterModels[itsChristmas != 0]);
     }
 
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
@@ -3053,47 +1498,12 @@ static     float hill[4][3] =	{-0.3, 0.6, -0.3,
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
 void drawHill1(int sidemod, int itsChristmas)
-    {   
-    float c[4];
-
-static    float side[4][3] =	{-0.3, 0.6, -0.3, 
-				  0.3, 0.6, -0.3, 
-				  0.3, 0.0,  0.3, 
-				 -0.3, 0.0,  0.3};
-    
-    if (itsChristmas)
-	{
-	c[0] =  colorsnow2[0];   
-	c[1] =  colorsnow2[1];   
-	c[2] =  colorsnow2[2];   
-	}
-    else
-	{
-	c[0] =  planeGreen3[0];   
-	c[1] =  planeGreen3[1];   
-	c[2] =  planeGreen3[2];  
-	} 
-	
-    c[0] -= sidemod*0.04;
-    c[1] -= sidemod*0.04;
-    c[2] -= sidemod*0.04;
-
-    if (c[0] < 0)
-	c[0] = 0;
-    if (c[1] < 0)
-	c[1] = 0;
-    if (c[2] < 0)
-	c[2] = 0;
-	    
-    glColor3fv(c);
-    
-    glBegin(GL_QUADS);
-	glVertex3fv(side[3]);
-	glVertex3fv(side[2]);
-	glVertex3fv(side[1]);
-	glVertex3fv(side[0]);
-    glEnd();
-
+    {
+    if (sidemod < 0)
+        sidemod = 0;
+    if (sidemod > 2)
+        sidemod = 2;
+    glCallList(hillSideModels[sidemod][itsChristmas != 0]);
     }
 
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
@@ -3102,45 +1512,8 @@ static    float side[4][3] =	{-0.3, 0.6, -0.3,
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
 void drawHill2(int sidemod, int itsChristmas)
-    {   
-    float c[4];
-
-static    float corner[3][3] =	{-0.3, 0.6, -0.3, 
-				  0.3, 0.0, -0.3, 
-				 -0.3, 0.0,  0.3};
- 
-    if (itsChristmas)
-	{
-	c[0] =  colorsnow2[0];   
-	c[1] =  colorsnow2[1];   
-	c[2] =  colorsnow2[2];   
-	}
-    else
-	{
-	c[0] =  planeGreen3[0];   
-	c[1] =  planeGreen3[1];   
-	c[2] =  planeGreen3[2];  
-	} 
- 
-    c[0] -= (sidemod*0.04 + 0.02);
-    c[1] -= (sidemod*0.04 + 0.02);
-    c[2] -= (sidemod*0.04 + 0.02);
-
-    if (c[0] < 0)
-	c[0] = 0;
-    if (c[1] < 0)
-	c[1] = 0;
-    if (c[2] < 0)
-	c[2] = 0;
- 
-    glColor3fv(c);
-   
-    glBegin(GL_TRIANGLES);
-	glVertex3fv(corner[2]);
-	glVertex3fv(corner[1]);
-	glVertex3fv(corner[0]);
-    glEnd();
-
+    {
+    glCallList(hillCornerModels[sidemod != 0][itsChristmas != 0]);
     }
     
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
@@ -3150,55 +1523,7 @@ static    float corner[3][3] =	{-0.3, 0.6, -0.3,
 
 void drawHill3(int sidemod, int itsChristmas)
     {
-   float c[4];
-
-static    float insidecorner[4][3] =	{-0.3, 0.6, -0.3, 
-				  0.3, 0.6, -0.3, 
-				 -0.3, 0.6,  0.3, 
-				  0.3, 0.0,  0.3 };
- 
-    if (itsChristmas)
-	glColor3fv(colorsnow);
-    else
-        glColor3fv(planeGreen2);
-
-    glBegin(GL_TRIANGLES);
-	glVertex3fv(insidecorner[2]);
-	glVertex3fv(insidecorner[1]);
-	glVertex3fv(insidecorner[0]);
-    glEnd();
-
-    if (itsChristmas)
-	{
-	c[0] =  colorsnow2[0];   
-	c[1] =  colorsnow2[1];   
-	c[2] =  colorsnow2[2];   
-	}
-    else
-	{
-	c[0] =  planeGreen3[0];   
-	c[1] =  planeGreen3[1];   
-	c[2] =  planeGreen3[2];  
-	} 
- 
-    c[0] -= (sidemod*0.04 + 0.02);
-    c[1] -= (sidemod*0.04 + 0.02);
-    c[2] -= (sidemod*0.04 + 0.02);
-
-    if (c[0] < 0)
-	c[0] = 0;
-    if (c[1] < 0)
-	c[1] = 0;
-    if (c[2] < 0)
-	c[2] = 0;
- 
-    glColor3fv(c);
- 
-    glBegin(GL_TRIANGLES);
-	glVertex3fv(insidecorner[2]);
-	glVertex3fv(insidecorner[3]);
-	glVertex3fv(insidecorner[1]);
-    glEnd();
+    glCallList(hillInsideModels[sidemod != 0][itsChristmas != 0]);
     }
 
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
@@ -3294,23 +1619,13 @@ void drawtrees(struct tree * allTreesOnPlane, int numTreesOnPlane, int counter,
 		int detail, int itsChristmas, int view)
     {
     
-    float spheredat[4];
     float x, y, z;
     register int treeCounter;
-    int sph;
     GLfloat lineWidthNow;
     GLint shadeNow;
     
     glGetIntegerv(GL_SHADE_MODEL, &shadeNow);
   
-    if (detail >= 2)
-	sph = 5;
-    else if (detail == 1)
-	sph = 4;
-    else
-	sph = 2;
-
-
     for (treeCounter=0; treeCounter < numTreesOnPlane; treeCounter++)
 	{
 	if (detail >= 2)
@@ -3330,74 +1645,50 @@ void drawtrees(struct tree * allTreesOnPlane, int numTreesOnPlane, int counter,
 	    /**********************************/
 
 	    if (allTreesOnPlane[treeCounter].type == 0)
-		{	    
-		if ((allTreesOnPlane[treeCounter].treeshape == 0) || (itsChristmas))
+		{
+		const struct AssetManifestModel *treeModel;
+		struct AssetPose *treePose;
+		int pine;
+
+		pine = allTreesOnPlane[treeCounter].treeshape == 0 || itsChristmas;
+		treeModel = pine ? externalPineTreeModel : externalRoundTreeModel;
+		treePose = pine ? &externalPineTreePose : &externalRoundTreePose;
+		if (!assetPoseReset(&treeModel->model, treePose))
+		    continue;
+		glPushMatrix();
+		glTranslatef(x, y, z);
+		if (detail >= 2)
 		    {
-		    /*************/
-		    /* pine tree */
-		    /*************/
-		    
-		    if (detail >= 2)
-			{
-			glCallList(treeWood);
-
-			glEnable(GL_TEXTURE_2D);
-			}
-
-
-		    makercubenobtmnotopTEX( x, y+0.2, z, 0.075, 0.2, 0.075, colorbrown);
-		    glDisable(GL_TEXTURE_2D);
-    
-		    /* regular pine tree colour is too dark in vector mode */
-    
-		    if (detail > -1)
-			makeitPyr(1, treeColor, x, y+0.8, z, 0.2, 0.4, 0.2);
-		    else
-			makeitPyr(1, treeColor2, x, y+0.8, z, 0.2, 0.4, 0.2);
-    
-		    glColor4fv(colorblack);
-
-		    if (detail > 0)		    
-			shadow(x, z, 0.2, 0.2);
-		    
-		    if (itsChristmas)
-			{
-			makercube( x+0.09, y+0.9, z+0.09, 0.025, 0.025, 0.025, coloryellow);
-			makercube( x-0.12, y+0.7, z+0.12, 0.025, 0.025, 0.025, colorred);
-			makercube( x-0.1,  y+0.9, z-0.1,  0.025, 0.025, 0.025, colormaserblue);
-			makercube( x+0.12, y+0.7, z-0.12, 0.025, 0.025, 0.025, colororange);
-			}
+		    glCallList(treeWood);
+		    glEnable(GL_TEXTURE_2D);
 		    }
-		else
-		    /**************/
-		    /* round tree */
-		    /**************/
+		assetModelDrawNode(&treeModel->model,
+		                   requiredNode(treeModel,
+		                                pine ? "pine-trunk" : "round-trunk"),
+		                   treePose);
+		glDisable(GL_TEXTURE_2D);
+		assetModelDrawNode(&treeModel->model,
+		                   requiredNode(treeModel,
+		                       pine ? (detail < 0 ? "pine-crown-vector" :
+		                                            "pine-crown") :
+		                              "round-crown"),
+		                   treePose);
+		if (pine && itsChristmas)
+		    assetModelDrawNode(&treeModel->model,
+		                       requiredNode(treeModel, "pine-lights"), treePose);
+		glPopMatrix();
+
+		if (detail > 0)
 		    {
-		    if (detail >= 2)
-			{
-			glCallList(treeWood);
-
-			glEnable(GL_TEXTURE_2D);
-			}
-
-		    makercubenobtmnotopTEX(x, y+0.4, z, 0.1, 0.4, 0.1, colorbrown);
-		    glDisable(GL_TEXTURE_2D);
-    
-		    glColor3fv(treeColor2);
-		    spheredat[0] = x;
-		    spheredat[1] = y+1;
-		    spheredat[2] = z;
-		    spheredat[3] = 0.3;
-		    andysphdraw(spheredat, sph);
-
-		    if (detail > 0)	
-			{
-			glPushMatrix();
-			    glColor3fv(colorblack);
-			    glTranslatef(x,  SHADOWS,   z);
-			    glCallList(roundTreeShadow);
-			glPopMatrix();
-			}
+		    glPushMatrix();
+		    glColor4fv(colorblack);
+		    glTranslatef(x, pine ? 0.0f : SHADOWS, z);
+		    assetModelDrawNode(&treeModel->model,
+		                       requiredNode(treeModel,
+		                                    pine ? "pine-shadow" :
+		                                           "round-shadow"),
+		                       treePose);
+		    glPopMatrix();
 		    }
 		}
 
@@ -3426,10 +1717,10 @@ void drawtrees(struct tree * allTreesOnPlane, int numTreesOnPlane, int counter,
 					    glCallList(building2Obj);
 					break;
 			    case 3:	glGetFloatv(GL_LINE_WIDTH, &lineWidthNow);
-					if (allTreesOnPlane[treeCounter].deathCount && allTreesOnPlane[treeCounter].death2)
-					    drawTower(allTreesOnPlane[treeCounter].deathCount, allTreesOnPlane[treeCounter].death2);
-					else
-					    glCallList(powerTower);
+					drawTower(allTreesOnPlane[treeCounter].deathCount &&
+					          allTreesOnPlane[treeCounter].death2 ?
+					          allTreesOnPlane[treeCounter].deathCount : 0,
+					          allTreesOnPlane[treeCounter].death2);
 					glLineWidth(lineWidthNow);
 					break;
 			    case 4:	glPushAttrib(GL_LIGHTING_BIT);
@@ -4083,94 +2374,23 @@ void drawHeroWeapon(float targetx, float targetz, float x, float y,
     }
 
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
-
-void makeBooms()
-{
-    int counter;
-    GLuint O;
-
-    float spheredat[4];
-	spheredat[0] = 0;
-	spheredat[1] = 0;
-	spheredat[2] = 0;
-    
-    for(counter=1;counter<=10;counter++)
-	{
-	O = glGenLists(1);
-	glNewList(O, GL_COMPILE);
-	   
-	spheredat[3] = 0.03 * counter;
-
-	andysphdraw(spheredat, 3);
-
-	glEndList();
-
-	switch(counter)
-	    {
-	    case 1: boom1Obj = O;
-		    break;
-	    case 2: boom2Obj = O;
-		    break;
-	    case 3: boom3Obj = O;
-		    break;
-	    case 4: boom4Obj = O;
-		    break;
-	    case 5: boom5Obj = O;
-		    break;
-	    case 6: boom6Obj = O;
-		    break;
-	    case 7: boom7Obj = O;
-		    break;
-	    case 8: boom8Obj = O;
-		    break;
-	    case 9: boom9Obj = O;
-		    break;
-	    case 10: boom10Obj = O;
-		    break;
-	    }
-
-	/* Build smaller booms for detail level 0 */
-
-	O = glGenLists(1);
-	glNewList(O, GL_COMPILE);
-	   
-	spheredat[3] = 0.02 * counter;
-
-	andysphdraw(spheredat, 1);
-
-	glEndList();
-
-	switch(counter)
-	    {
-	    case 1: boom1ObjD0 = O;
-		    break;
-	    case 2: boom2ObjD0 = O;
-		    break;
-	    case 3: boom3ObjD0 = O;
-		    break;
-	    case 4: boom4ObjD0 = O;
-		    break;
-	    case 5: boom5ObjD0 = O;
-		    break;
-	    case 6: boom6ObjD0 = O;
-		    break;
-	    case 7: boom7ObjD0 = O;
-		    break;
-	    case 8: boom8ObjD0 = O;
-		    break;
-	    case 9: boom9ObjD0 = O;
-		    break;
-	    case 10: boom10ObjD0 = O;
-		    break;
-	    }
-	}
-}
-
-
-/*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 /* draw explosions                                               */
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
+
+static void drawBoomFrame(int lowDetail, int frame)
+    {
+    char name[16];
+    const struct AssetManifestModel *model;
+    struct AssetPose *pose;
+
+    model = externalBoomModels[lowDetail ? 1 : 0];
+    pose = &externalBoomPoses[lowDetail ? 1 : 0];
+    if (!assetPoseReset(&model->model, pose))
+        return;
+    sprintf(name, "frame-%02d", frame);
+    assetModelDrawNode(&model->model, requiredNode(model, name), pose);
+    }
 
 void drawBooms(struct boom * boomers, int detail)
     {
@@ -4197,44 +2417,12 @@ void drawBooms(struct boom * boomers, int detail)
 
 	    if (detail == 0) {
 		/* Draw smaller 'flickering' explosions (Johan) */
-
-		switch(b.count) {
-		case 1: glCallList(boom1ObjD0);
-			break;
-		case 3: glCallList(boom3ObjD0);
-			break;
-		case 5: glCallList(boom5ObjD0);
-			break;
-		case 7: glCallList(boom7ObjD0);
-			break;
-		case 9: glCallList(boom9ObjD0);
-			break;
-		}
+		if (b.count >= 1 && b.count <= 9 && (b.count & 1))
+		    drawBoomFrame(1, b.count);
 
 	    } else {
-
-		switch(b.count) {
-		case 1: glCallList(boom1Obj);
-			break;
-		case 2: glCallList(boom2Obj);
-			break;
-		case 3: glCallList(boom3Obj);
-			break;
-		case 4: glCallList(boom4Obj);
-			break;
-		case 5: glCallList(boom5Obj);
-			break;
-		case 6: glCallList(boom6Obj);
-			break;
-		case 7: glCallList(boom7Obj);
-			break;
-		case 8: glCallList(boom8Obj);
-			break;
-		case 9: glCallList(boom9Obj);
-			break;
-		case 10: glCallList(boom10Obj);
-			break;
-		}
+		if (b.count >= 1 && b.count <= 10)
+		    drawBoomFrame(0, b.count);
 	    }
 	glPopMatrix();
 	}
@@ -4645,9 +2833,7 @@ void drawProjectiles(struct projectile * allProjs, int counter,
     register int i;
     register int rotRatio;
     int beamCounter;
-#ifndef BATTALION_ASSET_EXPORT
     int projectileVariant;
-#endif
 
     static float beamhitx[MAXBEAMS], beamhitz[MAXBEAMS];
 
@@ -4657,22 +2843,6 @@ void drawProjectiles(struct projectile * allProjs, int counter,
     rotRatio = (counter*100) % 3600;
     floatRatio = rotRatio * 0.1;
 
-#ifdef BATTALION_ASSET_EXPORT
-    glDeleteLists( shellObj, 1);
-    glNewList(shellObj, GL_COMPILE);
-
-	if (detail <= 0)
-	    makerrotcubexyflat(0.035, 0.035, 0.035, rotRatio, colorwhite);	
-	else
-	    makerrotcubexy(0.05,  0.05,  0.05, rotRatio, colorwhite);	
-
-	if (itsChristmas)
-	    {
-            makerrotcubexy(0.01, 0.051, 0.051, rotRatio, colorred);
-	    makerrotcubexy(0.051, 0.051, 0.01, rotRatio, colorred);
-	    }
-    glEndList();
-#else
     projectileVariant = (detail > 0 ? 1 : 0) + (itsChristmas ? 2 : 0);
     if (!assetPoseSample(&externalProjectileModels[projectileVariant]->model,
 			externalProjectileClips[projectileVariant],
@@ -4680,7 +2850,6 @@ void drawProjectiles(struct projectile * allProjs, int counter,
 			externalProjectileLoops[projectileVariant],
 			&externalProjectilePoses[projectileVariant]))
 	return;
-#endif
 
     beamCounter = 0;
     for (temp = allProjs->next;temp != NULL;temp = temp->next)
@@ -4698,13 +2867,9 @@ void drawProjectiles(struct projectile * allProjs, int counter,
 		case PROJTANK:
 		case PROJROCKET:glPushMatrix();		/* white cube shells */
 				    glTranslatef(x,  y,  z);
-#ifdef BATTALION_ASSET_EXPORT
-				    glCallList(shellObj);			
-#else
 				    assetModelDraw(
 					&externalProjectileModels[projectileVariant]->model,
 					&externalProjectilePoses[projectileVariant]);
-#endif
 				glPopMatrix();
 				if (detail > 0)
 				    {
@@ -4768,8 +2933,14 @@ void drawProjectiles(struct projectile * allProjs, int counter,
 	{
 	col[1] = fires[i].col;
 	if ((fabs(fires[i].x) <= PLANESIZE) && (fabs(fires[i].z) <= PLANESIZE))
-	    makeitPyr(12, col, fires[i].x, PLANEY+fires[i].height, fires[i].z,
-		fires[i].xwid, fires[i].height, fires[i].zwid);
+	    {
+	    glColor4fv(col);
+	    glPushMatrix();
+	    glTranslatef(fires[i].x, PLANEY + fires[i].height, fires[i].z);
+	    glScalef(fires[i].xwid, fires[i].height, fires[i].zwid);
+	    glCallList(fireModel);
+	    glPopMatrix();
+	    }
 	}
 
     /**********************************/

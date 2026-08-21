@@ -8,115 +8,152 @@ texture tree-wood textures/treewood.tga linear clamp
 texture road textures/road.tga linear repeat
 texture office-logo textures/logo.tga nearest clamp
 
-model tank models/tank.glb
-model tank-slag models/tank-slag.glb
-model tank-maser models/tank-maser.glb
-model tank-maser-slag models/tank-maser-slag.glb
-model tank-launcher models/tank-launcher.glb
-model tank-launcher-slag models/tank-launcher-slag.glb
-model tank-shadow models/tank-shadow.glb
+model tank models/vehicles/tank.glb
+model tank-slag models/vehicles/tank-slag.glb
+model tank-maser models/vehicles/tank-maser.glb
+model tank-maser-slag models/vehicles/tank-maser-slag.glb
+model tank-launcher models/vehicles/tank-launcher.glb
+model tank-launcher-slag models/vehicles/tank-launcher-slag.glb
+model tank-shadow models/vehicles/tank-shadow.glb
 
-model helo models/helo.glb
-model helo-slag models/helo-slag.glb
+model helo models/vehicles/helo.glb
+model helo-slag models/vehicles/helo-slag.glb
 animation helo-rotors helo rotors loop
 animation helo-slag-rotors helo-slag rotors loop
 
-model propeller models/propeller.glb
-model airplane-body models/airplane-body.glb
-model fighter-body models/fighter-body.glb
-model plane-shadow models/plane-shadow.glb
-model fighter-shadow models/fighter-shadow.glb
-model plane-dots-high models/plane-dots-high.glb
-model plane-dots-low models/plane-dots-low.glb
-model plane-ground-low models/plane-ground-low.glb
-model plane-ground-high models/plane-ground-high.glb
-model plane-ground-large models/plane-ground-large.glb
+model airplane models/vehicles/airplane.glb
+animation airplane-propellers airplane propellers loop
+model fighter-body models/vehicles/fighter-body.glb
+model plane-shadow models/vehicles/plane-shadow.glb
+model fighter-shadow models/vehicles/fighter-shadow.glb
+model plane-dots-high models/vehicles/plane-dots-high.glb
+model plane-dots-low models/vehicles/plane-dots-low.glb
+model plane-ground-low models/terrain/plane-ground-low.glb
+model plane-ground-high models/terrain/plane-ground-high.glb
+model plane-ground-large models/terrain/plane-ground-large.glb
 
-model googelon-leg models/googelon-leg.glb
-model googelon-head models/googelon-head.glb
-model googelon-head-simple models/googelon-head-simple.glb
-model googelon-tail models/googelon-tail.glb
-model googelon-tail-simple models/googelon-tail-simple.glb
-model googelon-body models/googelon-body.glb
+model googelon models/monsters/googelon.glb
+animation googelon-tail-sway googelon tail-sway loop
 
-model flutter-head models/flutter-head.glb
-model flutter-shadow models/flutter-shadow.glb
-model flutter-xmas models/flutter-xmas.glb
-model flutter-body models/flutter-body.glb
-model flutter-wing-1 models/flutter-wing-1.glb
-model flutter-wing-2 models/flutter-wing-2.glb
+model flutter models/monsters/flutter.glb
+animation flutter-wing-flap flutter wing-flap loop
 
-model techs-body models/techs-body.glb
-model techs-head models/techs-head.glb
-model techs-body-simple models/techs-body-simple.glb
-model techs-head-simple models/techs-head-simple.glb
-model techs-shadow models/techs-shadow.glb
+model techs models/monsters/techs.glb
 
-model projectile-techs models/projectile-techs.glb
-model projectile-hero models/projectile-hero.glb
-model projectile-water models/projectile-water.glb
-model projectile-standard-low models/projectile-standard-low.glb
-model projectile-standard-high models/projectile-standard-high.glb
-model projectile-standard-low-xmas models/projectile-standard-low-xmas.glb
-model projectile-standard-high-xmas models/projectile-standard-high-xmas.glb
+model hero-typhoon models/monsters/hero-typhoon.glb
+animation hero-typhoon-walk hero-typhoon walk loop
+animation hero-typhoon-fire hero-typhoon fire once
+model hero-beam models/monsters/hero-beam.glb
+animation hero-beam-walk hero-beam walk loop
+animation hero-beam-fire hero-beam fire once
+model mecha models/monsters/mecha.glb
+animation mecha-eye-scan mecha eye-scan loop
+
+model projectile-techs models/effects/projectile-techs.glb
+model projectile-hero models/effects/projectile-hero.glb
+model projectile-water models/effects/projectile-water.glb
+model projectile-standard-low models/effects/projectile-standard-low.glb
+model projectile-standard-high models/effects/projectile-standard-high.glb
+model projectile-standard-low-xmas models/effects/projectile-standard-low-xmas.glb
+model projectile-standard-high-xmas models/effects/projectile-standard-high-xmas.glb
 animation projectile-standard-low-spin projectile-standard-low spin loop
 animation projectile-standard-high-spin projectile-standard-high spin loop
 animation projectile-standard-low-xmas-spin projectile-standard-low-xmas spin loop
 animation projectile-standard-high-xmas-spin projectile-standard-high-xmas spin loop
 
-model title-high models/title-high.glb
-model title-medium models/title-medium.glb
-model title-low models/title-low.glb
-model power-tower models/power-tower.glb
-model generic-windows models/generic-windows.glb
-model round-tree-shadow models/round-tree-shadow.glb
+model title-high models/ui/title-high.glb
+model title-medium models/ui/title-medium.glb
+model title-low models/ui/title-low.glb
+model direction-arrow models/ui/direction-arrow.glb
+model power-tower models/buildings/power-tower.glb
+animation power-tower-collapse power-tower collapse once
+model hunter models/vehicles/hunter.glb
+model pine-tree models/terrain/pine-tree.glb
+model round-tree models/terrain/round-tree.glb
+model strip-1-high models/buildings/strip-1-high.glb
+model strip-1-low models/buildings/strip-1-low.glb
+model strip-2-high models/buildings/strip-2-high.glb
+model strip-2-low models/buildings/strip-2-low.glb
+model strip-3-high models/buildings/strip-3-high.glb
+model strip-3-low models/buildings/strip-3-low.glb
 
-model strip-1-high models/strip-1-high.glb
-model strip-1-low models/strip-1-low.glb
-model strip-2-high models/strip-2-high.glb
-model strip-2-low models/strip-2-low.glb
-model strip-3-high models/strip-3-high.glb
-model strip-3-low models/strip-3-low.glb
+model building-1-high models/buildings/building-1-high.glb
+model building-1-low models/buildings/building-1-low.glb
+model building-0-white-high models/buildings/building-0-white-high.glb
+model building-0-white-low models/buildings/building-0-white-low.glb
+model building-0-grey-high models/buildings/building-0-grey-high.glb
+model building-0-grey-low models/buildings/building-0-grey-low.glb
+model building-2-high models/buildings/building-2-high.glb
+model building-2-low models/buildings/building-2-low.glb
+model building-4-high models/buildings/cooling-tower-high.glb
+model building-4-low models/buildings/cooling-tower-low.glb
+model building-4-vector models/buildings/cooling-tower-vector.glb
+model building-5-high models/buildings/building-5-high.glb
+model building-5-low models/buildings/building-5-low.glb
+model building-6-high models/buildings/fast-food-high.glb
+model building-6-low models/buildings/fast-food-low.glb
+animation building-6-sign-spin building-6-high sign-spin loop
+model building-7 models/buildings/building-7.glb
+model building-8-high models/buildings/hangar-high.glb
+model building-8-low models/buildings/hangar-low.glb
+model building-9 models/buildings/water-tower.glb
+model building-9-alternate models/buildings/water-tower-alternate.glb
+model building-10 models/buildings/building-10.glb
+model building-11-high models/buildings/factory-smokestacks-high.glb
+model building-11-low models/buildings/factory-smokestacks-low.glb
+model building-12-high models/buildings/building-12-high.glb
+model building-12-low models/buildings/building-12-low.glb
+model building-14 models/buildings/building-14.glb
+model building-19-high models/buildings/building-19-high.glb
+model building-19-low models/buildings/building-19-low.glb
+model building-20-high models/buildings/building-20-high.glb
+model building-20-low models/buildings/building-20-low.glb
+model building-21-high models/buildings/building-21-high.glb
+model building-21-low models/buildings/building-21-low.glb
+model building-22-dark models/buildings/office-tower-dark.glb
+model building-23-light models/buildings/office-tower-light.glb
+model building-24-white models/buildings/office-tower-white.glb
+model building-25 models/buildings/satellite-dish.glb
+model building-26 models/buildings/drive-in-screen.glb
+model building-28-high models/buildings/fast-food-alternate-high.glb
+model building-28-low models/buildings/fast-food-alternate-low.glb
+animation building-28-sign-spin building-28-high sign-spin loop
+model building-29 models/buildings/fountain.glb
+model building-29-xmas models/buildings/fountain-xmas.glb
+model building-30-high models/buildings/hangar-alternate-high.glb
+model building-30-low models/buildings/hangar-alternate-low.glb
+model building-31 models/buildings/maser-battery.glb
+model building-32 models/buildings/helo-pad.glb
+model building-33 models/buildings/hero-entrance.glb
+animation building-33-collapse building-33 collapse once
+model building-34 models/buildings/office-smallest.glb
+model building-36 models/buildings/office-small.glb
+model building-37 models/buildings/office-logo.glb
 
-model building-1-high models/building-1-high.glb
-model building-1-low models/building-1-low.glb
-model building-2-high models/building-2-high.glb
-model building-2-low models/building-2-low.glb
-model building-5-high models/building-5-high.glb
-model building-5-low models/building-5-low.glb
-model building-7 models/building-7.glb
-model building-9 models/building-9.glb
-model building-9-alternate models/building-9-alternate.glb
-model building-10 models/building-10.glb
-model building-12-high models/building-12-high.glb
-model building-12-low models/building-12-low.glb
-model building-14 models/building-14.glb
-model building-19-high models/building-19-high.glb
-model building-19-low models/building-19-low.glb
-model building-20-high models/building-20-high.glb
-model building-20-low models/building-20-low.glb
-model building-21-high models/building-21-high.glb
-model building-21-low models/building-21-low.glb
-model building-31 models/building-31.glb
-model building-32 models/building-32.glb
+model water-square models/terrain/water-square.glb
+model water-square-xmas models/terrain/water-square-xmas.glb
+model water-triangle models/terrain/water-triangle.glb
+model water-triangle-xmas models/terrain/water-triangle-xmas.glb
+model hill-center models/terrain/hill-center.glb
+model hill-center-xmas models/terrain/hill-center-xmas.glb
+model hill-side-0 models/terrain/hill-side-0.glb
+model hill-side-0-xmas models/terrain/hill-side-0-xmas.glb
+model hill-side-1 models/terrain/hill-side-1.glb
+model hill-side-1-xmas models/terrain/hill-side-1-xmas.glb
+model hill-side-2 models/terrain/hill-side-2.glb
+model hill-side-2-xmas models/terrain/hill-side-2-xmas.glb
+model hill-corner-0 models/terrain/hill-corner-0.glb
+model hill-corner-0-xmas models/terrain/hill-corner-0-xmas.glb
+model hill-corner-1 models/terrain/hill-corner-1.glb
+model hill-corner-1-xmas models/terrain/hill-corner-1-xmas.glb
+model hill-inside-0 models/terrain/hill-inside-0.glb
+model hill-inside-0-xmas models/terrain/hill-inside-0-xmas.glb
+model hill-inside-1 models/terrain/hill-inside-1.glb
+model hill-inside-1-xmas models/terrain/hill-inside-1-xmas.glb
 
-model boom-01-high models/boom-01-high.glb
-model boom-01-low models/boom-01-low.glb
-model boom-02-high models/boom-02-high.glb
-model boom-02-low models/boom-02-low.glb
-model boom-03-high models/boom-03-high.glb
-model boom-03-low models/boom-03-low.glb
-model boom-04-high models/boom-04-high.glb
-model boom-04-low models/boom-04-low.glb
-model boom-05-high models/boom-05-high.glb
-model boom-05-low models/boom-05-low.glb
-model boom-06-high models/boom-06-high.glb
-model boom-06-low models/boom-06-low.glb
-model boom-07-high models/boom-07-high.glb
-model boom-07-low models/boom-07-low.glb
-model boom-08-high models/boom-08-high.glb
-model boom-08-low models/boom-08-low.glb
-model boom-09-high models/boom-09-high.glb
-model boom-09-low models/boom-09-low.glb
-model boom-10-high models/boom-10-high.glb
-model boom-10-low models/boom-10-low.glb
+model boom-high models/effects/boom-high.glb
+model boom-low models/effects/boom-low.glb
+model sphere-low models/effects/sphere-low.glb
+model sphere-high models/effects/sphere-high.glb
+model fire models/effects/fire.glb
+model shadow-rectangle models/effects/shadow-rectangle.glb

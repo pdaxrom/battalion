@@ -806,6 +806,7 @@ static void initializeNode(struct AssetNode *node)
     {
     int component;
 
+    node->name = NULL;
     node->mesh = -1;
     node->children = NULL;
     node->childCount = 0;
@@ -829,6 +830,7 @@ static int readNodes(const char *json, const struct JsonToken *tokens,
     int childCount;
     int child;
     int array;
+    int nameToken;
     struct AssetNode *node;
 
     nodesArray = objectValue(json, tokens, tokenCount, 0, "nodes");
@@ -845,6 +847,13 @@ static int readNodes(const char *json, const struct JsonToken *tokens,
         node = &model->nodes[nodeIndex];
         initializeNode(node);
         object = arrayItem(tokens, tokenCount, nodesArray, nodeIndex);
+        nameToken = objectValue(json, tokens, tokenCount, object, "name");
+        if (nameToken >= 0)
+            {
+            node->name = duplicateTokenString(json, &tokens[nameToken]);
+            if (node->name == NULL)
+                return 0;
+            }
         node->mesh = tokenInteger(json, tokens,
             objectValue(json, tokens, tokenCount, object, "mesh"), -1);
         if (node->mesh < -1 || node->mesh >= (int)model->meshCount)

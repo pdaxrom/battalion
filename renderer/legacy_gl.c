@@ -5,9 +5,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef BATTALION_ASSET_EXPORT
-#include "../asset.h"
-#endif
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -96,23 +93,6 @@ static DisplayList *recordingList;
 static int replayDepth;
 static GLenum lastError = GL_NO_ERROR;
 
-#ifdef BATTALION_ASSET_EXPORT
-typedef struct CaptureDraw {
-    RendererVertex *vertices;
-    size_t vertexCount;
-    enum RendererPrimitive primitive;
-    float lineWidth;
-    float pointSize;
-    int useCurrentColor;
-} CaptureDraw;
-
-static CaptureDraw *captureDraws;
-static size_t captureDrawCount;
-static size_t captureDrawCapacity;
-static int capturingDisplayList;
-static int captureFailed;
-static int captureColorExplicit;
-#endif
 
 static void matrixIdentity(float *m)
 {
@@ -333,107 +313,6 @@ static void emitImmediate(void)
     }
 
     if (outputCount) {
-#ifdef BATTALION_ASSET_EXPORT
-        if (capturingDisplayList) {
-            RendererVertex *captureOutput;
-            size_t captureOutputCount;
-            enum RendererPrimitive capturePrimitive;
-            CaptureDraw *draw;
-            size_t triangle;
-
-            captureOutput = output;
-            captureOutputCount = outputCount;
-            capturePrimitive = backendPrimitive;
-            if (state.polygonMode == GL_LINE &&
-                backendPrimitive == RENDERER_TRIANGLES) {
-                captureOutputCount = (outputCount / 3) * 6;
-                captureOutput = (RendererVertex *)malloc(
-                    captureOutputCount * sizeof(*captureOutput));
-                if (captureOutput == NULL) {
-                    captureFailed = 1;
-                    free(output);
-                    return;
-                }
-                for (triangle = 0; triangle < outputCount / 3; ++triangle) {
-                    RendererVertex *source = &output[triangle * 3];
-                    RendererVertex *target = &captureOutput[triangle * 6];
-                    copyVertex(&target[0], &source[0]);
-                    copyVertex(&target[1], &source[1]);
-                    copyVertex(&target[2], &source[1]);
-                    copyVertex(&target[3], &source[2]);
-                    copyVertex(&target[4], &source[2]);
-                    copyVertex(&target[5], &source[0]);
-                }
-                capturePrimitive = RENDERER_LINES;
-            }
-            if (captureDrawCount == captureDrawCapacity) {
-                CaptureDraw *expanded;
-                size_t capacity = captureDrawCapacity ?
-                                  captureDrawCapacity * 2 : 16;
-                if (capacity > ((size_t)-1) / sizeof(*captureDraws)) {
-                    captureFailed = 1;
-                    if (captureOutput != output)
-                        free(captureOutput);
-                    free(output);
-                    return;
-                }
-                expanded = (CaptureDraw *)realloc(
-                    captureDraws, capacity * sizeof(*captureDraws));
-                if (expanded == NULL) {
-                    captureFailed = 1;
-                    if (captureOutput != output)
-                        free(captureOutput);
-                    free(output);
-                    return;
-                }
-                captureDraws = expanded;
-                captureDrawCapacity = capacity;
-            }
-            draw = &captureDraws[captureDrawCount];
-            memset(draw, 0, sizeof(*draw));
-            draw->vertices = (RendererVertex *)calloc(
-                captureOutputCount, sizeof(*draw->vertices));
-            if (draw->vertices == NULL) {
-                captureFailed = 1;
-                if (captureOutput != output)
-                    free(captureOutput);
-                free(output);
-                return;
-            }
-            draw->vertexCount = captureOutputCount;
-            draw->primitive = capturePrimitive;
-            draw->lineWidth = state.lineWidth;
-            draw->pointSize = state.pointSize;
-            draw->useCurrentColor = !captureColorExplicit;
-            for (i = 0; i < captureOutputCount; ++i) {
-                RendererVertex *captured = &draw->vertices[i];
-                const RendererVertex *source = &captureOutput[i];
-                captured->position[0] =
-                    modelview.value[modelview.top][0] * source->position[0] +
-                    modelview.value[modelview.top][4] * source->position[1] +
-                    modelview.value[modelview.top][8] * source->position[2] +
-                    modelview.value[modelview.top][12];
-                captured->position[1] =
-                    modelview.value[modelview.top][1] * source->position[0] +
-                    modelview.value[modelview.top][5] * source->position[1] +
-                    modelview.value[modelview.top][9] * source->position[2] +
-                    modelview.value[modelview.top][13];
-                captured->position[2] =
-                    modelview.value[modelview.top][2] * source->position[0] +
-                    modelview.value[modelview.top][6] * source->position[1] +
-                    modelview.value[modelview.top][10] * source->position[2] +
-                    modelview.value[modelview.top][14];
-                memcpy(captured->color, source->color, sizeof(captured->color));
-                memcpy(captured->texcoord, source->texcoord,
-                       sizeof(captured->texcoord));
-            }
-            captureDrawCount++;
-            if (captureOutput != output)
-                free(captureOutput);
-            free(output);
-            return;
-        }
-#endif
         memset(&drawState, 0, sizeof(drawState));
         matrixMultiply(drawState.mvp, projection.value[projection.top],
                        modelview.value[modelview.top]);
@@ -453,195 +332,6 @@ static void emitImmediate(void)
     free(output);
 }
 
-#ifdef BATTALION_ASSET_EXPORT
-static void setCaptureError(char *error, size_t errorSize, const char *message)
-{
-    if (error == NULL || errorSize == 0)
-        return;
-    strncpy(error, message, errorSize - 1);
-    error[errorSize - 1] = '\0';
-}
-
-static void freeCaptureDraws(void)
-{
-    size_t draw;
-    for (draw = 0; draw < captureDrawCount; ++draw)
-        free(captureDraws[draw].vertices);
-    free(captureDraws);
-    captureDraws = NULL;
-    captureDrawCount = captureDrawCapacity = 0;
-}
-
-int legacyGLCaptureDisplayList(GLuint list, struct AssetModel *model,
-                               char *error, size_t errorSize)
-{
-    LegacyState savedState;
-    LegacyState savedAttribStack[ATTRIB_STACK_SIZE];
-    MatrixStack savedModelview;
-    MatrixStack savedProjection;
-    GLenum savedMatrixMode;
-    int savedAttribTop;
-    int savedInsideBegin;
-    GLenum savedPrimitiveMode;
-    size_t savedVertexCount;
-    struct AssetMesh *mesh;
-    CaptureDraw *draw;
-    size_t drawIndex;
-    size_t meshIndex;
-    size_t matchingMesh;
-    size_t *meshOffsets;
-    size_t vertex;
-
-    if (model == NULL) {
-        setCaptureError(error, errorSize, "Asset model is required");
-        return 0;
-    }
-    initializeState();
-    assetModelInitialize(model);
-    if (list >= displayListCapacity || displayLists[list] == NULL) {
-        setCaptureError(error, errorSize, "Display list does not exist");
-        return 0;
-    }
-    freeCaptureDraws();
-    captureFailed = 0;
-    captureColorExplicit = 0;
-    savedState = state;
-    memcpy(savedAttribStack, attribStack, sizeof(savedAttribStack));
-    savedAttribTop = attribTop;
-    savedModelview = modelview;
-    savedProjection = projection;
-    savedMatrixMode = matrixMode;
-    savedInsideBegin = insideBegin;
-    savedPrimitiveMode = primitiveMode;
-    savedVertexCount = vertexCount;
-    modelview.top = 0;
-    matrixIdentity(modelview.value[0]);
-    matrixMode = GL_MODELVIEW;
-    capturingDisplayList = 1;
-    glCallList(list);
-    capturingDisplayList = 0;
-    state = savedState;
-    memcpy(attribStack, savedAttribStack, sizeof(attribStack));
-    attribTop = savedAttribTop;
-    modelview = savedModelview;
-    projection = savedProjection;
-    matrixMode = savedMatrixMode;
-    insideBegin = savedInsideBegin;
-    primitiveMode = savedPrimitiveMode;
-    vertexCount = savedVertexCount;
-
-    if (captureFailed || captureDrawCount == 0) {
-        freeCaptureDraws();
-        if (captureFailed)
-            setCaptureError(error, errorSize,
-                            "Out of memory capturing display list");
-        else
-            setCaptureError(error, errorSize,
-                            "Display list has no supported geometry");
-        return 0;
-    }
-    model->meshes = (struct AssetMesh *)calloc(captureDrawCount,
-                                               sizeof(*model->meshes));
-    if (model->meshes == NULL) {
-        freeCaptureDraws();
-        setCaptureError(error, errorSize, "Out of memory capturing display list");
-        return 0;
-    }
-    model->meshCount = 0;
-    for (drawIndex = 0; drawIndex < captureDrawCount; ++drawIndex) {
-        draw = &captureDraws[drawIndex];
-        matchingMesh = model->meshCount;
-        for (meshIndex = 0; meshIndex < model->meshCount; ++meshIndex) {
-            mesh = &model->meshes[meshIndex];
-            if (mesh->primitive ==
-                    (draw->primitive == RENDERER_LINES ? ASSET_PRIMITIVE_LINES :
-                     draw->primitive == RENDERER_POINTS ? ASSET_PRIMITIVE_POINTS :
-                     ASSET_PRIMITIVE_TRIANGLES) &&
-                mesh->lineWidth == draw->lineWidth &&
-                mesh->pointSize == draw->pointSize &&
-                mesh->useCurrentColor == draw->useCurrentColor) {
-                matchingMesh = meshIndex;
-                break;
-            }
-        }
-        if (matchingMesh == model->meshCount) {
-            mesh = &model->meshes[model->meshCount++];
-            mesh->primitive = draw->primitive == RENDERER_LINES ?
-                              ASSET_PRIMITIVE_LINES :
-                              draw->primitive == RENDERER_POINTS ?
-                              ASSET_PRIMITIVE_POINTS :
-                              ASSET_PRIMITIVE_TRIANGLES;
-            mesh->lineWidth = draw->lineWidth;
-            mesh->pointSize = draw->pointSize;
-            mesh->useCurrentColor = draw->useCurrentColor;
-        } else {
-            mesh = &model->meshes[matchingMesh];
-        }
-        mesh->vertexCount += draw->vertexCount;
-    }
-    meshOffsets = (size_t *)calloc(model->meshCount, sizeof(*meshOffsets));
-    if (meshOffsets == NULL) {
-        freeCaptureDraws();
-        assetModelDestroy(model);
-        setCaptureError(error, errorSize, "Out of memory grouping vertices");
-        return 0;
-    }
-    for (meshIndex = 0; meshIndex < model->meshCount; ++meshIndex) {
-        mesh = &model->meshes[meshIndex];
-        mesh->vertices = (struct AssetVertex *)calloc(
-            mesh->vertexCount, sizeof(*mesh->vertices));
-        if (mesh->vertices == NULL) {
-            free(meshOffsets);
-            freeCaptureDraws();
-            assetModelDestroy(model);
-            setCaptureError(error, errorSize,
-                            "Out of memory capturing vertices");
-            return 0;
-        }
-    }
-    for (drawIndex = 0; drawIndex < captureDrawCount; ++drawIndex) {
-        draw = &captureDraws[drawIndex];
-        matchingMesh = model->meshCount;
-        for (meshIndex = 0; meshIndex < model->meshCount; ++meshIndex) {
-            mesh = &model->meshes[meshIndex];
-            if (mesh->primitive ==
-                    (draw->primitive == RENDERER_LINES ? ASSET_PRIMITIVE_LINES :
-                     draw->primitive == RENDERER_POINTS ? ASSET_PRIMITIVE_POINTS :
-                     ASSET_PRIMITIVE_TRIANGLES) &&
-                mesh->lineWidth == draw->lineWidth &&
-                mesh->pointSize == draw->pointSize &&
-                mesh->useCurrentColor == draw->useCurrentColor) {
-                matchingMesh = meshIndex;
-                break;
-            }
-        }
-        if (matchingMesh >= model->meshCount) {
-            free(meshOffsets);
-            freeCaptureDraws();
-            assetModelDestroy(model);
-            setCaptureError(error, errorSize, "Could not group captured vertices");
-            return 0;
-        }
-        mesh = &model->meshes[matchingMesh];
-        for (vertex = 0; vertex < draw->vertexCount; ++vertex) {
-            size_t destination = meshOffsets[matchingMesh] + vertex;
-            memcpy(mesh->vertices[destination].position,
-                   draw->vertices[vertex].position,
-                   sizeof(mesh->vertices[destination].position));
-            memcpy(mesh->vertices[destination].color,
-                   draw->vertices[vertex].color,
-                   sizeof(mesh->vertices[destination].color));
-            memcpy(mesh->vertices[destination].texcoord,
-                   draw->vertices[vertex].texcoord,
-                   sizeof(mesh->vertices[destination].texcoord));
-        }
-        meshOffsets[matchingMesh] += draw->vertexCount;
-    }
-    free(meshOffsets);
-    freeCaptureDraws();
-    return 1;
-}
-#endif
 
 void glBegin(GLenum mode)
 {
@@ -699,10 +389,6 @@ void glColor3fv(const GLfloat *v)
         memcpy(command->f, v, sizeof(float) * 3);
         return;
     }
-#ifdef BATTALION_ASSET_EXPORT
-    if (capturingDisplayList)
-        captureColorExplicit = 1;
-#endif
     memcpy(state.color, v, sizeof(float) * 3);
     state.color[3] = 1.0f;
 }
@@ -715,10 +401,6 @@ void glColor4fv(const GLfloat *v)
         memcpy(command->f, v, sizeof(float) * 4);
         return;
     }
-#ifdef BATTALION_ASSET_EXPORT
-    if (capturingDisplayList)
-        captureColorExplicit = 1;
-#endif
     memcpy(state.color, v, sizeof(float) * 4);
 }
 

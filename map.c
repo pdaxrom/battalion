@@ -13,8 +13,10 @@
 /***********************************************************************/
 
 #include "map.h"
+#include "map_package.h"
 
 #include <ctype.h>
+#include <dirent.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -23,19 +25,7 @@
 
 static char requestedMap[MAP_SELECTOR_SIZE];
 static char resolvedMapName[MAP_SELECTOR_SIZE] = "default";
-static char resolvedMapId[8] = "default";
-static int resolvedMapNumber = -1;
-
-static void trimLine(char *line)
-    {
-    size_t length;
-
-    length = strlen(line);
-    while (length > 0 && (line[length - 1] == '\n' ||
-                          line[length - 1] == '\r' ||
-                          isspace((unsigned char)line[length - 1])))
-        line[--length] = '\0';
-    }
+static char resolvedMapId[32] = "default";
 
 static int sameName(const char *left, const char *right)
     {
@@ -57,105 +47,107 @@ static int parseMapNumber(const char *selector, int *number)
 
     if (!selector[0])
         return 0;
-
     for (cursor = selector; *cursor; cursor++)
         if (!isdigit((unsigned char)*cursor))
             return 0;
-
     value = strtol(selector, &end, 10);
     if (*end || value < 0 || value > 99)
         return 0;
-
     *number = (int)value;
     return 1;
     }
 
-static int openLevelList(const char *dataPath, FILE **levelFile,
-                         char *path, size_t pathSize)
+static int buildPackagePathForId(const char *dataPath, const char *id,
+                                 char *path, size_t pathSize)
     {
-    const char *suffix;
+    const char *prefix = "maps/";
+    const char *suffix = "/map.json";
 
-    suffix = "data/battalion.levels";
-    if (strlen(dataPath) + strlen(suffix) + 1 > pathSize)
+    if (strlen(dataPath) + strlen(prefix) + strlen(id) + strlen(suffix) + 1 >
+        pathSize)
         return 0;
-
     strcpy(path, dataPath);
+    strcat(path, prefix);
+    strcat(path, id);
     strcat(path, suffix);
-    *levelFile = fopen(path, "r");
-    return *levelFile != NULL;
+    return 1;
+    }
+
+static int resolvePackage(const char *dataPath, const char *id,
+                          const char *selector, char *error,
+                          size_t errorSize)
+    {
+    struct BattalionMapPackage map;
+    char path[MAP_PATH_SIZE];
+    int matches;
+
+    if (!buildPackagePathForId(dataPath, id, path, sizeof(path)))
+        return 0;
+    battalionMapPackageInit(&map);
+    if (!battalionMapPackageLoad(path, &map, error, errorSize))
+        return 0;
+    matches = selector == NULL || !selector[0] ||
+              sameName(selector, map.id) || sameName(selector, map.name) ||
+              (sameName(selector, "default") && sameName(map.id, "default"));
+    if (matches)
+        {
+        strncpy(resolvedMapId, map.id, sizeof(resolvedMapId) - 1);
+        resolvedMapId[sizeof(resolvedMapId) - 1] = '\0';
+        strncpy(resolvedMapName, map.name, sizeof(resolvedMapName) - 1);
+        resolvedMapName[sizeof(resolvedMapName) - 1] = '\0';
+        }
+    battalionMapPackageFree(&map);
+    return matches;
     }
 
 void battalionMapRequest(const char *selector)
     {
     if (selector == NULL)
         selector = "";
-
     strncpy(requestedMap, selector, sizeof(requestedMap) - 1);
     requestedMap[sizeof(requestedMap) - 1] = '\0';
     }
 
 int battalionMapResolve(const char *dataPath, char *error, size_t errorSize)
     {
-    FILE *levelFile;
-    char path[MAP_PATH_SIZE];
-    char line[MAP_SELECTOR_SIZE];
-    int levelCount;
-    int level;
-    int requestedNumber;
-
-    resolvedMapNumber = -1;
-    strcpy(resolvedMapName, "default");
-    strcpy(resolvedMapId, "default");
+    DIR *directory;
+    struct dirent *entry;
+    char mapsPath[MAP_PATH_SIZE];
+    char id[3];
+    int number;
 
     if (!requestedMap[0] || sameName(requestedMap, "default"))
-        return 1;
+        return resolvePackage(dataPath, "default", "default", error, errorSize);
 
-    if (!openLevelList(dataPath, &levelFile, path, sizeof(path)))
+    if (parseMapNumber(requestedMap, &number))
         {
-        if (errorSize > 0)
-            {
-            strncpy(error, "Could not load data/battalion.levels", errorSize - 1);
-            error[errorSize - 1] = '\0';
-            }
-        return 0;
-        }
-
-    if (fscanf(levelFile, "%d", &levelCount) != 1)
-        {
-        fclose(levelFile);
-        if (errorSize > 0)
-            {
-            strncpy(error, "Invalid data/battalion.levels", errorSize - 1);
-            error[errorSize - 1] = '\0';
-            }
-        return 0;
-        }
-
-    fgets(line, sizeof(line), levelFile);
-    requestedNumber = -1;
-    parseMapNumber(requestedMap, &requestedNumber);
-
-    for (level = 0; level < levelCount; level++)
-        {
-        if (fgets(line, sizeof(line), levelFile) == NULL)
-            break;
-        trimLine(line);
-
-        if (level == requestedNumber || sameName(line, requestedMap))
-            {
-            resolvedMapNumber = level;
-            resolvedMapId[0] = (char)('0' + level / 10);
-            resolvedMapId[1] = (char)('0' + level % 10);
-            resolvedMapId[2] = '\0';
-            strncpy(resolvedMapName, line, sizeof(resolvedMapName) - 1);
-            resolvedMapName[sizeof(resolvedMapName) - 1] = '\0';
-            fclose(levelFile);
+        id[0] = (char)('0' + number / 10);
+        id[1] = (char)('0' + number % 10);
+        id[2] = '\0';
+        if (resolvePackage(dataPath, id, id, error, errorSize))
             return 1;
+        }
+
+    if (strlen(dataPath) + strlen("maps") + 1 <= sizeof(mapsPath))
+        {
+        strcpy(mapsPath, dataPath);
+        strcat(mapsPath, "maps");
+        directory = opendir(mapsPath);
+        if (directory != NULL)
+            {
+            while ((entry = readdir(directory)) != NULL)
+                if (entry->d_name[0] != '.' &&
+                    resolvePackage(dataPath, entry->d_name, requestedMap,
+                                   error, errorSize))
+                    {
+                    closedir(directory);
+                    return 1;
+                    }
+            closedir(directory);
             }
         }
 
-    fclose(levelFile);
-    if (errorSize > 0)
+    if (error != NULL && errorSize > 0)
         {
         strncpy(error, "Unknown battlefield map: ", errorSize - 1);
         error[errorSize - 1] = '\0';
@@ -165,51 +157,10 @@ int battalionMapResolve(const char *dataPath, char *error, size_t errorSize)
     return 0;
     }
 
-int battalionMapBuildPath(const char *dataPath, const char *kind,
-                          char *path, size_t pathSize)
-    {
-    char filename[64];
-    char level[3];
-
-    if (kind == NULL || strlen(kind) + 13 > sizeof(filename))
-        return 0;
-    strcpy(filename, "data/");
-    strcat(filename, kind);
-    if (resolvedMapNumber < 0)
-        strcat(filename, ".data");
-    else
-        {
-        level[0] = (char)('0' + resolvedMapNumber / 10);
-        level[1] = (char)('0' + resolvedMapNumber % 10);
-        level[2] = '\0';
-        strcat(filename, level);
-        strcat(filename, ".data");
-        }
-
-    if (strlen(dataPath) + strlen(filename) + 1 > pathSize)
-        return 0;
-
-    strcpy(path, dataPath);
-    strcat(path, filename);
-    return 1;
-    }
-
 int battalionMapBuildPackagePath(const char *dataPath,
                                  char *path, size_t pathSize)
     {
-    const char *prefix;
-    const char *suffix;
-
-    prefix = "maps/";
-    suffix = "/map.json";
-    if (strlen(dataPath) + strlen(prefix) + strlen(resolvedMapId) +
-        strlen(suffix) + 1 > pathSize)
-        return 0;
-    strcpy(path, dataPath);
-    strcat(path, prefix);
-    strcat(path, resolvedMapId);
-    strcat(path, suffix);
-    return 1;
+    return buildPackagePathForId(dataPath, resolvedMapId, path, pathSize);
     }
 
 const char *battalionMapId(void)
@@ -224,30 +175,31 @@ const char *battalionMapName(void)
 
 void battalionMapPrintAvailable(const char *dataPath, FILE *stream)
     {
-    FILE *levelFile;
-    char path[MAP_PATH_SIZE];
-    char line[MAP_SELECTOR_SIZE];
-    int count;
-    int level;
+    DIR *directory;
+    struct dirent *entry;
+    struct BattalionMapPackage map;
+    char mapsPath[MAP_PATH_SIZE];
+    char packagePath[MAP_PATH_SIZE];
+    char error[160];
 
-    if (!openLevelList(dataPath, &levelFile, path, sizeof(path)))
+    if (strlen(dataPath) + strlen("maps") + 1 > sizeof(mapsPath))
         return;
-
-    if (fscanf(levelFile, "%d", &count) != 1)
-        {
-        fclose(levelFile);
+    strcpy(mapsPath, dataPath);
+    strcat(mapsPath, "maps");
+    directory = opendir(mapsPath);
+    if (directory == NULL)
         return;
-        }
-    fgets(line, sizeof(line), levelFile);
-
     fprintf(stream, "Available maps:\n");
-    for (level = 0; level < count; level++)
+    while ((entry = readdir(directory)) != NULL)
         {
-        if (fgets(line, sizeof(line), levelFile) == NULL)
-            break;
-        trimLine(line);
-        fprintf(stream, "  %02d  %s\n", level, line);
+        if (entry->d_name[0] == '.' ||
+            !buildPackagePathForId(dataPath, entry->d_name, packagePath,
+                                   sizeof(packagePath)))
+            continue;
+        battalionMapPackageInit(&map);
+        if (battalionMapPackageLoad(packagePath, &map, error, sizeof(error)))
+            fprintf(stream, "  %s  %s\n", map.id, map.name);
+        battalionMapPackageFree(&map);
         }
-    fprintf(stream, "  default  current unnumbered DATA files\n");
-    fclose(levelFile);
+    closedir(directory);
     }

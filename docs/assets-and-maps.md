@@ -22,41 +22,26 @@ Paths in the manifest are relative to `assets/`. Missing or invalid declared
 content is fatal; there is no normal-build fallback to compiled C geometry or
 texture arrays. This policy is the same on every supported platform.
 
-The checked-in GLB files are generated deterministically from the original
-source material:
+The checked-in GLB files are the canonical source assets. The one-time legacy
+converter and the old C model factories have been removed, so geometry is not
+duplicated between code and assets.
 
-```sh
-make export-assets
-```
-
-The export command builds a separate developer-only converter, captures the
-source geometry through the renderer compatibility frontend, writes
-deterministic GLBs, and exits. Normal builds do not compile the converter or
-the old model factories.
-
-The tank is a static one-node scene. The helicopter is the first animated
-asset: its body, main rotor, and tail rotor are separate meshes/nodes, and its
-named `rotors` clip contains the two rotation tracks. `drawHelo()` samples that
-clip using the original game counter, so the speed and phase remain compatible
-with the original animation. Projectile variants likewise keep their named
-`spin` clips inside the GLB files.
+The tank is a static one-node scene. Compound vehicles and monsters keep their
+parts as named nodes in one GLB. The helicopter carries its `rotors` clip, the
+airplane its `propellers` clip, Googelon its `tail-sway` clip, Flutter its
+`wing-flap` clip, the two Hero variants their `walk` and `fire` clips, and Mecha
+its `eye-scan` clip. Projectile variants likewise keep their named `spin` clips
+inside their GLB files.
 
 ## Existing battlefield maps
 
-The maps were already external; they were not procedurally generated. The
-historical representation splits each battlefield across three text files:
-
-- `roadNN.data`: road placement;
-- `treeNN.data`: buildings, trees, and other static structures;
-- `tankNN.data`: initial units;
-- `battalion.levels`: numeric indices and display names.
-
-The unnumbered `road.data`, `tree.data`, and `tank.data` retain the historical
-default. A map can now be selected without changing files:
+The maps were already external; they were not procedurally generated. Their
+historical three-file representation has been converted to one JSON package
+per battlefield and removed. A map can be selected without changing files:
 
 ```sh
-build/macos-metal-none-hybrid/battalion --map 1
-build/macos-metal-none-hybrid/battalion --map Andyville
+build/macos-metal-none/battalion --map 1
+build/macos-metal-none/battalion --map Andyville
 ```
 
 The runtime still dynamically spawns enemies, applies destruction, expands
@@ -87,32 +72,13 @@ type/shape, while migrated geometry and animation live in renderer-neutral GLB
 files under `assets/models`. Runtime expansion of compound hills, initial occupants,
 destruction state, and enemy spawning is intentionally still gameplay logic.
 
-Map build modes mirror the model migration policy:
-
-- `MAPS=legacy`: compile only the original three-file reader;
-- `MAPS=hybrid`: load `map.json`, falling back to the original files;
-- `MAPS=json`: require a valid v1 package.
-
-Linux and macOS default to `hybrid`. Historical Unix targets default to
-`legacy`, keeping the original map reader available while model, texture,
-animation, audio, and map files all remain below the same `assets/` root.
-
-Regenerate all packages from them with:
-
-```sh
-make export-maps
-```
-
-The converter stops at the same all-zero terminators as the 1996 loader and
-reproduces its token-stream interpretation, including unusual legacy input.
-`make test` compares every generated package against its three source files and
-also performs a JSON write/read round trip.
-
+JSON packages are required on every platform. `make test` validates every
+package and performs JSON write/read round trips.
 ## Layout and compatibility
 
-The directory names are deliberately lowercase: `data`, `maps`, `models`,
-`textures`, `music`, and `sounds`. The map reader can still select `legacy`,
-`hybrid`, or `json` input, but all three modes resolve their files below
-`assets/`. Model and animation files are always GLB assets selected through the
-manifest. The same renderer-neutral representation feeds Metal and desktop
-OpenGL; GLES will consume that representation when its backend is implemented.
+The directory names are deliberately lowercase: `maps`, `models`, `textures`,
+`music`, and `sounds`. Models are grouped below `models/` as `vehicles`,
+`monsters`, `buildings`, `terrain`, `effects`, and `ui`. Model and animation
+files are always GLB assets selected through the manifest. The same
+renderer-neutral representation feeds Metal and desktop OpenGL; GLES will
+consume that representation when its backend is implemented.

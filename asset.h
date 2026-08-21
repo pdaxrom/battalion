@@ -39,6 +39,7 @@ struct AssetMesh
 
 struct AssetNode
     {
+    char *name;
     int mesh;
     int *children;
     size_t childCount;
@@ -89,6 +90,7 @@ struct AssetModel
 
 void assetModelInitialize(struct AssetModel *model);
 void assetModelDestroy(struct AssetModel *model);
+int assetModelFindNode(const struct AssetModel *model, const char *name);
 int assetModelLoadGLB(const char *path, struct AssetModel *model,
                       char *error, size_t errorSize);
 

@@ -99,10 +99,12 @@ static void nodeMatrix(const struct AssetNode *node,
     matrix[14] = pose != NULL ? pose->translation[2] : node->translation[2];
     }
 
-static void drawMesh(const struct AssetMesh *mesh, const float matrix[16])
+static void drawMesh(const struct AssetMesh *mesh, const float matrix[16],
+                     const struct AssetPose *pose)
     {
     const struct AssetVertex *vertex;
     float position[3];
+    float color[4];
     size_t vertexIndex;
 
     GLfloat savedSize;
@@ -136,7 +138,20 @@ static void drawMesh(const struct AssetMesh *mesh, const float matrix[16])
 	              matrix[6] * vertex->position[1] +
 	              matrix[10] * vertex->position[2] + matrix[14];
 	if (!mesh->useCurrentColor)
-	    glColor4fv(vertex->color);
+	    {
+	    color[0] = vertex->color[0] +
+	               (pose != NULL ? pose->colorOffset[0] : 0.0f);
+	    color[1] = vertex->color[1] +
+	               (pose != NULL ? pose->colorOffset[1] : 0.0f);
+	    color[2] = vertex->color[2] +
+	               (pose != NULL ? pose->colorOffset[2] : 0.0f);
+	    color[0] = color[0] > 1.0f ? 1.0f : color[0];
+	    color[1] = color[1] > 1.0f ? 1.0f : color[1];
+	    color[2] = color[2] > 1.0f ? 1.0f : color[2];
+	    color[3] = vertex->color[3];
+	    glColor4fv(color);
+	    }
+	glTexCoord2fv(vertex->texcoord);
 	glVertex3fv(position);
 	}
     glEnd();
@@ -158,12 +173,15 @@ static void drawNode(const struct AssetModel *model, int nodeIndex,
     if (nodeIndex < 0 || nodeIndex >= (int)model->nodeCount ||
 	depth >= model->nodeCount)
 	return;
+    if (pose != NULL && pose->nodeCount == model->nodeCount &&
+        !pose->nodes[nodeIndex].visible)
+        return;
     node = &model->nodes[nodeIndex];
     nodeMatrix(node, pose != NULL && pose->nodeCount == model->nodeCount ?
 	       &pose->nodes[nodeIndex] : NULL, localMatrix);
     multiplyMatrix(worldMatrix, parentMatrix, localMatrix);
     if (node->mesh >= 0 && node->mesh < (int)model->meshCount)
-	drawMesh(&model->meshes[node->mesh], worldMatrix);
+	drawMesh(&model->meshes[node->mesh], worldMatrix, pose);
     for (child = 0; child < node->childCount; child++)
     	drawNode(model, node->children[child], pose, worldMatrix, depth + 1);
     }
@@ -182,7 +200,18 @@ void assetModelDraw(const struct AssetModel *model, const struct AssetPose *pose
 	    drawNode(model, model->sceneRoots[root], pose, identity, 0);
     else
 	for (meshIndex = 0; meshIndex < model->meshCount; meshIndex++)
-	    drawMesh(&model->meshes[meshIndex], identity);
+	    drawMesh(&model->meshes[meshIndex], identity, pose);
+    }
+
+void assetModelDrawNode(const struct AssetModel *model, int node,
+                        const struct AssetPose *pose)
+    {
+    float identity[16];
+
+    if (model == NULL || node < 0 || node >= (int)model->nodeCount)
+        return;
+    identityMatrix(identity);
+    drawNode(model, node, pose, identity, 0);
     }
 
 unsigned int assetModelCreateDisplayList(const struct AssetModel *model)

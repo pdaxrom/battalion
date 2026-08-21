@@ -57,9 +57,6 @@ void battalionMapPackageFree(struct BattalionMapPackage *map);
 int battalionMapPackageLoad(const char *path,
                             struct BattalionMapPackage *map,
                             char *error, size_t errorSize);
-int battalionMapPackageReadLegacy(const char *dataPath,
-                                  struct BattalionMapPackage *map,
-                                  char *error, size_t errorSize);
 int battalionMapPackageWrite(const char *path,
                              const struct BattalionMapPackage *map,
                              char *error, size_t errorSize);

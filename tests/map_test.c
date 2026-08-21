@@ -36,7 +36,6 @@ static int samePackage(const struct BattalionMapPackage *left,
 
 static int checkPackage(const char *selector)
     {
-    struct BattalionMapPackage legacy;
     struct BattalionMapPackage json;
     struct BattalionMapPackage roundTrip;
     char error[256];
@@ -46,15 +45,11 @@ static int checkPackage(const char *selector)
     battalionMapRequest(selector);
     if (!battalionMapResolve("./assets/", error, sizeof(error)))
         return 0;
-    battalionMapPackageInit(&legacy);
     battalionMapPackageInit(&json);
     battalionMapPackageInit(&roundTrip);
-    result = battalionMapPackageReadLegacy("./assets/", &legacy,
-                                            error, sizeof(error)) &&
-             battalionMapBuildPackagePath("./assets/", path,
+    result = battalionMapBuildPackagePath("./assets/", path,
                                            sizeof(path)) &&
              battalionMapPackageLoad(path, &json, error, sizeof(error)) &&
-             samePackage(&legacy, &json) &&
              battalionMapPackageWrite("build/tests/map-roundtrip.json", &json,
                                       error, sizeof(error)) &&
              battalionMapPackageLoad("build/tests/map-roundtrip.json",
@@ -64,12 +59,11 @@ static int checkPackage(const char *selector)
         fprintf(stderr, "map package %s failed: %s\n", selector, error);
     battalionMapPackageFree(&roundTrip);
     battalionMapPackageFree(&json);
-    battalionMapPackageFree(&legacy);
     return result;
     }
 
-static int checkPath(const char *selector, const char *kind,
-                     const char *expectedPath, const char *expectedName)
+static int checkPath(const char *selector, const char *expectedPath,
+                     const char *expectedId, const char *expectedName)
     {
     char error[160];
     char path[1024];
@@ -80,14 +74,15 @@ static int checkPath(const char *selector, const char *kind,
         fprintf(stderr, "resolve %s failed: %s\n", selector, error);
         return 0;
         }
-    if (!battalionMapBuildPath("./assets/", kind, path, sizeof(path)))
+    if (!battalionMapBuildPackagePath("./assets/", path, sizeof(path)))
         return 0;
     if (strcmp(path, expectedPath) != 0)
         {
         fprintf(stderr, "path %s != %s\n", path, expectedPath);
         return 0;
         }
-    if (strcmp(battalionMapName(), expectedName) != 0)
+    if (strcmp(battalionMapId(), expectedId) != 0 ||
+        strcmp(battalionMapName(), expectedName) != 0)
         {
         fprintf(stderr, "name %s != %s\n", battalionMapName(), expectedName);
         return 0;
@@ -100,14 +95,14 @@ int main(void)
     char error[160];
     char path[1024];
 
-    if (!checkPath("default", "road", "./assets/data/road.data",
-                   "default"))
+    if (!checkPath("default", "./assets/maps/default/map.json",
+                   "default", "default"))
         return 1;
-    if (!checkPath("Andyville", "tree",
-                   "./assets/data/tree01.data", "Andyville"))
+    if (!checkPath("Andyville", "./assets/maps/01/map.json",
+                   "01", "Andyville"))
         return 1;
-    if (!checkPath("2", "tank", "./assets/data/tank02.data",
-                   "Garden-City"))
+    if (!checkPath("2", "./assets/maps/02/map.json",
+                   "02", "Garden-City"))
         return 1;
 
     battalionMapRequest("missing-map");
@@ -116,8 +111,23 @@ int main(void)
         fprintf(stderr, "unknown map unexpectedly resolved\n");
         return 1;
         }
-    if (battalionMapBuildPath("./assets/",
-        "this-kind-name-is-deliberately-too-long-for-the-map-path-buffer",
+    if (battalionMapBuildPackagePath(
+        "this-data-path-is-deliberately-too-long-for-the-map-path-buffer/"
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/"
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/"
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/"
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/"
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/"
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/"
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/"
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/"
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/"
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/"
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/"
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/"
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/"
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/"
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/",
         path, sizeof(path)))
         {
         fprintf(stderr, "oversized map kind unexpectedly accepted\n");

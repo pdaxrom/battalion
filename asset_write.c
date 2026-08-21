@@ -444,8 +444,16 @@ static void appendNodesAndScene(struct JsonBuilder *json,
         node = &model->nodes[nodeIndex];
         builderAppend(json, "{");
         property = 0;
+        if (node->name != NULL)
+            {
+            builderAppend(json, "\"name\":");
+            builderAppendJsonString(json, node->name);
+            property = 1;
+            }
         if (node->mesh >= 0)
             {
+            if (property)
+                builderAppend(json, ",");
             builderAppendFormat(json, "\"mesh\":%d", node->mesh);
             property = 1;
             }
@@ -717,7 +725,7 @@ int assetModelWriteGLB(const char *path, const struct AssetModel *model,
             }
 
     builderAppend(&json,
-        "{\"asset\":{\"generator\":\"Battalion legacy asset exporter\","
+        "{\"asset\":{\"generator\":\"Battalion asset tools\","
         "\"version\":\"2.0\"},\"buffers\":[{");
     builderAppendFormat(&json, "\"byteLength\":%lu}]",
                         (unsigned long)binaryLength);

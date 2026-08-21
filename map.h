@@ -18,8 +18,6 @@
 
 void battalionMapRequest(const char *selector);
 int battalionMapResolve(const char *dataPath, char *error, size_t errorSize);
-int battalionMapBuildPath(const char *dataPath, const char *kind,
-                          char *path, size_t pathSize);
 int battalionMapBuildPackagePath(const char *dataPath,
                                  char *path, size_t pathSize);
 const char *battalionMapId(void);

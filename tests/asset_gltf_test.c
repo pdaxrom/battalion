@@ -38,8 +38,8 @@ static int writeFixture(const char *path)
         "\"baseColorFactor\":[1,0.5,0.25,1]}}],"
         "\"meshes\":[{\"primitives\":[{\"attributes\":{\"POSITION\":0},"
         "\"indices\":1,\"material\":0}]}],"
-        "\"nodes\":[{\"translation\":[2,0,0],\"children\":[1]},"
-        "{\"mesh\":0,\"translation\":[0,3,0]}],"
+        "\"nodes\":[{\"name\":\"root\",\"translation\":[2,0,0],\"children\":[1]},"
+        "{\"name\":\"moving-part\",\"mesh\":0,\"translation\":[0,3,0]}],"
         "\"scenes\":[{\"nodes\":[0]}],\"scene\":0,"
         "\"animations\":[{\"name\":\"move\",\"samplers\":[{"
         "\"input\":2,\"output\":3,\"interpolation\":\"LINEAR\"}],"
@@ -119,6 +119,8 @@ static int testStaticRoundTrip(const struct AssetModel *source)
     result = loaded.meshCount == 1 &&
 	     loaded.meshes[0].vertexCount == source->meshes[0].vertexCount &&
 	     loaded.nodeCount == source->nodeCount &&
+	     loaded.nodes[0].name != NULL &&
+	     strcmp(loaded.nodes[0].name, "root") == 0 &&
 	     loaded.sceneRootCount == source->sceneRootCount &&
 	     loaded.animationCount == 1 &&
 	     loaded.animations[0].trackCount == 1 &&
@@ -142,7 +144,7 @@ static int testExportedTank(void)
     int result;
 
     assetModelInitialize(&model);
-    if (!assetModelLoadGLB("assets/models/tank.glb", &model,
+    if (!assetModelLoadGLB("assets/models/vehicles/tank.glb", &model,
 			   error, sizeof(error)))
 	{
 	fprintf(stderr, "exported tank load failed: %s\n", error);
@@ -163,9 +165,9 @@ static int testExportedTank(void)
 static int testGroundUsesRuntimeColor(void)
     {
     static const char *paths[3] = {
-        "assets/models/plane-ground-low.glb",
-        "assets/models/plane-ground-high.glb",
-        "assets/models/plane-ground-large.glb"
+        "assets/models/terrain/plane-ground-low.glb",
+        "assets/models/terrain/plane-ground-high.glb",
+        "assets/models/terrain/plane-ground-large.glb"
     };
     struct AssetModel model;
     char error[160];
@@ -268,7 +270,7 @@ static int testExportedHelicopter(void)
 
     assetModelInitialize(&model);
     assetPoseInitialize(&pose);
-    if (!assetModelLoadGLB("assets/models/helo.glb", &model,
+    if (!assetModelLoadGLB("assets/models/vehicles/helo.glb", &model,
 			   error, sizeof(error)))
 	{
 	fprintf(stderr, "exported helicopter load failed: %s\n", error);
@@ -303,7 +305,7 @@ static int testExportedSlagHelicopter(void)
 
     assetModelInitialize(&model);
     result = assetModelLoadGLB(
-        "assets/models/helo-slag.glb", &model,
+        "assets/models/vehicles/helo-slag.glb", &model,
         error, sizeof(error)) &&
         model.meshCount == 3 && model.nodeCount == 3 &&
         model.animationCount == 1 &&
@@ -346,6 +348,101 @@ static int testExternalTextures(void)
     return 1;
     }
 
+static int testCompoundModels(void)
+    {
+    static const char *paths[6] = {
+        "assets/models/vehicles/airplane.glb",
+        "assets/models/monsters/googelon.glb",
+        "assets/models/monsters/flutter.glb",
+        "assets/models/monsters/techs.glb",
+        "assets/models/effects/boom-high.glb",
+        "assets/models/effects/boom-low.glb"
+    };
+    static const size_t meshCounts[6] = {3, 7, 6, 5, 10, 10};
+    static const size_t nodeCounts[6] = {4, 8, 7, 6, 11, 11};
+    static const char *requiredNodes[6] = {
+        "propeller-right", "tail-simple", "wing-right",
+        "head-simple", "frame-10", "frame-10"
+    };
+    static const char *clips[6] = {
+        "propellers", "tail-sway", "wing-flap", NULL, NULL, NULL
+    };
+    struct AssetModel model;
+    char error[160];
+    int index;
+    int valid;
+
+    assetModelInitialize(&model);
+    for (index = 0; index < 6; index++)
+        {
+        valid = assetModelLoadGLB(paths[index], &model,
+                                  error, sizeof(error)) &&
+                model.meshCount >= meshCounts[index] &&
+                model.nodeCount >= nodeCounts[index] &&
+                model.sceneRootCount >= 1 &&
+                assetModelFindNode(&model, requiredNodes[index]) >= 0 &&
+                ((clips[index] == NULL && model.animationCount == 0) ||
+                 (clips[index] != NULL && model.animationCount == 1 &&
+                  model.animations[0].name != NULL &&
+                  strcmp(model.animations[0].name, clips[index]) == 0));
+        if (!valid)
+            {
+            fprintf(stderr, "invalid compound model %s: %s\n",
+                    paths[index], error);
+            assetModelDestroy(&model);
+            return 0;
+            }
+        assetModelDestroy(&model);
+        }
+    return 1;
+    }
+
+static int testCharacterModels(void)
+    {
+    static const char *paths[3] = {
+        "assets/models/monsters/hero-typhoon.glb",
+        "assets/models/monsters/hero-beam.glb",
+        "assets/models/monsters/mecha.glb"
+        };
+    static const char *nodes[3] = {
+        "leg-right", "forearm-left", "eye-intact"
+        };
+    static const char *firstClips[3] = {
+        "walk", "walk", "eye-scan"
+        };
+    static const char *secondClips[2] = {"fire", "fire"};
+    struct AssetModel model;
+    struct AssetPose pose;
+    char error[160];
+    int index;
+
+    assetModelInitialize(&model);
+    assetPoseInitialize(&pose);
+    for (index = 0; index < 3; index++)
+        {
+        if (!assetModelLoadGLB(paths[index], &model, error, sizeof(error)) ||
+            model.meshCount == 0 || model.nodeCount == 0 ||
+            model.sceneRootCount != 1 ||
+            assetModelFindNode(&model, nodes[index]) < 0 ||
+            model.animationCount != (index < 2 ? 2 : 1) ||
+            strcmp(model.animations[0].name, firstClips[index]) != 0 ||
+            (index < 2 &&
+             strcmp(model.animations[1].name, secondClips[index]) != 0) ||
+            !assetPoseSample(&model, 0, 1.0f, 1, &pose) ||
+            (index < 2 && !assetPoseApply(&model, 1, 1.0f, 0, &pose)))
+            {
+            fprintf(stderr, "invalid character model %s: %s\n",
+                    paths[index], error);
+            assetPoseDestroy(&pose);
+            assetModelDestroy(&model);
+            return 0;
+            }
+        assetPoseDestroy(&pose);
+        assetModelDestroy(&model);
+        }
+    return 1;
+    }
+
 int main(void)
     {
     const char *path;
@@ -376,6 +473,8 @@ int main(void)
     if (model.nodeCount != 2 || model.sceneRootCount != 1 ||
         model.sceneRoots[0] != 0 || model.nodes[0].childCount != 1 ||
         model.nodes[0].children[0] != 1 || model.nodes[1].mesh != 0 ||
+        assetModelFindNode(&model, "root") != 0 ||
+        assetModelFindNode(&model, "moving-part") != 1 ||
         !nearValue(model.nodes[0].translation[0], 2.0f) ||
         !nearValue(model.nodes[1].translation[1], 3.0f))
         {
@@ -432,6 +531,10 @@ int main(void)
     if (!testPrimitiveRoundTrip())
 	return 1;
     if (!testExternalTextures())
+	return 1;
+    if (!testCompoundModels())
+	return 1;
+    if (!testCharacterModels())
 	return 1;
     return 0;
     }

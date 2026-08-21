@@ -7,9 +7,14 @@ filesystems.
 ```text
 assets/
   manifest.txt       model, texture, and animation registry
-  data/              historical level source data
   maps/              versioned JSON battlefield packages
   models/            Khronos glTF 2.0 binary models and animation clips
+    vehicles/        tanks, aircraft, and vehicle shadows
+    monsters/        monsters, Heroes, and Mecha
+    buildings/       structures and structure animations
+    terrain/         trees, water, hills, and ground meshes
+    effects/         projectiles, explosions, fire, and generic effects
+    ui/              title geometry
   textures/          TGA textures
   music/             music tracks
   sounds/            sound effects
@@ -22,15 +27,16 @@ geometry or texture fallback.
 
 The GLB loader supports triangle, line, and point primitives; indexed and
 non-indexed positions; normals, UVs and vertex colours; material base colours;
-scene-node hierarchies; and named translation, rotation, and scale clips with
-`LINEAR` or `STEP` interpolation. `helo.glb` is one compound asset containing
-the body, both rotors, and the named `rotors` animation. Standard projectile
-models likewise carry their `spin` animation inside their GLB files.
+scene-node hierarchies; named nodes; and named translation, rotation, and scale
+clips with `LINEAR` or `STEP` interpolation. `helo.glb`, `airplane.glb`,
+`googelon.glb`, `flutter.glb`, `techs.glb`, both Hero files, and `mecha.glb`
+are compound assets. Their
+moving parts and reusable variants are nodes in the same file; periodic motion
+is stored in named animation clips. Standard projectile models likewise carry
+their `spin` animation inside their GLB files.
 
-Regenerate converted content and verify it with:
+Verify the checked-in content with:
 
 ```sh
-make export-assets
-make export-maps
 make test
 ```

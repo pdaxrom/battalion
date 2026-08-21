@@ -180,12 +180,6 @@ void gluLookAt(GLdouble eyeX, GLdouble eyeY, GLdouble eyeZ,
                GLdouble upX, GLdouble upY, GLdouble upZ);
 const GLubyte *gluErrorString(GLenum error);
 
-#ifdef BATTALION_ASSET_EXPORT
-struct AssetModel;
-int legacyGLCaptureDisplayList(GLuint list, struct AssetModel *model,
-                               char *error, size_t errorSize);
-#endif
-
 #ifdef __cplusplus
 }
 #endif

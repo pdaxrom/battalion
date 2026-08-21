@@ -15,6 +15,7 @@
 #include "asset.h"
 
 #include <stdlib.h>
+#include <string.h>
 
 void assetModelInitialize(struct AssetModel *model)
     {
@@ -40,7 +41,10 @@ void assetModelDestroy(struct AssetModel *model)
     for (mesh = 0; mesh < model->meshCount; mesh++)
         free(model->meshes[mesh].vertices);
     for (node = 0; node < model->nodeCount; node++)
+        {
+        free(model->nodes[node].name);
         free(model->nodes[node].children);
+        }
     for (animation = 0; animation < model->animationCount; animation++)
         {
         free(model->animations[animation].name);
@@ -56,4 +60,17 @@ void assetModelDestroy(struct AssetModel *model)
     free(model->sceneRoots);
     free(model->animations);
     assetModelInitialize(model);
+    }
+
+int assetModelFindNode(const struct AssetModel *model, const char *name)
+    {
+    size_t node;
+
+    if (model == NULL || name == NULL)
+        return -1;
+    for (node = 0; node < model->nodeCount; node++)
+        if (model->nodes[node].name != NULL &&
+            strcmp(model->nodes[node].name, name) == 0)
+            return (int)node;
+    return -1;
     }

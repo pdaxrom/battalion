@@ -665,147 +665,8 @@ void processNetwork(time_t, int, int, struct tree *, struct tank *,
 void addNetworkTarget(long, int, float, float, float, float, float,
     int, void *);
 
-/*******************************
- * gprim.c
- * holds the graphics primitives
- *******************************/
-
-void drawCylinder(float *, float *, float, int,  int, int);
-void drawClosedCylinder(float *, float *,  int, int);
-
-void drawCone(float *, float *, float, int,  int);
-void drawClosedCone(float *, float *,  int);
-
-void maker(float tail2[8][3], float,  float,  float,
-		float,  float,  float, 
-		float *,  float,  float,  float,  float);
-
-void makerP(float tail2[8][3], float *, float,  float,  float,
-		float,  float,  float);
-
-
-void makeitd(int,  float *,  float,  float,  float,
-		float,  float,  float);
-
-void makeitPyr(int,  float *,  float,  float,  float,
-		float,  float,  float);
-
-void makercube(float x,  float y,  float z,
-		float u,  float v,  float w, 
-		float c[4]);
-
-void makerbluecube(float x,  float y,  float z,
-		float u,  float v,  float w, 
-		float c[4]);
-
-void makercubenobacknotop(float x,  float y,  float z,
-		float u,  float v,  float w, 
-		float c[4]);
-
-void makerlogo(float x,  float y,  float z,
-		float u,  float v,  float w, int, int, int);
-		
-void makercubeTopBack(float x,  float y,  float z,
-		float u,  float v,  float w, 
-		float c[4]);
-
-void makercubenobtm(float x,  float y,  float z,
-		float u,  float v,  float w, 
-		float c[4]);
-
-void makercubenobtmnotop(float x,  float y,  float z,
-		float u,  float v,  float w, 
-		float c[4]);
-
-void makercubenobtmnotopTEX(float x,  float y,  float z,
-		float u,  float v,  float w, 
-		float c[4]);
-
-void makerrotcubexy(float u,  float v,  float w, 
-		float theta, float c[4]);
-		
-void makerrotcubexyflat(float u,  float v,  float w, 
-		float theta, float c[4]);
-
-
-/*****************************************
- * objects.c
- * holds the objects for the graphics routines
- *****************************************/
-
 GLuint makeMonsterLookat(void);
 GLuint makeOverviewLookat(void);
-
-GLuint makeshell2(void);
-GLuint makeHeroShell(void);
-GLuint makeWaterShell(void);
-
-GLuint makeTankShadow(void);
-GLuint makeFighterShadow(void);
-GLuint makePlaneShadow(void);
-
-GLuint makeTank(void);
-GLuint makeSlagTank(void);
-GLuint makeLauncherTank(void);
-GLuint makeSlagLauncherTank(void);
-GLuint makeMaserTank(void);
-GLuint makeSlagMaserTank(void);
-
-GLuint makeHelo(void);
-GLuint makeSlagHelo(void);
-GLuint makeBigRotor(void);
-GLuint makeSmallRotor(void);
-GLuint makePropeller(void);
-GLuint makeAirplaneBody(void);
-GLuint makeFighterBody(void);
-
-GLuint makeLeg(void);
-GLuint makeHead(void);
-GLuint makeTail(void);
-GLuint makeSimpleHead(void);
-GLuint makeSimpleTail(void);
-GLuint makeBody(void);
-
-GLuint makeFlutterHead(void);
-GLuint makeFlutterShadow(void);
-GLuint makeFlutterXMas(void);
-GLuint makeFlutterBody(void);
-GLuint makeFlutterWing1(void);
-GLuint makeFlutterWing2(void);
-
-GLuint makeTechsBody(void);
-GLuint makeTechsHead(void);
-GLuint makeTechsSimpleBody(void);
-GLuint makeTechsSimpleHead(void);
-GLuint makeTechsShadow(void);
-
-GLuint makePowerTower(void);
-GLuint makeGenericWindows(void);
-GLuint makebuilding1(int);
-GLuint makebuilding2(int);
-GLuint makebuilding5(int);
-GLuint makebuilding7(void);
-GLuint makebuilding9(int);
-GLuint makebuilding10(void);
-GLuint makebuilding12(int);
-GLuint makebuilding14(void);
-GLuint makebuilding19(int);
-GLuint makebuilding20(int);
-GLuint makebuilding21(int);
-GLuint makebuilding31(void);
-GLuint makebuilding32(void);
-GLuint makeStrip1(int);
-GLuint makeStrip2(int);
-GLuint makeStrip3(int);
-
-GLuint makeTitles(int);
-
-GLuint makeLowDPlane(void);
-GLuint makeHighDPlane(void);
-GLuint makeBigPlane(void);
-GLuint makePlaneDots(int);
-
-GLuint makeRoundTreeShadow(void);
 
 /*****************************************
  * text.c
@@ -832,11 +693,6 @@ void showScores(int, struct score*, struct score*, struct score*, struct score*,
 
 void makeObjects(char *);
 
-#ifdef BATTALION_ASSET_EXPORT
-int exportBuiltinModelGLB(const char *, const char *, char *, size_t);
-int exportAllBuiltinModelsGLB(const char *, char *, size_t);
-#endif
-
 void shadow (float,  float,  float,  float);
 
 void makeCHH(int);
@@ -856,19 +712,10 @@ void drawHeroDude(int, int,  int, int, int);
 void drawHeroDude2(int, int,  int, int, int);
 void drawMechaMonster(int, int, int);
 
-void wzminus(float,  float,  float,  float,  float);
-void wzplus(float,  float,  float,  float,  float);
-void wxplus(float,  float,  float,  float,  float);
-void wxminus(float,  float,  float,  float,  float);
-
-
-void makeBooms(void);
-
 void drawBuilding0(float *, int);
 void drawBuilding6(int, float *,  float *, int);
 void drawBuilding8(float *,float *, int);
 void drawBuilding11(int);
-void drawBuilding15(float *,  float *, int);
 void drawBuilding22(float *);
 void drawBuilding25(void);
 void drawBuilding26(int, int);
@@ -902,5 +749,3 @@ void drawBeam(float, float, int,  int, int, int);
 
 void drawRoads(struct road *,  float,  float, int, int, int);
 void drawProjectiles(struct projectile *, int, struct fireType*, int, int, int);
-
-void andysphdraw(float loc[4], int);
