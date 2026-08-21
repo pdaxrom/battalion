@@ -34,11 +34,15 @@
  *
  * OpenGL(TM) is a trademark of Silicon Graphics, Inc.
  */
-#include <X11/Xlib.h>
-#include <X11/Xutil.h>
-#include <GL/glx.h>
-#include <GL/gl.h>
-#include <GL/glu.h>
+#ifdef MACOSVERSION
+# include "renderer/legacy_gl.h"
+#else
+# include <X11/Xlib.h>
+# include <X11/Xutil.h>
+# include <GL/glx.h>
+# include <GL/gl.h>
+# include <GL/glu.h>
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -211,17 +215,22 @@ extern void tkExposeFunc(void (*)(int, int));
 extern void tkReshapeFunc(void (*)(int, int));
 extern void tkDisplayFunc(void (*)(void));
 extern void tkKeyDownFunc(GLenum (*)(int, GLenum));
+extern void tkKeyUpFunc(GLenum (*)(int));
 extern void tkMouseDownFunc(GLenum (*)(int, int, GLenum));
 extern void tkMouseUpFunc(GLenum (*)(int, int, GLenum));
 extern void tkMouseMoveFunc(GLenum (*)(int, int, GLenum));
 extern void tkIdleFunc(void (*)(void));
 
 extern void tkSwapBuffers(void);
+extern void grabPointer(void);
+extern void unGrabPointer(void);
 
 extern int tkGetColorMapSize(void);
 extern void tkGetMouseLoc(int *, int *);
+#ifndef MACOSVERSION
 extern Display *tkGetXDisplay(void);
 extern Window tkGetXWindow(void);
+#endif
 
 extern void tkSetOneColor(int, float, float, float);
 extern void tkSetFogRamp(int, int);

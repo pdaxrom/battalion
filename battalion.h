@@ -79,9 +79,13 @@
 
 
 
-#include <GL/gl.h>
-#include <GL/glu.h>
-#include <GL/glx.h>
+#ifdef MACOSVERSION
+# include "renderer/legacy_gl.h"
+#else
+# include <GL/gl.h>
+# include <GL/glu.h>
+# include <GL/glx.h>
+#endif
 
 #include "tk.h"
 
@@ -500,16 +504,11 @@ struct score
  ***************************/
 
 void tkCloseWindow(void);
-static GLenum DoNextEvent(void);
 void tkExec(void);
 void tkGetMouseLoc(int *x, int *y);
-static XVisualInfo *FindVisual(GLenum type);
-static int MakeVisualType(XVisualInfo *vi);
-static int WaitForMapNotify(Display *d, XEvent *e, char *arg);
 void tkInitPosition(int x, int y, int width, int height);
 void tkInitDisplayMode(GLenum type);
 GLenum tkInitWindow(char *title);
-static int Ignore(Display *parm1, XErrorEvent *parm2);
 void tkSetRGBMap(int size, float *rgb);
 void tkSwapBuffers(void);
 void unGrabPointer();
@@ -901,4 +900,3 @@ void drawRoads(struct road *,  float,  float, int, int, int);
 void drawProjectiles(struct projectile *, int, struct fireType*, int, int, int);
 
 void andysphdraw(float loc[4], int);
-

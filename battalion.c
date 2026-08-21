@@ -2589,14 +2589,13 @@ void initialization()
     tkInitPosition(-1, -1, 1280, 720);
 #endif
 
-#ifdef MESA_TK_VERSION
     tkIdleFunc(id);
     tkExposeFunc(reshape);
     tkReshapeFunc(reshape);
     tkKeyDownFunc(processKey);
+    tkKeyUpFunc(processKeyRelease);
     tkMouseDownFunc(MouseDown);
     tkMouseUpFunc(MouseUp);
-#endif
 
     if (tkInitWindow("battalion") == GL_FALSE)
 	{
@@ -2929,7 +2928,7 @@ void initialization()
     if (dataPtr != NULL)
 	strcpy(scoredataPath, dataPtr);
     else
-	strcpy(scoredataPath, "/usr/tmp");
+	strcpy(scoredataPath, "/var/tmp");
 
     if (scoredataPath[strlen(scoredataPath)-1] != '/')
 	strcat(scoredataPath, "/");
@@ -5421,7 +5420,7 @@ void id()
 	rqtp.tv_nsec = 2 * 1000000;	/* 2 ms delay */
 	nanosleep(&rqtp, &rmtp);
 # endif
-#ifdef LINUXVERSION
+#if defined(LINUXVERSION) || defined(MACOSVERSION)
 	usleep(2000); /* 2ms delay */
 #endif
 	gettimeofday(&endTime, NULL);
@@ -5475,7 +5474,7 @@ main (int argc, char*argv[])
     int port;
     char portName[40];
 
-#if defined SGIVERSION || defined SOLARIS || defined LINUXVERSION
+#if defined(SGIVERSION) || defined(SOLARIS) || defined(LINUXVERSION) || defined(MACOSVERSION)
 
     gettimeofday(&startTime, NULL);
 

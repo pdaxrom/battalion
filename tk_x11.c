@@ -65,9 +65,14 @@ static GLXContext context	= 0;
 
 
 static GLenum (*KeyDownFunc)(int, GLenum)	    = NULL;
+static GLenum (*KeyUpFunc)(int)			    = NULL;
 static GLenum (*MouseDownFunc)(int, int, GLenum)    = NULL;
 static GLenum (*MouseUpFunc)(int, int, GLenum)	    = NULL;
 static GLenum (*MouseMoveFunc)(int, int, GLenum)    = NULL;
+static void (*ExposeFunc)(int, int)		    = NULL;
+static void (*ReshapeFunc)(int, int)		    = NULL;
+static void (*DisplayFunc)(void)			    = NULL;
+static void (*IdleFunc)(void)			    = NULL;
 
 static int lastEventType = -1;
 static Colormap colorMap;
@@ -219,6 +224,7 @@ void tkCloseWindow(void)
 	display = 0;
 
 	KeyDownFunc	= 0;
+	KeyUpFunc	= 0;
 	MouseDownFunc	= 0;
 	MouseUpFunc	= 0;
 	MouseMoveFunc	= 0;
@@ -264,7 +270,8 @@ static GLenum DoNextEvent(void)
 	    
 	if (current.xexpose.count == 0)
 	    {
-	    reshape(windInfo.width, windInfo.height);
+	    if (ExposeFunc)
+		(*ExposeFunc)(windInfo.width, windInfo.height);
 	    if (lastEventType == ConfigureNotify)
 		{
 		lastEventType = Expose;
@@ -283,7 +290,8 @@ static GLenum DoNextEvent(void)
 	lastEventType	= ConfigureNotify;
 	windInfo.width	= current.xconfigure.width;
 	windInfo.height = current.xconfigure.height;
-	reshape(windInfo.width, windInfo.height);
+	if (ReshapeFunc)
+	    (*ReshapeFunc)(windInfo.width, windInfo.height);
 	return GL_TRUE;
 
       case ButtonPress:
@@ -303,7 +311,7 @@ static GLenum DoNextEvent(void)
 		mask |= TK_RIGHTBUTTON;
 		}
 		
-	    return MouseDown(current.xbutton.x, current.xbutton.y, mask);
+	    return MouseDownFunc ? (*MouseDownFunc)(current.xbutton.x, current.xbutton.y, mask) : GL_FALSE;
 
 	
       case ButtonRelease:
@@ -323,7 +331,7 @@ static GLenum DoNextEvent(void)
 		mask |= TK_RIGHTBUTTON;
 		}
 		
-	    return MouseUp(current.xbutton.x, current.xbutton.y, mask);
+	    return MouseUpFunc ? (*MouseUpFunc)(current.xbutton.x, current.xbutton.y, mask) : GL_FALSE;
 
       case KeyPress:
 	lastEventType = KeyPress;
@@ -384,7 +392,7 @@ static GLenum DoNextEvent(void)
 
 	if (key)
 	    {
-	    return processKey(key, 0);
+	    return KeyDownFunc ? (*KeyDownFunc)(key, 0) : GL_FALSE;
 	    }
 	else
 	    {
@@ -405,7 +413,7 @@ static GLenum DoNextEvent(void)
 	}
 
 	if (key)
-	    return processKeyRelease(key);
+	    return KeyUpFunc ? (*KeyUpFunc)(key) : GL_FALSE;
 	else
 	    return GL_FALSE;
 
@@ -423,7 +431,8 @@ void tkExec(void)
     {
     while (GL_TRUE)
 	{
-	id();
+	if (IdleFunc)
+	    (*IdleFunc)();
 	
 	while (XPending(display))
 	    DoNextEvent();
@@ -838,6 +847,59 @@ void grabPointer()
 
 /******************************************************************************/
 
+void tkQuit(void)
+{
+    tkCloseWindow();
+    exit(0);
+}
+
+void tkExposeFunc(void (*Func)(int, int))
+{
+    ExposeFunc = Func;
+}
+
+void tkReshapeFunc(void (*Func)(int, int))
+{
+    ReshapeFunc = Func;
+}
+
+void tkDisplayFunc(void (*Func)(void))
+{
+    DisplayFunc = Func;
+}
+
+void tkKeyDownFunc(GLenum (*Func)(int, GLenum))
+{
+    KeyDownFunc = Func;
+}
+
+void tkKeyUpFunc(GLenum (*Func)(int))
+{
+    KeyUpFunc = Func;
+}
+
+void tkMouseDownFunc(GLenum (*Func)(int, int, GLenum))
+{
+    MouseDownFunc = Func;
+}
+
+void tkMouseUpFunc(GLenum (*Func)(int, int, GLenum))
+{
+    MouseUpFunc = Func;
+}
+
+void tkMouseMoveFunc(GLenum (*Func)(int, int, GLenum))
+{
+    MouseMoveFunc = Func;
+}
+
+void tkIdleFunc(void (*Func)(void))
+{
+    IdleFunc = Func;
+}
+
+/******************************************************************************/
+
 
 /********************************************
  * void tkExec(void)
@@ -1230,5 +1292,3 @@ static void (*IdleFunc)(void)			    = NULL;
 	  case XK_Shift_R:	key = TK_SHIFT_R;	break;
 	  case XK_Return: 	key = TK_RETURN;	break;
 */
-
-

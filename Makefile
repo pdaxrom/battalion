@@ -12,162 +12,249 @@
 # the most important thing to know before you try and use this file is
 # whether you have OpenGL or Brian Paul's Mesa graphics library installed
 # on your machine. Without either of these you are not going to get very
-# far. 
+# far.
 #
 
 # ------------------------------------------------------------
 
-
-# STEP 1: CHOOSE YOUR C/C++ COMPILER HERE (e.g. DCC, cc, CC, gcc, acc)
+# Battalion build configuration
 #
-# (the program should compile with no warning messages - if you
-#  see a warning message please let me know about it)
-# ------------------------------------------------------------
-CC = cc
+# Examples:
+#   make                         # build for the host platform
+#   make PLATFORM=linux
+#   make PLATFORM=macos
+#   make PLATFORM=linux AUDIO=none
+#   make PLATFORM=linux GRAPHICS=mesa
 
+.DEFAULT_GOAL := all
 
-# STEP 2: IF YOU WANT TO COMPILE WITH THE MESA LIBRARIES THEN
-#         UNCOMMENT THE NEXT LINE, ELSE LEAVE IT COMMENTED OUT
-#
-# ------------------------------------------------------------
-#WHICHLIB = -DMESAVERSION
+PROGRAM := battalion
 
+CC ?= cc
+PKG_CONFIG ?= pkg-config
 
-# STEP 3: CHOOSE WHICH GRAPHICS LIBRARIES TO COMPILE WITH:
-#         MESA OR OPENGL
-#
-# ------------------------------------------------------------
-#GLIB = -lMesaGL -lMesaGLU
-# or
-GLIB =  -lGL -lGLU
+HOST_OS := $(shell uname -s)
+ifeq ($(HOST_OS),Darwin)
+DEFAULT_PLATFORM := macos
+else ifeq ($(HOST_OS),Linux)
+DEFAULT_PLATFORM := linux
+else ifeq ($(HOST_OS),SunOS)
+DEFAULT_PLATFORM := solaris
+else ifeq ($(HOST_OS),IRIX)
+DEFAULT_PLATFORM := sgi
+else ifeq ($(HOST_OS),IRIX64)
+DEFAULT_PLATFORM := sgi
+else ifeq ($(HOST_OS),HP-UX)
+DEFAULT_PLATFORM := hpux
+else ifeq ($(HOST_OS),AIX)
+DEFAULT_PLATFORM := aix
+else
+DEFAULT_PLATFORM := unknown
+endif
 
+PLATFORM ?= $(DEFAULT_PLATFORM)
+ifeq ($(PLATFORM),macos)
+DEFAULT_GRAPHICS := metal
+else
+DEFAULT_GRAPHICS := opengl
+endif
+GRAPHICS ?= $(DEFAULT_GRAPHICS)
 
-# STEP 4: CHOOSE WHICH HARDWARE / OS YOU ARE RUNNING
-#
-#	  (right now the -DSUNVERSION and -DLINUXVERSION don't alter
-#	  anything in the code)
-#
-#         (if you are running Solaris then you should be working
-#         with the other Makefile.)
-#
-# ------------------------------------------------------------
-#OS = -DSGIVERSION
-# or
-#OS = -DSUNVERSION
-# or
-OS = -DLINUXVERSION
-# or
-#OS = -DHPVERSION
-# or
-#OS = -DAIXVERSION
+SUPPORTED_PLATFORMS := linux macos solaris sunos sgi hpux aix
+SUPPORTED_GRAPHICS := opengl mesa metal gles
 
+ifeq ($(filter $(PLATFORM),$(SUPPORTED_PLATFORMS)),)
+$(error Unsupported PLATFORM '$(PLATFORM)'. Choose one of: $(SUPPORTED_PLATFORMS))
+endif
 
-# STEP 5: IF YOU ARE COMPILING FOR AN SGI AND WANT AUDIO THEN
-#         UNCOMMENT THE NEXT LINES, ELSE COMMENT THEM OUT
-#
-# special notes on SGI audio:
-#
-# if you are running an early version of IRIX 5 you may not be
-# able to compile the audio code (as SGI tried to sell it separately 
-# for a short time - I think this affects IRIX 5.1 and possibly 5.2)
-#
-# if you are running Irix 6.2 (and probably other variants of 6) you
-# will have problems compiling one line of audio.c because the type of
-# two parameters have changed. If you make the requested change
-# in audio.c then everything works fine.
-#
-# ------------------------------------------------------------
-#AUDIOLIB = -laudio -laudiofile
-#AUDIODEF = -DSGIAUDIO
+ifeq ($(filter $(GRAPHICS),$(SUPPORTED_GRAPHICS)),)
+$(error Unsupported GRAPHICS '$(GRAPHICS)'. Choose one of: $(SUPPORTED_GRAPHICS))
+endif
 
+ifeq ($(PLATFORM),macos)
+ifneq ($(GRAPHICS),metal)
+$(error PLATFORM=macos currently requires GRAPHICS=metal)
+endif
+else ifeq ($(GRAPHICS),metal)
+$(error GRAPHICS=metal currently requires PLATFORM=macos)
+endif
 
-# STEP 6: IF YOU ARE COMPILING FOR A SUN AND WANT (RUDIMENTARY)
-#         AUDIO THEN UNCOMMENT THE NEXT LINES, ELSE COMMENT THEM OUT
-#
-# ------------------------------------------------------------
-#AUDIOLIB = -laudio
-AUDIODEF = -DLINUXAUDIO
+ifeq ($(GRAPHICS),gles)
+$(error GRAPHICS=gles is reserved for the planned GLES backend and is not implemented yet)
+endif
 
+SOURCES := \
+	battalion.c \
+	audio.c \
+	net.c \
+	gprim.c \
+	graphics.c \
+	objects.c \
+	text.c \
+	update.c \
+	tk_x11.c \
+	font.c
 
-# STEP 7: CHOOSE ANY OPTIMIZATIONS OR ADD ANY SPECIAL INCLUSIONS
-# ------------------------------------------------------------
-CFLAGS     = -O2  -I/usr/local/X11/include -I/usr/demo/SOUND/ -I./. $(AUDIODEF) $(OS)
+PLATFORM_CPPFLAGS :=
+PLATFORM_LDFLAGS :=
+PLATFORM_LDLIBS :=
+DEFAULT_AUDIO := none
 
+# Unix/X11 defaults. They can be overridden on the command line when the
+# libraries live outside the compiler's normal search path.
+X11_CFLAGS ?= $(shell $(PKG_CONFIG) --cflags x11 xext 2>/dev/null)
+X11_LIBS ?= $(shell $(PKG_CONFIG) --libs x11 xext 2>/dev/null)
+OPENGL_CFLAGS ?= $(shell $(PKG_CONFIG) --cflags gl glu 2>/dev/null)
+OPENGL_LIBS ?= $(shell $(PKG_CONFIG) --libs gl glu 2>/dev/null)
 
-# STEP 8: ADD ANY SPECIAL LIBRARY PATHS
-#         (USEFUL TO POINT TO WHERE THE MESA LIBRARIES RESIDE)
-# ------------------------------------------------------------
-LIBFLAGS     = 
+ifeq ($(strip $(X11_LIBS)),)
+X11_LIBS := -lX11 -lXext
+endif
+ifeq ($(strip $(OPENGL_LIBS)),)
+OPENGL_LIBS := -lGL -lGLU
+endif
 
-# you should now be able to type 'make' and everything should be fine ...
+ifeq ($(PLATFORM),linux)
+PLATFORM_CPPFLAGS += -DLINUXVERSION $(X11_CFLAGS) $(OPENGL_CFLAGS)
+PLATFORM_LDLIBS += $(OPENGL_LIBS) $(X11_LIBS) -lm
+DEFAULT_AUDIO := oss
+endif
 
-#-------------------------------------------------------------------
+# macOS uses a native Cocoa window and the Metal renderer. The fixed-function
+# compatibility frontend is shared with the planned GLES backend.
+ifeq ($(PLATFORM),macos)
+SOURCES := $(filter-out tk_x11.c,$(SOURCES))
+SOURCES += tk_macos.m renderer/legacy_gl.c renderer/metal.m
+PLATFORM_CPPFLAGS += -DMACOSVERSION -DRENDERER_METAL
+PLATFORM_LDLIBS += -framework AppKit -framework Metal -framework MetalKit \
+	-framework QuartzCore -framework CoreGraphics -lm
+endif
 
-TARGET 	= battalion
+ifeq ($(PLATFORM),solaris)
+PLATFORM_CPPFLAGS += -DSOLARIS $(X11_CFLAGS) $(OPENGL_CFLAGS)
+PLATFORM_LDLIBS += $(OPENGL_LIBS) $(X11_LIBS) -lnsl -lsocket -lm
+endif
 
-OBJ 	= battalion.o audio.o net.o gprim.o graphics.o objects.o text.o update.o tk.o font.o soundIt.o
-LIBS    = -L./. -L/usr/X11R6/lib -lm -lX11 -lXext
+ifeq ($(PLATFORM),sunos)
+PLATFORM_CPPFLAGS += -DSUNVERSION $(X11_CFLAGS) $(OPENGL_CFLAGS)
+PLATFORM_LDLIBS += $(OPENGL_LIBS) $(X11_LIBS) -lm
+endif
 
-all:	$(TARGET)
+ifeq ($(PLATFORM),sgi)
+PLATFORM_CPPFLAGS += -DSGIVERSION $(X11_CFLAGS) $(OPENGL_CFLAGS)
+PLATFORM_LDLIBS += $(OPENGL_LIBS) $(X11_LIBS) -lm
+endif
 
-#$(OBJ): $(?:.o=.c)
-#	$(CC) $(CFLAGS) $(LIBFLAG) $(OS) $(WHICHLIB) $(AUDIOLIB) -c $?
+ifeq ($(PLATFORM),hpux)
+PLATFORM_CPPFLAGS += -DHPVERSION $(X11_CFLAGS) $(OPENGL_CFLAGS)
+PLATFORM_LDLIBS += $(OPENGL_LIBS) $(X11_LIBS) -lm
+endif
 
-$(TARGET): $(OBJ)
-	$(CC) -o $(TARGET) $(OBJ) $(LIBFLAGS) $(GLIB) $(LIBS) $(AUDIODEF)
+ifeq ($(PLATFORM),aix)
+PLATFORM_CPPFLAGS += -DAIXVERSION $(X11_CFLAGS) $(OPENGL_CFLAGS)
+PLATFORM_LDLIBS += $(OPENGL_LIBS) $(X11_LIBS) -lm
+endif
+
+ifeq ($(GRAPHICS),mesa)
+GRAPHICS_CPPFLAGS := -DMESAVERSION
+endif
+
+AUDIO ?= $(DEFAULT_AUDIO)
+SUPPORTED_AUDIO := none oss sun sgi
+
+ifeq ($(filter $(AUDIO),$(SUPPORTED_AUDIO)),)
+$(error Unsupported AUDIO '$(AUDIO)'. Choose one of: $(SUPPORTED_AUDIO))
+endif
+
+ifeq ($(AUDIO),oss)
+ifneq ($(PLATFORM),linux)
+$(error AUDIO=oss is only supported with PLATFORM=linux)
+endif
+AUDIO_CPPFLAGS := -DLINUXAUDIO
+SOURCES += soundIt.c
+endif
+
+ifeq ($(AUDIO),sun)
+ifneq ($(filter $(PLATFORM),solaris sunos),$(PLATFORM))
+$(error AUDIO=sun requires PLATFORM=solaris or PLATFORM=sunos)
+endif
+SUN_AUDIO_PREFIX ?= /usr/demo/SOUND
+AUDIO_CPPFLAGS := -DSUNAUDIO -I$(SUN_AUDIO_PREFIX)/include
+AUDIO_LDFLAGS := -L$(SUN_AUDIO_PREFIX)/lib
+AUDIO_LDLIBS := -laudio
+endif
+
+ifeq ($(AUDIO),sgi)
+ifneq ($(PLATFORM),sgi)
+$(error AUDIO=sgi requires PLATFORM=sgi)
+endif
+AUDIO_CPPFLAGS := -DSGIAUDIO
+AUDIO_LDLIBS := -laudio -laudiofile
+endif
+
+BUILD_DIR ?= build/$(PLATFORM)-$(GRAPHICS)-$(AUDIO)
+TARGET := $(BUILD_DIR)/$(PROGRAM)
+OBJECTS := $(addprefix $(BUILD_DIR)/,$(SOURCES))
+OBJECTS := $(OBJECTS:.c=.o)
+OBJECTS := $(OBJECTS:.m=.o)
+DEPS := $(OBJECTS:.o=.d)
+
+# The sources predate ISO C99 and define tentative globals in headers. These
+# switches are required by modern GCC/Clang, but historical vendor compilers
+# must not receive options they do not understand.
+CC_VERSION := $(shell $(CC) --version 2>/dev/null)
+ifneq ($(or $(findstring clang,$(CC_VERSION)),$(findstring GCC,$(CC_VERSION)),$(findstring gcc,$(CC_VERSION))),)
+COMPAT_CFLAGS ?= -std=gnu89 -fcommon
+DEPFLAGS ?= -MMD -MP
+else
+COMPAT_CFLAGS ?=
+DEPFLAGS ?=
+endif
+CFLAGS ?= -O2
+
+.PHONY: all clean help print-config
+
+all: $(TARGET)
+
+$(TARGET): $(OBJECTS)
+	$(CC) $(LDFLAGS) $(PLATFORM_LDFLAGS) $(AUDIO_LDFLAGS) -o $@ $(OBJECTS) $(LDLIBS) $(PLATFORM_LDLIBS) $(AUDIO_LDLIBS)
+
+$(BUILD_DIR)/%.o: %.c Makefile | $(BUILD_DIR)
+	@mkdir -p $(dir $@)
+	$(CC) $(CPPFLAGS) $(PLATFORM_CPPFLAGS) $(GRAPHICS_CPPFLAGS) $(AUDIO_CPPFLAGS) $(COMPAT_CFLAGS) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/%.o: %.m Makefile | $(BUILD_DIR)
+	@mkdir -p $(dir $@)
+	$(CC) $(CPPFLAGS) $(PLATFORM_CPPFLAGS) $(GRAPHICS_CPPFLAGS) $(AUDIO_CPPFLAGS) $(COMPAT_CFLAGS) $(CFLAGS) $(DEPFLAGS) -fobjc-arc -c $< -o $@
+
+$(BUILD_DIR):
+	mkdir -p $@
+
+print-config:
+	@echo "host:       $(HOST_OS)"
+	@echo "platform:   $(PLATFORM)"
+	@echo "graphics:   $(GRAPHICS)"
+	@echo "audio:      $(AUDIO)"
+	@echo "compiler:   $(CC)"
+	@echo "output:     $(TARGET)"
+
+help:
+	@echo "Usage: make [PLATFORM=<platform>] [GRAPHICS=<graphics>] [AUDIO=<audio>]"
+	@echo
+	@echo "Platforms: $(SUPPORTED_PLATFORMS)"
+	@echo "Graphics:  $(SUPPORTED_GRAPHICS)"
+	@echo "Audio:     $(SUPPORTED_AUDIO)"
+	@echo
+	@echo "Examples:"
+	@echo "  make PLATFORM=linux"
+	@echo "  make PLATFORM=macos"
+	@echo "  make PLATFORM=linux AUDIO=none"
+	@echo "  make PLATFORM=linux GRAPHICS=mesa"
+	@echo
+	@echo "macOS uses the native Metal backend; XQuartz and OpenGL are not required."
+	@echo "GRAPHICS=gles is part of the renderer design but is not implemented yet."
 
 clean:
-	rm -f $(OBJ)
+	rm -rf build
 
-#-------------------------------------------------------------------
-# Here is a listing of which compilers will compile battalion on
-# a variety of hardware/ OSs.
-#
-# YES - I have tested it and it works
-# yes - someone else has apparently gotten it to work
-#
-# NO  - I was not able to get it to work
-# no  - someone else was not able to get it to work
-# 
-# -   - N/A
-# 
-# ?   - unknown
-#
-# OS	          Graphics   cc   CC   DCC   acc   gcc
-# ----------------------------------------------------
-# SGI Irix 5.3     OpenGL   YES   YES  YES    -     ?
-# SGI Irix 5.3      Mesa    YES   YES  YES    -     ?
-#
-# SunOS 4          OpenGL    NO    NO   -    YES   YES
-# SunOS 4           Mesa     NO    NO   -    YES   YES
-#
-# Solaris 2        OpenGL    ?     ?    -     ?     ?
-# Solaris 2         Mesa     ?     ?    -     ?     ?
-#
-# Linux             Mesa    YES     ?    -     -    YES
-#
-# HP-UX             Mesa    yes    ?    -     -     ?
-
-# SGI compilers under 6.2 are unhappy in the audio code call for
-# AFgetsampfmt(...) where two of the parameters have changed their
-# type since 5.3.If you make the requested replacement everything is fine.
-#
-# cc under SunOS-4 gives errors on gl.h
-# CC under SunOS-4 gets very unhappy about things not being exactly its own way
-#
-# if you have a compiler experience you would lile to share, please let me
-# know and I'll pass on the knowledge in the next release. 
-#
-# if you need to make any modifications in the Makefike or in the code
-# to get it to compile, please let me know.
-#
-#
-# battalion first checks the environment variable BATTALIONDATADIR to
-# look for the data files. Specifically it looks for the battalion.sho
-# showcase file. if battalion.sho is not found in the BATTALIONDATADIR
-# directory then it will check ./battalion.data/
-#
-# if you are running the program on an SGI you will want to leave
-# battalion.sho alone as it is your on-line help. If you do not have
-# an SGI then you can replace this file with any smaller file with the
-# same name if you want to conserve space.
+-include $(DEPS)
