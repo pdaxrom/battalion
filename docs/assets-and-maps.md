@@ -17,10 +17,12 @@ or TRS transforms, and animation channels for node translation, rotation, and
 scale. `LINEAR` and `STEP` interpolation are supported. Textures, skins, morph
 targets, mesh compression, and cubic-spline playback remain later steps.
 
-`assets/manifest.txt` declares every runtime model, texture, and animation.
-Paths in the manifest are relative to `assets/`. Missing or invalid declared
-content is fatal; there is no normal-build fallback to compiled C geometry or
-texture arrays. This policy is the same on every supported platform.
+`assets/manifest.txt` uses the `battalion-assets 2` catalog and declares every
+runtime model, texture, animation, and auxiliary authored file. Catalog keys
+and paths must be lowercase; unsafe relative paths, duplicates, missing files,
+and orphan model or texture files fail validation. Paths are relative to
+`assets/`. There is no normal-build fallback to compiled C geometry or texture
+arrays. This policy is the same on every supported platform.
 
 The checked-in GLB files are the canonical source assets. The one-time legacy
 converter and the old C model factories have been removed, so geometry is not

@@ -42,6 +42,12 @@ struct AssetManifestAnimation
     int loop;
     };
 
+struct AssetManifestFile
+    {
+    char *key;
+    char *path;
+    };
+
 struct AssetManifest
     {
     struct AssetManifestModel *models;
@@ -50,6 +56,8 @@ struct AssetManifest
     size_t textureCount;
     struct AssetManifestAnimation *animations;
     size_t animationCount;
+    struct AssetManifestFile *files;
+    size_t fileCount;
     };
 
 void assetManifestInitialize(struct AssetManifest *manifest);
@@ -59,6 +67,8 @@ int assetManifestLoad(const char *dataPath, struct AssetManifest *manifest,
 const struct AssetManifestModel *assetManifestFindModel(
     const struct AssetManifest *manifest, const char *key);
 const struct AssetManifestTexture *assetManifestFindTexture(
+    const struct AssetManifest *manifest, const char *key);
+const struct AssetManifestFile *assetManifestFindFile(
     const struct AssetManifest *manifest, const char *key);
 int assetManifestFindAnimation(const struct AssetManifest *manifest,
                                const char *key,

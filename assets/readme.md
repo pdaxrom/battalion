@@ -6,7 +6,7 @@ filesystems.
 
 ```text
 assets/
-  manifest.txt       model, texture, and animation registry
+  manifest.txt       versioned runtime asset catalog
   maps/              versioned JSON battlefield packages
   models/            Khronos glTF 2.0 binary models and animation clips
     vehicles/        tanks, aircraft, and vehicle shadows
@@ -21,9 +21,11 @@ assets/
   battalion.sho      historical Showcase help document
 ```
 
-`assets/manifest.txt` is required. A missing, invalid, or undeclared model,
-texture, or animation is an error; the normal executable has no compiled C
-geometry or texture fallback.
+`assets/manifest.txt` is required. Its version 2 schema catalogs models,
+textures, animations, and auxiliary authored files. A missing, invalid, or
+undeclared model, texture, or animation is an error; the normal executable has
+no compiled C geometry or texture fallback. `make test` also rejects duplicate,
+uppercase, and orphan model or texture entries.
 
 The GLB loader supports triangle, line, and point primitives; indexed and
 non-indexed positions; normals, UVs and vertex colours; material base colours;

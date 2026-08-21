@@ -1,6 +1,6 @@
 # Battalion external asset manifest.
 # Geometry and animation clips live in GLB; image dimensions come from TGA.
-battalion-assets 1
+battalion-assets 2
 
 texture screen-left textures/screenleft.tga nearest clamp
 texture screen-right textures/screenright.tga nearest clamp

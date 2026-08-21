@@ -265,6 +265,7 @@ help:
 TEST_BUILD_DIR := build/tests
 MAP_TEST := $(TEST_BUILD_DIR)/map-test
 ASSET_TEST := $(TEST_BUILD_DIR)/asset-gltf-test
+ASSET_CATALOG_TEST := $(TEST_BUILD_DIR)/asset-catalog-test
 
 $(MAP_TEST): tests/map_test.c map.c map.h map_package.c map_package.h | $(TEST_BUILD_DIR)
 	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< map.c map_package.c -o $@
@@ -272,12 +273,16 @@ $(MAP_TEST): tests/map_test.c map.c map.h map_package.c map_package.h | $(TEST_B
 $(ASSET_TEST): tests/asset_gltf_test.c asset.c asset_gltf.c asset_animation.c asset_write.c asset_tga.c asset.h asset_animation.h asset_write.h asset_tga.h | $(TEST_BUILD_DIR)
 	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< asset.c asset_gltf.c asset_animation.c asset_write.c asset_tga.c -lm -o $@
 
+$(ASSET_CATALOG_TEST): tests/asset_catalog_test.c | $(TEST_BUILD_DIR)
+	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< -o $@
+
 $(TEST_BUILD_DIR):
 	mkdir -p $@
 
-test: $(MAP_TEST) $(ASSET_TEST)
+test: $(MAP_TEST) $(ASSET_TEST) $(ASSET_CATALOG_TEST)
 	./$(MAP_TEST)
 	./$(ASSET_TEST)
+	./$(ASSET_CATALOG_TEST)
 
 clean:
 	rm -rf build

@@ -17,6 +17,7 @@
 #include "asset_render.h"
 #include "asset_tga.h"
 
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -78,6 +79,21 @@ static int buildPath(char *path, size_t pathSize, const char *dataPath,
     return 1;
     }
 
+static int validAssetName(const char *text, int path)
+    {
+    const unsigned char *cursor;
+
+    if (text == NULL || text[0] == '\0' || text[0] == '/' ||
+        (path && strstr(text, "..") != NULL))
+        return 0;
+    for (cursor = (const unsigned char *)text; *cursor; cursor++)
+        if (isupper(*cursor) || *cursor == '\\' ||
+            !(islower(*cursor) || isdigit(*cursor) || *cursor == '-' ||
+              *cursor == '_' || *cursor == '.' || (path && *cursor == '/')))
+            return 0;
+    return 1;
+    }
+
 void assetManifestInitialize(struct AssetManifest *manifest)
     {
     manifest->models = NULL;
@@ -86,6 +102,8 @@ void assetManifestInitialize(struct AssetManifest *manifest)
     manifest->textureCount = 0;
     manifest->animations = NULL;
     manifest->animationCount = 0;
+    manifest->files = NULL;
+    manifest->fileCount = 0;
     }
 
 void assetManifestDestroy(struct AssetManifest *manifest)
@@ -111,9 +129,15 @@ void assetManifestDestroy(struct AssetManifest *manifest)
         free(manifest->animations[index].modelKey);
         free(manifest->animations[index].clipName);
         }
+    for (index = 0; index < manifest->fileCount; index++)
+        {
+        free(manifest->files[index].key);
+        free(manifest->files[index].path);
+        }
     free(manifest->models);
     free(manifest->textures);
     free(manifest->animations);
+    free(manifest->files);
     assetManifestInitialize(manifest);
     }
 
@@ -139,6 +163,17 @@ const struct AssetManifestTexture *assetManifestFindTexture(
     return NULL;
     }
 
+const struct AssetManifestFile *assetManifestFindFile(
+    const struct AssetManifest *manifest, const char *key)
+    {
+    size_t index;
+
+    for (index = 0; index < manifest->fileCount; index++)
+        if (strcmp(manifest->files[index].key, key) == 0)
+            return &manifest->files[index];
+    return NULL;
+    }
+
 static int appendModel(struct AssetManifest *manifest, const char *dataPath,
                        const char *key, const char *relative,
                        char *error, size_t errorSize)
@@ -148,6 +183,11 @@ static int appendModel(struct AssetManifest *manifest, const char *dataPath,
     char path[MAXPATH];
     size_t count;
 
+    if (!validAssetName(key, 0) || !validAssetName(relative, 1))
+        {
+        setEntryError(error, errorSize, "Invalid lowercase model entry", key);
+        return 0;
+        }
     if (assetManifestFindModel(manifest, key) != NULL)
         {
         setEntryError(error, errorSize, "Duplicate model key", key);
@@ -212,6 +252,12 @@ static int appendTexture(struct AssetManifest *manifest, const char *dataPath,
     char path[MAXPATH];
     size_t count;
 
+    if (!validAssetName(key, 0) || !validAssetName(relative, 1))
+        {
+        setEntryError(error, errorSize,
+                      "Invalid lowercase texture entry", key);
+        return 0;
+        }
     if (assetManifestFindTexture(manifest, key) != NULL)
         {
         setEntryError(error, errorSize, "Duplicate texture key", key);
@@ -295,6 +341,13 @@ static int appendAnimation(struct AssetManifest *manifest, const char *key,
     size_t index;
     size_t count;
 
+    if (!validAssetName(key, 0) || !validAssetName(modelKey, 0) ||
+        !validAssetName(clipName, 0))
+        {
+        setEntryError(error, errorSize,
+                      "Invalid lowercase animation entry", key);
+        return 0;
+        }
     for (index = 0; index < manifest->animationCount; index++)
         if (strcmp(manifest->animations[index].key, key) == 0)
             {
@@ -332,6 +385,62 @@ static int appendAnimation(struct AssetManifest *manifest, const char *key,
         return 0;
         }
     manifest->animationCount = count;
+    return 1;
+    }
+
+static int appendFile(struct AssetManifest *manifest, const char *dataPath,
+                      const char *key, const char *relative,
+                      char *error, size_t errorSize)
+    {
+    struct AssetManifestFile *expanded;
+    struct AssetManifestFile *entry;
+    char path[MAXPATH];
+    FILE *file;
+    size_t count;
+
+    if (!validAssetName(key, 0) || !validAssetName(relative, 1))
+        {
+        setEntryError(error, errorSize, "Invalid lowercase file entry", key);
+        return 0;
+        }
+    if (assetManifestFindFile(manifest, key) != NULL)
+        {
+        setEntryError(error, errorSize, "Duplicate file key", key);
+        return 0;
+        }
+    if (!buildPath(path, sizeof(path), dataPath, relative))
+        {
+        setEntryError(error, errorSize, "Asset file path is too long", relative);
+        return 0;
+        }
+    file = fopen(path, "rb");
+    if (file == NULL)
+        {
+        setEntryError(error, errorSize, "Could not open asset file", relative);
+        return 0;
+        }
+    fclose(file);
+    count = manifest->fileCount + 1;
+    expanded = (struct AssetManifestFile *)realloc(
+        manifest->files, count * sizeof(*expanded));
+    if (expanded == NULL)
+        {
+        setError(error, errorSize, "Out of memory adding manifest file");
+        return 0;
+        }
+    manifest->files = expanded;
+    entry = &manifest->files[manifest->fileCount];
+    memset(entry, 0, sizeof(*entry));
+    entry->key = copyString(key);
+    entry->path = copyString(relative);
+    if (entry->key == NULL || entry->path == NULL)
+        {
+        free(entry->key);
+        free(entry->path);
+        setError(error, errorSize, "Out of memory copying manifest file");
+        return 0;
+        }
+    manifest->fileCount = count;
     return 1;
     }
 
@@ -437,10 +546,10 @@ int assetManifestLoad(const char *dataPath, struct AssetManifest *manifest,
             {
             key = strtok(NULL, " \t\r\n");
             if (strcmp(directive, "battalion-assets") != 0 || key == NULL ||
-                strcmp(key, "1") != 0)
+                strcmp(key, "2") != 0)
                 {
                 setError(error, errorSize,
-                         "Asset manifest must start with battalion-assets 1");
+                         "Asset manifest must start with battalion-assets 2");
                 goto failed;
                 }
             sawHeader = 1;
@@ -471,6 +580,12 @@ int assetManifestLoad(const char *dataPath, struct AssetManifest *manifest,
             {
             if (!appendAnimation(manifest, key, path, option1, option2,
                                  error, errorSize))
+                goto failed;
+            }
+        else if (strcmp(directive, "file") == 0 && key != NULL &&
+                 path != NULL && option1 == NULL)
+            {
+            if (!appendFile(manifest, dataPath, key, path, error, errorSize))
                 goto failed;
             }
         else
