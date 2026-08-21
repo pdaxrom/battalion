@@ -11,15 +11,13 @@ STARTUP HINTS
   The script "battalion" starts the game.
 
   Press space to select your monster with keys 6 to 9 (Googelon, Techs, the
-  Vapour or Flutter), then press 1 to enter monster's view. Move using the
-  mouse or arrow keys, shoot with the left button or Ctrl and press Esc to
-  exit. The a and z keys tilt the monster's head.
+  Vapour or Flutter), then press 1 to enter monster's view. Move with WASD,
+  aim with the mouse or IJKL, and shoot with the left button or either Ctrl.
 
-  The s key toggles sound effects and g toggles pointer grab, useful for
-  the Mesa version to keep the pointer inside the window.
+  Esc pauses and releases the mouse. Click inside the window or press P to
+  resume. Close the window to quit.
 
-  In demo mode (before and after a game), you can press h to view the
-  on-screen help and H to see the high scores.
+  Press F1 at any time to view the on-screen controls.
 
 COMMAND LINE OPTIONS
 
@@ -27,37 +25,35 @@ COMMAND LINE OPTIONS
   -b(ackdrop)	    Hide the overlays.
   -d(etail) n	    Set graphics level-of-detail to 0..2. The Mesa version
 		    defaults to 0 (low) and OpenGL version to 2 (high). The
-		    d key changes the detail level while the game is running.
+		    F2 changes the detail level while the game is running.
   -m(usic)	    Initially turn on the background music.
   -s(ound)	    Initially turn on sound effects.
-  -lscores¹	    Use local high scores file (in /var/tmp), even if startup
+  -lscoresÂ¹	    Use local high scores file (in /var/tmp), even if startup
 		    script has been set up to access a global high score file.
-  -mesa¹	    If OpenGL² is installed, use this option to tell the
+  -mesaÂ¹	    If OpenGLÂ² is installed, use this option to tell the
 		    startup script to run the Mesa instead of OpenGL binary.
   -help		    Shows game version and a list of command line options.
 
 DEMO MODE COMMANDS
 
    Space	    Selects your monster (keys 6...9).
-   h		    Displays the on-screen help.
-   H		    Displays the high scores.
+   F1		    Displays the on-screen controls.
 
 PLAY MODE COMMANDS
 
-   Mouse/arrows	    Moves the monster.
-   Left button/Ctrl Shoot!
-   1, 2, 3	    Selects monster view / overview / army view. Use the
-		    i,j,k,l keys to rotate the battlefield in overview mode.
-   4		    Displays the map, with your monster at the center.
-   a, z		    Tilts monster's head.
-   d		    Steps through detail levels 0, 1, 2.
-   g		    Toggles pointer grabbing, which locks the mouse pointer
-		    into the battalion window. Gives you better control if
-		    you move using the mouse.
-   m		    Toggles background music.
-   p		    Pauses the game.
-   s		    Toggles sound.
-   ESC		    Exit.
+   W, A, S, D	    Moves forward / strafes left / moves back / strafes right.
+   Mouse or IJKL    Aims the monster's head.
+   Left button/Ctrl Shoots. Either Ctrl key works.
+   1, 2, 3, 4	    Selects monster / overview / army / map view.
+   Arrow keys	    Rotates the battlefield in overview mode.
+   Page Up/Down     Changes map height.
+   F1		    Displays the on-screen controls.
+   F2		    Steps through detail levels vector, low, medium, high.
+   F3		    Toggles sound.
+   F4		    Toggles background music.
+   P		    Pauses or resumes the game.
+   Esc		    Pauses and releases the mouse.
+   Close	    Quits the game.
 
 ABOUT SOUND
 
@@ -76,6 +72,6 @@ ENVIRONMENT
 		    that defines this variable.
 
 ----
-¹) The -lscores and -mesa options are handled by the startup script.
-²) The Sun OpenGL 1.0 runtime packages must be installed in order to use the
+Â¹) The -lscores and -mesa options are handled by the startup script.
+Â²) The Sun OpenGL 1.0 runtime packages must be installed in order to use the
    battalion.opengl binary. OpenGL 1.0 supports only the Creator 3D framebuffer.

@@ -99,15 +99,20 @@ extern "C" {
 #define TK_CONTROL_L		0x03
 #define TK_CONTROL_R		0x04
 
-
-
+#define TK_TAB			0x09
 #define TK_RETURN		0x0D
 #define TK_ESCAPE		0x1B
 #define TK_SPACE		0x20
+#define TK_PAGEUP		0x100
+#define TK_PAGEDOWN		0x101
 #define TK_LEFT			0x25
 #define TK_UP			0x26
 #define TK_RIGHT		0x27
 #define TK_DOWN			0x28
+#define TK_F1			0x110
+#define TK_F2			0x111
+#define TK_F3			0x112
+#define TK_F4			0x113
 #define TK_A			'A'
 #define TK_B			'B'
 #define TK_C			'C'
@@ -219,6 +224,7 @@ extern void tkKeyUpFunc(GLenum (*)(int));
 extern void tkMouseDownFunc(GLenum (*)(int, int, GLenum));
 extern void tkMouseUpFunc(GLenum (*)(int, int, GLenum));
 extern void tkMouseMoveFunc(GLenum (*)(int, int, GLenum));
+extern void tkFocusFunc(void (*)(int));
 extern void tkIdleFunc(void (*)(void));
 
 extern void tkSwapBuffers(void);
@@ -227,6 +233,7 @@ extern void unGrabPointer(void);
 
 extern int tkGetColorMapSize(void);
 extern void tkGetMouseLoc(int *, int *);
+extern void tkGetMouseDelta(float *, float *);
 #ifndef MACOSVERSION
 extern Display *tkGetXDisplay(void);
 extern Window tkGetXWindow(void);

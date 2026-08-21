@@ -20,12 +20,16 @@ static int running;
 static int pointerIsGrabbed;
 static int mouseX;
 static int mouseY;
+static double mouseDeltaX;
+static double mouseDeltaY;
+static int controlIsDown;
 
 static GLenum (*KeyDownFunc)(int, GLenum);
 static GLenum (*KeyUpFunc)(int);
 static GLenum (*MouseDownFunc)(int, int, GLenum);
 static GLenum (*MouseUpFunc)(int, int, GLenum);
 static GLenum (*MouseMoveFunc)(int, int, GLenum);
+static void (*FocusFunc)(int);
 static void (*ExposeFunc)(int, int);
 static void (*ReshapeFunc)(int, int);
 static void (*DisplayFunc)(void);
@@ -55,6 +59,13 @@ static int keyFromEvent(NSEvent *event)
       case NSUpArrowFunctionKey: return TK_UP;
       case NSRightArrowFunctionKey: return TK_RIGHT;
       case NSDownArrowFunctionKey: return TK_DOWN;
+      case NSPageUpFunctionKey: return TK_PAGEUP;
+      case NSPageDownFunctionKey: return TK_PAGEDOWN;
+      case NSF1FunctionKey: return TK_F1;
+      case NSF2FunctionKey: return TK_F2;
+      case NSF3FunctionKey: return TK_F3;
+      case NSF4FunctionKey: return TK_F4;
+      case 0x09: return TK_TAB;
       case 0x0d: return TK_RETURN;
       case 0x1b: return TK_ESCAPE;
       default:
@@ -85,8 +96,10 @@ static GLenum buttonMaskForEvent(NSEvent *event)
 - (void)updateMouse:(NSEvent *)event
 {
     if (pointerIsGrabbed) {
+        mouseDeltaX += event.deltaX;
+        mouseDeltaY -= event.deltaY;
         mouseX += (int)event.deltaX;
-        mouseY += (int)event.deltaY;
+        mouseY -= (int)event.deltaY;
     } else {
         NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
         mouseX = (int)point.x;
@@ -101,6 +114,11 @@ static GLenum buttonMaskForEvent(NSEvent *event)
 - (void)keyDown:(NSEvent *)event
 {
     int key = keyFromEvent(event);
+    if ((event.modifierFlags & NSEventModifierFlagCommand) &&
+        (key == TK_q || key == TK_Q)) {
+        tkQuit();
+        return;
+    }
     if (key && KeyDownFunc)
         (*KeyDownFunc)(key, modifierMask(event.modifierFlags));
 }
@@ -114,13 +132,12 @@ static GLenum buttonMaskForEvent(NSEvent *event)
 
 - (void)flagsChanged:(NSEvent *)event
 {
-    static int controlDown;
     int nowDown = (event.modifierFlags & NSEventModifierFlagControl) != 0;
-    if (nowDown && !controlDown && KeyDownFunc)
+    if (nowDown && !controlIsDown && KeyDownFunc)
         (*KeyDownFunc)(TK_CONTROL_L, TK_CONTROL);
-    else if (!nowDown && controlDown && KeyUpFunc)
+    else if (!nowDown && controlIsDown && KeyUpFunc)
         (*KeyUpFunc)(TK_CONTROL_L);
-    controlDown = nowDown;
+    controlIsDown = nowDown;
 }
 
 - (void)mouseDown:(NSEvent *)event
@@ -178,9 +195,24 @@ static GLenum buttonMaskForEvent(NSEvent *event)
 @end
 
 @implementation BattalionWindowDelegate
+- (void)windowDidBecomeKey:(NSNotification *)notification
+{
+    (void)notification;
+    if (FocusFunc)
+        (*FocusFunc)(1);
+}
+- (void)windowDidResignKey:(NSNotification *)notification
+{
+    (void)notification;
+    controlIsDown = 0;
+    if (FocusFunc)
+        (*FocusFunc)(0);
+}
 - (void)windowWillClose:(NSNotification *)notification
 {
     (void)notification;
+    if (pointerIsGrabbed)
+        unGrabPointer();
     running = 0;
     metalView.paused = YES;
     [NSApp stop:nil];
@@ -188,7 +220,10 @@ static GLenum buttonMaskForEvent(NSEvent *event)
 - (void)windowDidMiniaturize:(NSNotification *)notification
 {
     (void)notification;
-    paused = 1;
+    if (FocusFunc)
+        (*FocusFunc)(0);
+    else
+        paused = 1;
 }
 @end
 
@@ -284,6 +319,7 @@ GLenum tkInitWindow(char *title)
     rendererBackendResize((int)backingSize.width, (int)backingSize.height);
     mouseX = windowInfo.width / 2;
     mouseY = windowInfo.height / 2;
+    mouseDeltaX = mouseDeltaY = 0;
     if (ReshapeFunc)
         (*ReshapeFunc)(windowInfo.width, windowInfo.height);
     running = 1;
@@ -330,11 +366,19 @@ void tkGetMouseLoc(int *x, int *y)
     *y = mouseY;
 }
 
+void tkGetMouseDelta(float *x, float *y)
+{
+    *x = (float)mouseDeltaX;
+    *y = (float)mouseDeltaY;
+    mouseDeltaX = mouseDeltaY = 0;
+}
+
 void grabPointer(void)
 {
     if (pointerIsGrabbed)
         return;
     pointerIsGrabbed = 1;
+    mouseDeltaX = mouseDeltaY = 0;
     CGDisplayHideCursor(CGMainDisplayID());
     CGAssociateMouseAndMouseCursorPosition(0);
 }
@@ -346,6 +390,7 @@ void unGrabPointer(void)
     CGAssociateMouseAndMouseCursorPosition(1);
     CGDisplayShowCursor(CGMainDisplayID());
     pointerIsGrabbed = 0;
+    mouseDeltaX = mouseDeltaY = 0;
 }
 
 void tkExposeFunc(void (*func)(int, int)) { ExposeFunc = func; }
@@ -356,6 +401,7 @@ void tkKeyUpFunc(GLenum (*func)(int)) { KeyUpFunc = func; }
 void tkMouseDownFunc(GLenum (*func)(int, int, GLenum)) { MouseDownFunc = func; }
 void tkMouseUpFunc(GLenum (*func)(int, int, GLenum)) { MouseUpFunc = func; }
 void tkMouseMoveFunc(GLenum (*func)(int, int, GLenum)) { MouseMoveFunc = func; }
+void tkFocusFunc(void (*func)(int)) { FocusFunc = func; }
 void tkIdleFunc(void (*func)(void)) { IdleFunc = func; }
 
 int tkGetColorMapSize(void) { return 256; }

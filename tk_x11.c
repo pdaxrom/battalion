@@ -69,6 +69,7 @@ static GLenum (*KeyUpFunc)(int)			    = NULL;
 static GLenum (*MouseDownFunc)(int, int, GLenum)    = NULL;
 static GLenum (*MouseUpFunc)(int, int, GLenum)	    = NULL;
 static GLenum (*MouseMoveFunc)(int, int, GLenum)    = NULL;
+static void (*FocusFunc)(int)                       = NULL;
 static void (*ExposeFunc)(int, int)		    = NULL;
 static void (*ReshapeFunc)(int, int)		    = NULL;
 static void (*DisplayFunc)(void)			    = NULL;
@@ -76,6 +77,62 @@ static void (*IdleFunc)(void)			    = NULL;
 
 static int lastEventType = -1;
 static Colormap colorMap;
+static Cursor hiddenCursor;
+static Atom wmDeleteWindow;
+static int pointerIsGrabbed;
+static int mouseDeltaX;
+static int mouseDeltaY;
+
+static int keyFromKeysym(KeySym key)
+{
+    switch (key) {
+      case XK_Control_L: return TK_CONTROL_L;
+      case XK_Control_R: return TK_CONTROL_R;
+      case XK_Left: return TK_LEFT;
+      case XK_Up: return TK_UP;
+      case XK_Right: return TK_RIGHT;
+      case XK_Down: return TK_DOWN;
+      case XK_Prior: return TK_PAGEUP;
+      case XK_Next: return TK_PAGEDOWN;
+      case XK_F1: return TK_F1;
+      case XK_F2: return TK_F2;
+      case XK_F3: return TK_F3;
+      case XK_F4: return TK_F4;
+      case XK_H: return TK_H;
+      case XK_h: return TK_h;
+      case XK_Tab: return TK_TAB;
+      case XK_Return: return TK_RETURN;
+      case XK_Escape: return TK_ESCAPE;
+      case XK_space: return TK_SPACE;
+      case XK_1: return TK_1;
+      case XK_2: return TK_2;
+      case XK_3: return TK_3;
+      case XK_4: return TK_4;
+      case XK_6: return TK_6;
+      case XK_7: return TK_7;
+      case XK_8: return TK_8;
+      case XK_9: return TK_9;
+      case XK_A: return TK_A;
+      case XK_D: return TK_D;
+      case XK_I: return TK_I;
+      case XK_J: return TK_J;
+      case XK_K: return TK_K;
+      case XK_L: return TK_L;
+      case XK_P: return TK_P;
+      case XK_S: return TK_S;
+      case XK_W: return TK_W;
+      case XK_a: return TK_a;
+      case XK_d: return TK_d;
+      case XK_i: return TK_i;
+      case XK_j: return TK_j;
+      case XK_k: return TK_k;
+      case XK_l: return TK_l;
+      case XK_p: return TK_p;
+      case XK_s: return TK_s;
+      case XK_w: return TK_w;
+      default: return GL_FALSE;
+    }
+}
 
 static float colorMaps[] = {
     0.000000, 1.000000, 0.000000, 1.000000, 0.000000, 1.000000, 
@@ -217,6 +274,8 @@ void tkCloseWindow(void)
 	{
 	glFlush();
 	glFinish();
+	if (hiddenCursor)
+	    XFreeCursor(display, hiddenCursor);
 	XDestroyWindow(display, window);
 	glXDestroyContext(display, context);
 	XFreeColormap(display, colorMap);
@@ -228,8 +287,12 @@ void tkCloseWindow(void)
 	MouseDownFunc	= 0;
 	MouseUpFunc	= 0;
 	MouseMoveFunc	= 0;
+	FocusFunc	= 0;
 
 	lastEventType	= -1;
+	pointerIsGrabbed = 0;
+	mouseDeltaX = mouseDeltaY = 0;
+	hiddenCursor = 0;
 	}
     }
 
@@ -238,7 +301,6 @@ void tkCloseWindow(void)
 static GLenum DoNextEvent(void)
 {
     XEvent current, ahead;
-    char buf[1000];
     KeySym ks;
     int key;
     GLenum mask;
@@ -246,6 +308,23 @@ static GLenum DoNextEvent(void)
 
     XNextEvent(display, &current);
     switch (current.type) {
+
+      case ClientMessage:
+	if ((Atom)current.xclient.data.l[0] == wmDeleteWindow)
+	    tkQuit();
+	return GL_FALSE;
+
+      case FocusIn:
+	if (FocusFunc)
+	    (*FocusFunc)(1);
+	return GL_FALSE;
+
+      case FocusOut:
+	if (FocusFunc)
+	    (*FocusFunc)(0);
+	else
+	    paused = 1;
+	return GL_FALSE;
     
       case MappingNotify:
 	XRefreshKeyboardMapping((XMappingEvent *)&current);
@@ -254,7 +333,10 @@ static GLenum DoNextEvent(void)
 	return GL_FALSE;
 
       case UnmapNotify:
-	paused = 1;
+	if (FocusFunc)
+	    (*FocusFunc)(0);
+	else
+	    paused = 1;
 	return GL_FALSE;
 
       case Expose:
@@ -333,89 +415,55 @@ static GLenum DoNextEvent(void)
 		
 	    return MouseUpFunc ? (*MouseUpFunc)(current.xbutton.x, current.xbutton.y, mask) : GL_FALSE;
 
+      case MotionNotify:
+	if (pointerIsGrabbed)
+	    {
+	    int centerX = windInfo.width / 2;
+	    int centerY = windInfo.height / 2;
+	    int deltaX = current.xmotion.x - centerX;
+	    int deltaY = current.xmotion.y - centerY;
+
+	    mouseDeltaX += deltaX;
+	    mouseDeltaY += deltaY;
+	    if (deltaX || deltaY)
+		XWarpPointer(display, None, window, 0, 0, 0, 0,
+		    centerX, centerY);
+	    return GL_FALSE;
+	    }
+	if (MouseMoveFunc)
+	    return (*MouseMoveFunc)(current.xmotion.x, current.xmotion.y, 0);
+	return GL_FALSE;
+
       case KeyPress:
 	lastEventType = KeyPress;
-	XLookupString(&current.xkey, buf, sizeof(buf), &ks, 0);
-	switch (ks) {
-	  case XK_a: 		key = TK_a;		break;
-	  case XK_A: 		key = TK_A;		break;
-	  case XK_z: 		key = TK_z;		break;
-	  case XK_Z: 		key = TK_Z;		break;
-	  case XK_Control_L:	key = TK_CONTROL_L;	break;
-	  case XK_Control_R:	key = TK_CONTROL_R;	break;
-	  case XK_Left:		key = TK_LEFT;		break;
-	  case XK_Up:		key = TK_UP;		break;
-	  case XK_Right:  	key = TK_RIGHT;		break;
-	  case XK_Down:		key = TK_DOWN;		break;
-
-	  case XK_I: 		key = TK_I;		break;
-	  case XK_J: 		key = TK_J;		break;
-	  case XK_K: 		key = TK_K;		break;
-	  case XK_L: 		key = TK_L;		break;
-	  case XK_i: 		key = TK_i;		break;
-	  case XK_j: 		key = TK_j;		break;
-	  case XK_k: 		key = TK_k;		break;
-	  case XK_l: 		key = TK_l;		break;
-
-	  case XK_1: 		key = TK_1;		break;
-	  case XK_2: 		key = TK_2;		break;
-	  case XK_3: 		key = TK_3;		break;
-	  case XK_4: 		key = TK_4;		break;
-
-	  case XK_D: 		key = TK_D;		break;
-	  case XK_H: 		key = TK_H;		break;
-	  case XK_M: 		key = TK_M;		break;
-	  case XK_P: 		key = TK_P;		break;
-	  case XK_S: 		key = TK_S;		break;
-	  case XK_T: 		key = TK_T;		break;
-	  case XK_d: 		key = TK_d;		break;
-	  case XK_h: 		key = TK_h;		break;
-	  case XK_m: 		key = TK_m;		break;
-	  case XK_p: 		key = TK_p;		break;
-	  case XK_s: 		key = TK_s;		break;
-
-	  case XK_6: 		key = TK_6;		break;
-	  case XK_7: 		key = TK_7;		break;
-	  case XK_8: 		key = TK_8;		break;
-	  case XK_9: 		key = TK_9;		break;
-	  case XK_space:	key = TK_SPACE;		break;
-	  case XK_Escape: 	key = TK_ESCAPE;	break;
-
-	  case XK_q: 		key = TK_q;		break;
-	  case XK_w: 		key = TK_w;		break;
-
-	  case XK_g: 		key = TK_g;		break;
-	  case XK_G: 		key = TK_G;		break;
-
-	  default: 		key = GL_FALSE;		break;
-	}
+	ks = XLookupKeysym(&current.xkey, 0);
+	key = keyFromKeysym(ks);
+	mask = 0;
+	if (current.xkey.state & ShiftMask)
+	    mask |= TK_SHIFT;
+	if (current.xkey.state & ControlMask)
+	    mask |= TK_CONTROL;
 
 	if (key)
-	    {
-	    return KeyDownFunc ? (*KeyDownFunc)(key, 0) : GL_FALSE;
-	    }
-	else
-	    {
- 	    return GL_FALSE;
-	    }
-
-/*
- * Stuff below added by Johan Hagman for ctrl key to turn weapon on
- * rather than as a toggle for the weapon
- */
+	    return KeyDownFunc ? (*KeyDownFunc)(key, mask) : GL_FALSE;
+	return GL_FALSE;
 
       case KeyRelease:
-	lastEventType = KeyPress;
-	XLookupString(&current.xkey, buf, sizeof(buf), &ks, 0);
-	switch (ks) {
-	  case XK_Control_L:	key = TK_CONTROL_L;	break;
-	  default: 		key = GL_FALSE;		break;
-	}
+	if (XEventsQueued(display, QueuedAfterReading) > 0)
+	    {
+	    XPeekEvent(display, &ahead);
+	    if ((ahead.type == KeyPress) &&
+		(ahead.xkey.time == current.xkey.time) &&
+		(ahead.xkey.keycode == current.xkey.keycode))
+		return GL_FALSE;
+	    }
+	lastEventType = KeyRelease;
+	ks = XLookupKeysym(&current.xkey, 0);
+	key = keyFromKeysym(ks);
 
 	if (key)
 	    return KeyUpFunc ? (*KeyUpFunc)(key) : GL_FALSE;
-	else
-	    return GL_FALSE;
+	return GL_FALSE;
 
     }
     return GL_FALSE;
@@ -450,6 +498,13 @@ void tkGetMouseLoc(int *x, int *y)
     *y = 0;
     XQueryPointer(display, window, (Window *)&junk, (Window *)&junk,
 		  &junk, &junk, x, y, (unsigned int *)&junk);
+    }
+
+void tkGetMouseDelta(float *x, float *y)
+    {
+    *x = (float)mouseDeltaX;
+    *y = (float)mouseDeltaY;
+    mouseDeltaX = mouseDeltaY = 0;
     }
 
 /******************************************************************************/
@@ -703,7 +758,8 @@ GLenum tkInitWindow(char *title)
 
 		    KeyReleaseMask |
 
-		    ButtonPressMask | ButtonReleaseMask | PointerMotionMask;
+	    ButtonPressMask | ButtonReleaseMask | PointerMotionMask |
+	    FocusChangeMask;
 
     mask = CWBackPixel | CWBorderPixel | CWEventMask | CWColormap;
 
@@ -711,6 +767,9 @@ GLenum tkInitWindow(char *title)
 			   windInfo.width, windInfo.height, 0,
 			   visualInfo->depth, InputOutput, visualInfo->visual,
 			   mask, &wa);
+
+    wmDeleteWindow = XInternAtom(display, "WM_DELETE_WINDOW", False);
+    XSetWMProtocols(display, window, &wmDeleteWindow, 1);
     
     if ((windInfo.x != -1) && (windInfo.y != -1))
 	{
@@ -825,24 +884,51 @@ void tkSwapBuffers(void)
 
 void unGrabPointer()
 {
-    /* Ungrab the pointer */
+    if (!pointerIsGrabbed)
+	return;
     XUngrabPointer(display, CurrentTime);
+    XUndefineCursor(display, window);
+    pointerIsGrabbed = 0;
+    mouseDeltaX = mouseDeltaY = 0;
 }
 
 
 void grabPointer()
 {
+    Pixmap blank;
+    XColor color;
+    char data = 0;
+
+    if (pointerIsGrabbed)
+	return;
+
     /* Grab the pointer so you cannot move the  mouse out of the main
      * window. Also set the cursor to a new cursor with no shape.
      */
     if (XGrabPointer(display, window, True,
-			ButtonReleaseMask | ButtonPressMask,
+			ButtonReleaseMask | ButtonPressMask | PointerMotionMask,
 			GrabModeAsync, GrabModeAsync, window,
 			None, CurrentTime) != GrabSuccess)
     {
 	/* Error while grab - not too bad but let user know */	
-	fprintf(stderr, "Warning: Pointer grab unsuccessful.");
+	fprintf(stderr, "Warning: Pointer grab unsuccessful.\n");
+	return;
     }
+
+    if (!hiddenCursor)
+	{
+	memset(&color, 0, sizeof(color));
+	blank = XCreateBitmapFromData(display, window, &data, 1, 1);
+	hiddenCursor = XCreatePixmapCursor(display, blank, blank,
+		&color, &color, 0, 0);
+	XFreePixmap(display, blank);
+	}
+    XDefineCursor(display, window, hiddenCursor);
+    pointerIsGrabbed = 1;
+    mouseDeltaX = mouseDeltaY = 0;
+    XWarpPointer(display, None, window, 0, 0, 0, 0,
+	windInfo.width / 2, windInfo.height / 2);
+    XFlush(display);
 }
 
 /******************************************************************************/
@@ -891,6 +977,11 @@ void tkMouseUpFunc(GLenum (*Func)(int, int, GLenum))
 void tkMouseMoveFunc(GLenum (*Func)(int, int, GLenum))
 {
     MouseMoveFunc = Func;
+}
+
+void tkFocusFunc(void (*Func)(int))
+{
+    FocusFunc = Func;
 }
 
 void tkIdleFunc(void (*Func)(void))

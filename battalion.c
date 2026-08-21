@@ -161,7 +161,30 @@ time_t frameTime;
 GLuint monsterLookat;
 GLuint overviewLookat;
 
-int Gfor, Gbak, Gturn;
+struct playerInputState
+    {
+    int forward;
+    int backward;
+    int left;
+    int right;
+    int aimUp;
+    int aimDown;
+    int aimLeft;
+    int aimRight;
+    int fireMouse;
+    int fireControlLeft;
+    int fireControlRight;
+    };
+
+static struct playerInputState playerInput;
+static int playerMoveActive;
+static float playerMoveAngle;
+static int showHelp;
+static int commandKeys[5];
+
+static void clearPlayerInput(void);
+static void setPointerCaptured(int);
+static void inputFocusChanged(int);
 
 float textLineWidth;
 
@@ -2596,6 +2619,7 @@ void initialization()
     tkKeyUpFunc(processKeyRelease);
     tkMouseDownFunc(MouseDown);
     tkMouseUpFunc(MouseUp);
+    tkFocusFunc(inputFocusChanged);
 
     if (tkInitWindow("battalion") == GL_FALSE)
 	{
@@ -3127,65 +3151,174 @@ void goto1d(void)
 /* check the current location of the mouse in the window         */
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
+static void updatePlayerFire(void)
+    {
+    Googelon.beamOn = (mode == PLAYMODE) && !paused &&
+	(playerInput.fireMouse || playerInput.fireControlLeft ||
+	 playerInput.fireControlRight);
+    }
+
 void checkMouse()
     {
-    int x, y;
-    float offsetY;
+    float mouseDeltaX, mouseDeltaY;
+    int forward, sideways;
+    float horizontalAim, verticalAim;
+
+    mouseDeltaX = mouseDeltaY = 0;
+    tkGetMouseDelta(&mouseDeltaX, &mouseDeltaY);
 
     Googelon.monsterGo = Googelon.monsterBack = 0;
-
-    if (Gfor)
-	Googelon.monsterGo = 1;
-
-    if (Gbak)
-	Googelon.monsterBack = 1;
+    playerMoveActive = 0;
+    offsetX = 0;
 
     if ((mode == PLAYMODE) && !paused)
 	{
-	tkGetMouseLoc(&x, &y);
+	horizontalAim = pointerGrab ? -mouseDeltaX * 4.0 : 0;
+	verticalAim = pointerGrab ? mouseDeltaY * 4.0 : 0;
 
-	offsetX = 2*(x / (float) viewW - 0.5);
-	offsetY = 2*(y / (float) viewH - 0.5);
+	if (playerInput.aimLeft)
+	    horizontalAim += 18;
+	if (playerInput.aimRight)
+	    horizontalAim -= 18;
+	if (playerInput.aimUp)
+	    verticalAim -= 18;
+	if (playerInput.aimDown)
+	    verticalAim += 18;
 
+	if ((horizontalAim != 0) || (verticalAim != 0))
+	    Googelon.monsterMoving = 1;
 
+	Googelon.headHorzRotate += (int) horizontalAim;
+	Googelon.headVertRotate += (int) verticalAim;
+
+	if (Googelon.xspeed != 0)
+	    offsetX = -horizontalAim / Googelon.xspeed;
 	if (offsetX > 1)
 	    offsetX = 1;
 	else if (offsetX < -1)
 	    offsetX = -1;
 
-	if (offsetY > 1)
-	    offsetY = 1;
-	else if (offsetY < -1)
-	    offsetY = -1;
-
-	if (fabs(offsetX) > 0.2)
+	forward = playerInput.forward - playerInput.backward;
+	sideways = playerInput.right - playerInput.left;
+	if (forward || sideways)
 	    {
-	    Googelon.headHorzRotate -= (int) (offsetX * Googelon.xspeed);
+	    playerMoveAngle = Googelon.headHorzRotate * BIG_DEG_TO_RAD +
+		atan2((double) sideways, (double) forward);
+	    playerMoveActive = 1;
 	    Googelon.monsterMoving = 1;
+	    if ((forward < 0) && !sideways)
+		Googelon.monsterBack = 1;
+	    else
+		Googelon.monsterGo = 1;
 	    }
-
-	if (offsetY > 0.3)
-	    Googelon.monsterBack = 1;
-	else if (offsetY < -0.3)
-	    Googelon.monsterGo = 1;
 	}
 
-	Gfor = 0;
-	Gbak = 0;
-	Gturn = 0;
+    updatePlayerFire();
+    }
+
+/*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
+
+static void clearPlayerInput(void)
+    {
+    float unusedX, unusedY;
+
+    memset(&playerInput, 0, sizeof(playerInput));
+    playerMoveActive = 0;
+    Googelon.monsterGo = Googelon.monsterBack = 0;
+    Googelon.beamOn = 0;
+    tkGetMouseDelta(&unusedX, &unusedY);
+    }
+
+static void setPointerCaptured(int captured)
+    {
+    float unusedX, unusedY;
+
+    if (captured && !pointerGrab)
+	{
+	grabPointer();
+	pointerGrab = 1;
+	}
+    else if (!captured && pointerGrab)
+	{
+	unGrabPointer();
+	pointerGrab = 0;
+	}
+    tkGetMouseDelta(&unusedX, &unusedY);
+    }
+
+static void inputFocusChanged(int focused)
+    {
+    if (focused)
+	return;
+
+    clearPlayerInput();
+    memset(commandKeys, 0, sizeof(commandKeys));
+    setPointerCaptured(0);
+    if (mode == PLAYMODE)
+	paused = 1;
+    }
+
+static int setPlayerKeyState(int key, int pressed)
+    {
+    switch(key)
+	{
+	case TK_w:
+	case TK_W:	playerInput.forward = pressed; break;
+	case TK_s:
+	case TK_S:	playerInput.backward = pressed; break;
+	case TK_a:
+	case TK_A:	playerInput.left = pressed; break;
+	case TK_d:
+	case TK_D:	playerInput.right = pressed; break;
+	case TK_i:
+	case TK_I:	playerInput.aimUp = pressed; break;
+	case TK_j:
+	case TK_J:	playerInput.aimLeft = pressed; break;
+	case TK_k:
+	case TK_K:	playerInput.aimDown = pressed; break;
+	case TK_l:
+	case TK_L:	playerInput.aimRight = pressed; break;
+	case TK_CONTROL_L:	playerInput.fireControlLeft = pressed; break;
+	case TK_CONTROL_R:	playerInput.fireControlRight = pressed; break;
+	default:	return 0;
+	}
+    return 1;
+    }
+
+static int commandKeyIndex(int key)
+    {
+    switch(key)
+	{
+	case TK_F1: return 0;
+	case TK_F2: return 1;
+	case TK_F3: return 2;
+	case TK_F4: return 3;
+	case TK_p:
+	case TK_P: return 4;
+	default: return -1;
+	}
     }
 
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
 GLenum MouseDown(int mouseX, int mouseY, GLenum button)
    {
-    int xloc,yloc;
+    (void) mouseX;
+    (void) mouseY;
 
-    xloc = mouseX;
-    yloc = mouseY;
+    if ((mode == PLAYMODE) && (button == TK_LEFTBUTTON))
+	{
+	if (paused || !pointerGrab)
+	    {
+	    clearPlayerInput();
+	    paused = 0;
+	    setPointerCaptured(1);
+	    }
+	else
+	    playerInput.fireMouse = 1;
+	}
 
-    if ((mode == PLAYMODE) && !paused && (button == TK_LEFTBUTTON))
-	Googelon.beamOn = 1;
+    updatePlayerFire();
 
     return 0;
    }
@@ -3194,13 +3327,13 @@ GLenum MouseDown(int mouseX, int mouseY, GLenum button)
 
 GLenum MouseUp(int mouseX, int mouseY, GLenum button)
    {
-    int xloc,yloc;
+    (void) mouseX;
+    (void) mouseY;
 
-    xloc = mouseX;
-    yloc = mouseY;
+    if (button == TK_LEFTBUTTON)
+	playerInput.fireMouse = 0;
 
-    if ((mode == PLAYMODE) && (button == TK_LEFTBUTTON))
-	Googelon.beamOn = 0;
+    updatePlayerFire();
 
     return 0;
    }
@@ -3216,26 +3349,38 @@ void demoKeys(int key)
 
 	case TK_6:	mode = PLAYMODE;
 			    showOptions = 0;
+			    showHelp = 0;
 			    Googelon.monster = GOOGELON;
 			    setPlayConditions();
+			    clearPlayerInput();
+			    setPointerCaptured(1);
 			    break;
 
 	case TK_7:	mode = PLAYMODE;
 			    showOptions = 0;
+			    showHelp = 0;
 			    Googelon.monster = TECHS;
 			    setPlayConditions();
+			    clearPlayerInput();
+			    setPointerCaptured(1);
 			    break;
 
 	case TK_8:	mode = PLAYMODE;
 			    showOptions = 0;
+			    showHelp = 0;
 			    Googelon.monster = VAPOUR;
 			    setPlayConditions();
+			    clearPlayerInput();
+			    setPointerCaptured(1);
 			    break;
 
 	case TK_9:	mode = PLAYMODE;
 			    showOptions = 0;
+			    showHelp = 0;
 			    Googelon.monster = FLUTTER;
 			    setPlayConditions();
+			    clearPlayerInput();
+			    setPointerCaptured(1);
 			    break;
 
 	}
@@ -3265,55 +3410,18 @@ void playKeys(int key)
 	case TK_4:	view = MAPVIEW;
 			    break;
 
-	case TK_i:
-	case TK_I:	xrot -= 8;
+	case TK_UP:	xrot -= 8;
 			    break;
 
-	case TK_j:
-	case TK_J:	yrot += 8;
+	case TK_LEFT:	yrot += 8;
 			    break;
 
-	case TK_k:
-	case TK_K:	xrot += 8;
+	case TK_DOWN:	xrot += 8;
 			    break;
 
-	case TK_l:
-	case TK_L:	yrot -= 8;
+	case TK_RIGHT:	yrot -= 8;
 			    break;
 
-	}
-    }
-
-/*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
-
-void playNoPauseKeys(int key)
-    {
-    switch(key)
-	{
-	case TK_LEFT:	offsetX = -0.5;
-			    Googelon.headHorzRotate -= (int) (offsetX * Googelon.xspeed);
-			    Gturn = 1;
-			    break;
-
-	case TK_RIGHT:	offsetX = 0.5;
-			    Googelon.headHorzRotate -= (int) (offsetX * Googelon.xspeed);
-			    Gturn = 1;
-			    break;
-
-	case TK_UP:	Gfor = 1;
-			    break;
-
-	case TK_DOWN:	Gbak = 1;
-			    break;
-
-
-	case TK_a:
-	case TK_A:	Googelon.headVertRotate -= 15;
-			    break;
-
-	case TK_z:
-	case TK_Z:	Googelon.headVertRotate += 15;
-			    break;
 	}
     }
 
@@ -3321,68 +3429,57 @@ void playNoPauseKeys(int key)
 
 GLenum processKey(int key, GLenum mask)
     {
-    GLenum keyMask;
+    int commandIndex;
 
-    keyMask = mask;
+    (void) mask;
+
+    if (setPlayerKeyState(key, 1))
+	{
+	updatePlayerFire();
+	return GL_TRUE;
+	}
+
+    commandIndex = commandKeyIndex(key);
+    if (commandIndex >= 0)
+	{
+	if (commandKeys[commandIndex])
+	    return GL_TRUE;
+	commandKeys[commandIndex] = 1;
+	}
 
     if (mode == DEMOMODE)
 	demoKeys(key);
-
-    if ((mode == PLAYMODE) && !paused)
-	playNoPauseKeys(key);
 
     if (mode == PLAYMODE)
 	 playKeys(key);
 
     switch(key)
 	{
-	case TK_CONTROL_L:
-			    Googelon.beamOn = 1;
-			    break;
-
 	case TK_p:
-	case TK_P:	    if (now > (timePaused+1))
-				{
-				paused = !paused;
-				timePaused = now;
-				}
+	case TK_P:	    paused = !paused;
+			    timePaused = now;
+			    clearPlayerInput();
+			    if (mode == PLAYMODE)
+				setPointerCaptured(!paused);
 			    break;
 
-	case TK_m:
-	case TK_M:	    if (now > (timeMusic+1))
-				{
-				toggleMusic();
-				timeMusic = now;
-				}
+	case TK_F4:	    toggleMusic();
+			    timeMusic = now;
 			    break;
 
-	case TK_s:
-	case TK_S:	    if (now > (timeSound+1))
-				{
-				toggleSound();
-				timeSound = now;
-				}
+	case TK_F3:	    toggleSound();
+			    timeSound = now;
 			    break;
 
-	case TK_d:
-	case TK_D:	    if (now > (timeMusic+1))
-				{
-				lod++;
-				if (lod > 2)
-				    lod = -1;
-				timeDetail = now;
+	case TK_F2:	    lod++;
+			    if (lod > 2)
+				lod = -1;
+			    timeDetail = now;
 
-				 if (lod == -1)
-				    {
-				    goToLowDetail();
-				    }
-				else
-				    {
-				    goToHighDetail();
-				    }
-
-
-				}
+			    if (lod == -1)
+				goToLowDetail();
+			    else
+				goToHighDetail();
 			    break;
 
 #ifdef SGIVERSION
@@ -3394,28 +3491,30 @@ GLenum processKey(int key, GLenum mask)
 			    break;
 #endif
 
-	case TK_g:
-	case TK_G:	    if (pointerGrab)
-				unGrabPointer();
-			    else
-				grabPointer();
-			    pointerGrab = !pointerGrab;
-			    break;
-
-	case TK_q:
-	case TK_Q:	    if (mapHeight > 1)
+	case TK_PAGEDOWN:   if (mapHeight > 1)
 				mapHeight -= 1;
 			    break;
 
-	case TK_w:
-	case TK_W:	    if (mapHeight < 45)
+	case TK_PAGEUP:     if (mapHeight < 45)
 				mapHeight += 1;
 			    break;
 
-	case TK_ESCAPE:	    goto1d();
-			    if (pointerGrab)
-				unGrabPointer();
-			    exit(0);
+	case TK_F1:	    showHelp = !showHelp;
+			    if (showHelp && (mode == PLAYMODE))
+				{
+				paused = 1;
+				clearPlayerInput();
+				setPointerCaptured(0);
+				}
+			    break;
+
+	case TK_ESCAPE:	    showHelp = 0;
+			    if (mode == PLAYMODE)
+				{
+				paused = 1;
+				clearPlayerInput();
+				setPointerCaptured(0);
+				}
 	}
 
 
@@ -3427,16 +3526,17 @@ GLenum processKey(int key, GLenum mask)
 /* processKeyRelease                                             */
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
-/* detects when the control key is released, to turn off the beam.
-*/
-
 GLenum processKeyRelease(int key)
     {
-    int garbage;
+    int commandIndex;
 
-    garbage = key; /* to avoid compiler warning */
+    commandIndex = commandKeyIndex(key);
+    if (commandIndex >= 0)
+	commandKeys[commandIndex] = 0;
 
-    Googelon.beamOn = 0;
+    setPlayerKeyState(key, 0);
+    updatePlayerFire();
+
     return GL_TRUE;
     }
 
@@ -3977,10 +4077,11 @@ void doUpdate()
 
 	Googelon.energyRemaining -= Googelon.moveCost; /* takes energy to move, not to turn */
 
-	if (Googelon.monsterGo)
+	if (playerMoveActive)
+	    mAngle = playerMoveAngle;
+	else if (Googelon.monsterGo)
 	    mAngle = (Googelon.headHorzRotate * BIG_DEG_TO_RAD);
-
-	if (Googelon.monsterBack)
+	else if (Googelon.monsterBack)
 	    mAngle = (Googelon.headHorzRotate + 1800) * BIG_DEG_TO_RAD;
 
 
@@ -4768,11 +4869,13 @@ textLineWidth = 1.01;
 	if (mode == DEMOMODE)
 	    {
 	    if (!(Googelon.timeDead > 100) && !showOptions)
+		{
 		if (Googelon.moveCount < 150)
 		    showScores(itsChristmas, G, V, T, F, Googelon, mainCounter, offsetX, lod);
-		else
+		else if (!showHelp)
 		    showText2((long) (viewR-viewL), getSoundOn(), noSound, getMusicOn(),
-			    mode3D, no3D, lod, paused, itsChristmas, pointerGrab);
+			mode3D, no3D, lod, paused, itsChristmas, pointerGrab);
+		}
 
 
 	    showText3(lod);
@@ -4789,6 +4892,10 @@ textLineWidth = 1.01;
 		    killplanes, killlaunchers, killfighters,
 		    mainCounter, lod, moreThanOne);
 	    }
+
+	if (showHelp)
+	    showText2((long) (viewR-viewL), getSoundOn(), noSound, getMusicOn(),
+		mode3D, no3D, lod, paused, itsChristmas, pointerGrab);
 
 	glPopMatrix();
 	}
@@ -5242,9 +5349,6 @@ void id()
 
     Googelon.monsterMoving = 0;
 
-    if (Gturn)
-	Googelon.monsterMoving = 1;
-
     checkMouse();
 
     /**************************************/
@@ -5267,8 +5371,12 @@ void id()
 	mainCounter += 1;
 
 
-    if (Googelon.monsterIsDead)
+    if (Googelon.monsterIsDead && (mode == PLAYMODE))
+	{
 	mode = DEMOMODE;
+	clearPlayerInput();
+	setPointerCaptured(0);
+	}
 
     oldview = view;
 

@@ -536,6 +536,14 @@ glPushAttrib(GL_DEPTH_BUFFER_BIT);
 /* draw list of views/options/controls)                          */
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
+static void drawHelpString(char *string)
+    {
+    glPushMatrix();
+    glScalef(0.70, 0.70, 1.0);
+    tkDrawStr(strokeBase, string);
+    glPopMatrix();
+    }
+
 void showText2(long winX, int soundOn, int noSound, int musicOn, 
 		int mode3D, int no3D, int detail, int paused,
 		int itsChristmas, int ptrGrab)
@@ -557,16 +565,18 @@ static    char medstring[]		= " (MED)";
 static    char highstring[]		= " (HIGH)";
 static    char unavailablestring[] 	= " ( - )";
 
-static    char moveEnglish[]		= "mouse/arrows";
-static    char shootEnglish[]		= "left btn/ctrl";
-static    char azEnglish[]		= "a z";
+static    char moveEnglish[]		= "wasd";
+static    char aimEnglish[]		= "mouse/ijkl";
+static    char shootEnglish[]		= "lmb/ctrl";
+static    char mapHeightEnglish[]	= "pgup/dn";
 
-static    char grabEnglish[]		= "-PtGrab";
+static    char grabEnglish[]		= "-Release Mouse";
 /* static    char videoEnglish[]	= "-3D"; */
 
-static    char rotateEnglish[]		= "- Rotate Overview";
-static    char ijklEnglish[]		= "ijkl";
-static    char showcaseEnglish[]	= "-Help";
+static    char rotateEnglish[]		= "-Rotate Overview";
+static    char arrowsEnglish[]		= "arrows";
+static    char mapHeightActionEnglish[] = "-Map Height";
+static    char helpEnglish[]		= "-Help";
 
 static    char pauseEnglish[]		= "-Pause";
 static    char detailEnglish[]		= "-Detail";
@@ -591,31 +601,31 @@ static    char musicEnglish[]		= "-Music";
 
     glPushMatrix();
 	glTranslatef(-5.0,  +0.7,  0);
-	tkDrawStr(strokeBase, viewsEnglish);
+	drawHelpString(viewsEnglish);
     glPopMatrix();
 
     glPushMatrix();
 	glTranslatef(-4.8,  0.2,  0);
-	tkDrawStr(strokeBase, "1");
+	drawHelpString("1");
 	
-	glTranslatef(0.2,  0,  0);
-	tkDrawStr(strokeBase, views1English);
+	glTranslatef(0.5,  0,  0);
+	drawHelpString(views1English);
     glPopMatrix();
     
     glPushMatrix();
 	glTranslatef(-4.8,  -0.3,  0);
-	tkDrawStr(strokeBase, "2");
+	drawHelpString("2");
 	
-	glTranslatef(0.2,  0,  0);	
-	tkDrawStr(strokeBase, views2English);
+	glTranslatef(0.5,  0,  0);
+	drawHelpString(views2English);
     glPopMatrix();    
     
     glPushMatrix();
 	glTranslatef(-4.8,  -0.8,  0);
-	tkDrawStr(strokeBase, "3");
+	drawHelpString("3");
 	
-	glTranslatef(0.2,  0,  0);
-	tkDrawStr(strokeBase, views3English);
+	glTranslatef(0.5,  0,  0);
+	drawHelpString(views3English);
     glPopMatrix();    
 
 
@@ -624,54 +634,60 @@ static    char musicEnglish[]		= "-Music";
     /* controls */
     /************/
 
-    if (mode3D)
-	right = 0.2;
-    else
-	right = -1.0;
+    right = 0.0;
 
 
     glPushMatrix();
-	glTranslatef(right+0.3,  -2,  0);
-	tkDrawStr(strokeBase, "Controls:");
+	glTranslatef(right,  -2,  0);
+	drawHelpString("Controls:");
     glPopMatrix();
 
     glPushMatrix();
-	glTranslatef(right + 0.5,  -2.5,  0);
-	tkDrawStr(strokeBase, moveEnglish);
+	glTranslatef(right,  -2.5,  0);
+	drawHelpString(moveEnglish);
     glPopMatrix();
     glPushMatrix();
-	glTranslatef(right + 4.1,  -2.5,  0);
-	tkDrawStr(strokeBase, "-Move");
+	glTranslatef(right + 2.1,  -2.5,  0);
+	drawHelpString("-Move");
     glPopMatrix();
 	
 
     glPushMatrix();
-	glTranslatef(right + 0.5,  -3,  0);
-	tkDrawStr(strokeBase, shootEnglish);
+	glTranslatef(right,  -3,  0);
+	drawHelpString(aimEnglish);
     glPopMatrix();
     glPushMatrix();
-	glTranslatef(right + 4.1,  -3,  0);
-	tkDrawStr(strokeBase, "-Attack");
+	glTranslatef(right + 2.1,  -3,  0);
+	drawHelpString("-Aim");
     glPopMatrix();
    
 
     glPushMatrix();
-	glTranslatef(right+0.5,  -3.5,  0);
-	tkDrawStr(strokeBase, azEnglish);
+	glTranslatef(right,  -3.5,  0);
+	drawHelpString(shootEnglish);
     glPopMatrix();
     glPushMatrix();
-	glTranslatef(right + 3.25,  -3.5,  0);
-	tkDrawStr(strokeBase, "-Tilt Head");
+	glTranslatef(right + 2.1,  -3.5,  0);
+	drawHelpString("-Fire");
     glPopMatrix();
 
 
     glPushMatrix();
-	glTranslatef(right+0.5,  -4,  0);
-	tkDrawStr(strokeBase, ijklEnglish);
+	glTranslatef(right,  -4,  0);
+	drawHelpString(arrowsEnglish);
     glPopMatrix();
     glPushMatrix();
-	glTranslatef(right+1.5,  -4,  0);
-	tkDrawStr(strokeBase, rotateEnglish);
+	glTranslatef(right+2.1,  -4,  0);
+	drawHelpString(rotateEnglish);
+    glPopMatrix();
+
+    glPushMatrix();
+	glTranslatef(right,  -4.5,  0);
+	drawHelpString(mapHeightEnglish);
+    glPopMatrix();
+    glPushMatrix();
+	glTranslatef(right+2.1,  -4.5,  0);
+	drawHelpString(mapHeightActionEnglish);
     glPopMatrix();
 
     /***********/
@@ -681,32 +697,33 @@ static    char musicEnglish[]		= "-Music";
 
     glPushMatrix();
 	glTranslatef(-5,  -2,  0);
-	tkDrawStr(strokeBase, "Options:");
+	drawHelpString("Options:");
     glPopMatrix();
 
 
 
     glPushMatrix();
 	glTranslatef(-4.8,  -2.5,  0);
-	tkDrawStr(strokeBase, "d");
-
-	glTranslatef(0.2,  0,  0);
-	tkDrawStr(strokeBase, detailEnglish);
+	drawHelpString("F2");
+	glPopMatrix();
+    glPushMatrix();
+	glTranslatef(-3.6,  -2.5,  0);
+	drawHelpString(detailEnglish);
     glPopMatrix();
     glPushMatrix();
-	glTranslatef(-2.65,  -2.5,  0);
+	glTranslatef(-1.9,  -2.5,  0);
 	switch (detail) {
 	case -1:
-	    tkDrawStr(strokeBase, linstring);
+	    drawHelpString(linstring);
 	    break;
 	case 0:
-	    tkDrawStr(strokeBase, lowstring);
+	    drawHelpString(lowstring);
 	    break;
 	case 1:
-	    tkDrawStr(strokeBase, medstring);
+	    drawHelpString(medstring);
 	    break;
 	case 2:
-	    tkDrawStr(strokeBase, highstring);
+	    drawHelpString(highstring);
 	    break;
 	}
     glPopMatrix();
@@ -716,70 +733,67 @@ static    char musicEnglish[]		= "-Music";
 
     glPushMatrix();
 	glTranslatef(-4.8,  -3,  0);
-	tkDrawStr(strokeBase, "s");
-
-	glTranslatef(0.2,  0,  0);
-	tkDrawStr(strokeBase, soundEnglish);
+	drawHelpString("F3");
+	glPopMatrix();
+    glPushMatrix();
+	glTranslatef(-3.6,  -3,  0);
+	drawHelpString(soundEnglish);
     glPopMatrix();
 
     glPushMatrix();
-	glTranslatef(-2.65,  -3,  0);
+	glTranslatef(-1.9,  -3,  0);
 
 	if (noSound)
-	    tkDrawStr(strokeBase,unavailablestring);
+	    drawHelpString(unavailablestring);
 	else
-	    soundOn ? tkDrawStr(strokeBase,onstring) : tkDrawStr(strokeBase,offstring);
+	    soundOn ? drawHelpString(onstring) : drawHelpString(offstring);
     glPopMatrix();
 
 
     glPushMatrix();
 	glTranslatef(-4.8,  -3.5,  0);
-	tkDrawStr(strokeBase, "m");
-
-	glTranslatef(0.2,  0,  0);
-	tkDrawStr(strokeBase, musicEnglish);
+	drawHelpString("F4");
+	glPopMatrix();
+    glPushMatrix();
+	glTranslatef(-3.6,  -3.5,  0);
+	drawHelpString(musicEnglish);
     glPopMatrix();
 
     glPushMatrix();
-	glTranslatef(-2.65,  -3.5,  0);
+	glTranslatef(-1.9,  -3.5,  0);
 
 	if (noSound)
-	    tkDrawStr(strokeBase,unavailablestring);
+	    drawHelpString(unavailablestring);
 	else
-	    musicOn ? tkDrawStr(strokeBase,onstring) : tkDrawStr(strokeBase,offstring);
+	    musicOn ? drawHelpString(onstring) : drawHelpString(offstring);
     glPopMatrix();
 	
 	
     glPushMatrix();
 	glTranslatef(-4.8,  -4,  0);
-	tkDrawStr(strokeBase, "p");
-
-	glTranslatef(0.2,  0,  0);
-	tkDrawStr(strokeBase, pauseEnglish);
+	drawHelpString("p");
+	glPopMatrix();
+    glPushMatrix();
+	glTranslatef(-3.6,  -4,  0);
+	drawHelpString(pauseEnglish);
     glPopMatrix();
 
     glPushMatrix();
-	glTranslatef(-2.65,  -4,  0);
-	paused ? tkDrawStr(strokeBase,onstring) : tkDrawStr(strokeBase,offstring);
+	glTranslatef(-1.9,  -4,  0);
+	paused ? drawHelpString(onstring) : drawHelpString(offstring);
     glPopMatrix();
 
 
     glPushMatrix();
 	glTranslatef(-4.8,  -4.5,  0);
-	tkDrawStr(strokeBase, "g");
-
-	glTranslatef(0.2,  0,  0);
-	tkDrawStr(strokeBase, grabEnglish);
-    glPopMatrix();
-
+	drawHelpString("esc");
+	glPopMatrix();
     glPushMatrix();
-	glTranslatef(-2.65,  -4.5,  0);
-
-	ptrGrab ? tkDrawStr(strokeBase,onstring) :
-		  tkDrawStr(strokeBase,offstring);
+	glTranslatef(-3.6,  -4.5,  0);
+	drawHelpString(grabEnglish);
     glPopMatrix();
 
-    garbage = no3D;
+    garbage = no3D + ptrGrab + mode3D;
 /* someday the 3D from the Original GL version will return in
  * the OpenGL version ... but not yet
 
@@ -804,20 +818,12 @@ static    char musicEnglish[]		= "-Music";
 
     glPushMatrix();
 	glTranslatef(-4.8,  -5,  0);
-	tkDrawStr(strokeBase, "h");
-
-	glTranslatef(0.2,  0,  0);
-	tkDrawStr(strokeBase, showcaseEnglish);
-    glPopMatrix();
-
-#ifndef SGIVERSION
+	drawHelpString("F1");
+	glPopMatrix();
     glPushMatrix();
-	glTranslatef(-2.75,  -5,  0);
-
-	tkDrawStr(strokeBase,unavailablestring);
-
+	glTranslatef(-3.6,  -5,  0);
+	drawHelpString(helpEnglish);
     glPopMatrix();
-#endif
 
     glPopAttrib();
     }

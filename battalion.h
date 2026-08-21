@@ -608,7 +608,6 @@ GLenum MouseDown(int, int, GLenum);
 GLenum MouseUp(int, int, GLenum);
 void demoKeys(int);
 void playKeys(int);
-void playNoPauseKeys(int);
 GLenum processKey(int, GLenum);
 GLenum processKeyRelease(int);
 void checkInput (void);

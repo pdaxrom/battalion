@@ -80,74 +80,62 @@ very bright but demo mode will give you an idea what you are up
 against. When you want to get in on the fun, press the spacebar.
 You can then choose your monster and start senselessly destroying things.
 .SH CONTROLS
-The 1, 2, and 3 keys control your view:
+The 1, 2, 3, and 4 keys control your view:
 .RS 5
 .TP 20
 .SM 1
 Monster view. You see the battlefield from the monster's point of view.
 .TP 20
 .SM 2
-Overview. You see an overview of the battlefield. The i,j,k,l keys
-rotate the battlefield in this view.
+Overview. You see an overview of the battlefield. The arrow keys rotate the
+battlefield in this view.
 .TP 20
 .SM 3
 Army view. You see the battlefield from one of the military vehicles
 attacking you.
+.TP 20
+.SM 4
+Map view.
 .RS -5
 .PP
-The mouse and the arrow keys move the monster:
+The W, A, S, and D keys move the monster:
 .RS 5
 .TP 30
-.SM Mouse forward/up arrow
+.SM W
 moves monster forwards
 .TP 30
-.SM Mouse backward/down arrow
+.SM S
 moves monster backwards
 .TP 30
-.SM Mouse right/right arrow
-turns monster to its right
+.SM A
+strafes monster to its left
 .TP 30
-.SM Mouse forward/left arrow
-turns monster to its left
+.SM D
+strafes monster to its right
 .RS -5
 .PP
-The left mouse button and the 'ctrl' keys on the keyboard activate the
-monster's weapon.
+Move the mouse to aim. The I, J, K, and L keys duplicate mouse aiming.
 .PP
-The 'a' and 'z' keys on the keyboard tilt the monster's head up and down.
-.RS 5
-.TP 20
-.SM 'a' key
-tilts the monster's head up
-.TP 20
-.SM 'z' key
-tilts the monster's head down
-.RS -5
+The left mouse button and either 'ctrl' key activate the monster's weapon.
 .PP
 You can resize/iconify the
 .I battalion
 window as you like. The game is temporarily halted while it is iconified.
 .PP
-The d key turns detail on/off. With detail on the game will look better
-(with fog, transparent explosions, and a bit of texture mapping) but will
-play slower.
+F2 steps through the vector, low, medium, and high detail levels. Higher
+detail looks better but may play slower.
 .PP
-The h key activates displays the showcase help file (which contains
-the same information as this man page, but with lots of pretty pictures.)
-The game is temporarily halted while you are viewing help.
-If you are in 3D mode and activate help, you will be taken into 2D mode
-before help is displayed. 
+F1 displays the on-screen controls.
 .PP
-The m key turns the background music on/off. Music will slow the game down
+F4 turns the background music on/off. Music will slow the game down
 slightly; and I wouldn't recommend
 running any other sound-intensive programs at the same time as
 .I battalion.
 .PP
-The p key turns pause on/off. Pause freezes the action (you can't move,
-and neither can the army) but the other controls (123, ijkl, dhmpsv)
-are still active.
+The p key turns pause on/off. Pause freezes the action. Escape also pauses
+the game and releases the mouse; click the window or press p to resume.
 .PP
-The s key turns the sound on/off. Sound will slow the game down slightly;
+F3 turns the sound on/off. Sound will slow the game down slightly;
 and I wouldn't recommend running any other sound-intensive programs at
 the same time as
 .I battalion.
