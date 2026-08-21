@@ -15,6 +15,18 @@
 
 #include "battalion.h"
 
+#ifndef BATTALION_ASSET_EXPORT
+#include "asset.h"
+#include "asset_animation.h"
+#include "asset_manifest.h"
+#include "asset_render.h"
+#endif
+
+#ifdef BATTALION_ASSET_EXPORT
+#include "asset.h"
+#include "asset_write.h"
+#endif
+
     /*************/
     /* colours   */
     /*************/
@@ -127,102 +139,216 @@
     GLuint leftScreen, rightScreen;
     GLuint treeWood, roadtex, officeLogo;
 
-    char picleft[32400], picright[32400]; /* 180 x 180 tmap arrays*/
-					  /* only 128 x 128 in use now */
-    char officeLogoData[32400];
-    		  
-    char treeWoodData[5000];
-    char roadtexData[5000];
+#ifndef BATTALION_ASSET_EXPORT
+    static struct AssetManifest externalAssets;
+    static const struct AssetManifestModel *externalHeloModels[2];
+    static size_t externalHeloClips[2];
+    static int externalHeloLoops[2];
+    static struct AssetPose externalHeloPoses[2];
+    static const struct AssetManifestModel *externalProjectileModels[4];
+    static size_t externalProjectileClips[4];
+    static int externalProjectileLoops[4];
+    static struct AssetPose externalProjectilePoses[4];
+#endif
     
 
     struct road roadsOnPlane[MAXROADSONPLANE];
 
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
-void doTexStuff(char * dataPath, char * fileName, int width, int height,
-		char * TheArray, GLuint * theObj, int interpolation, int repeat)
-    {
-    register int x, y;
-    char fullPath[MAXPATH];
-    int arrayLoc;
-    FILE * imageFile;
-
-    strcpy(fullPath, dataPath);
-    strcat(fullPath, fileName);
-    imageFile = fopen(fullPath, "r");
-	
-    if (imageFile == NULL) 
-	showError("Cannot find texture file in data directory");
-    else
-	{	    
-	for (y = 0; y < height; y++)
-	    for (x = 0; x < width; x++)
-		    {
-		    arrayLoc = (height-1-y) * width + (width-1-x);
-		    TheArray[arrayLoc]	= (char) fgetc(imageFile);
-		    }
-		    
-	*theObj = glGenLists(1);		    
-	glNewList(*theObj, GL_COMPILE);
-	
-	    glTexImage2D(GL_TEXTURE_2D, 0, 1, width, height, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, (const GLvoid *) TheArray);
-
-	    if (repeat)
-		{
-		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-		}
-	    else
-		{		    
-		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
-		}
-	    
-	    if (interpolation)
-		{
-		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		}
-	    else
-		{
-		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		}
-	    
-	    glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-
-	glEndList();
-	
-	fclose(imageFile);
-	}
-    }
-
-/*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 /* create the objects to be used in the game                     */
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
+#ifndef BATTALION_ASSET_EXPORT
+static GLuint requiredModel(const char *key)
+    {
+    const struct AssetManifestModel *model;
+
+    model = assetManifestFindModel(&externalAssets, key);
+    if (model == NULL || model->displayList == 0)
+	{
+	fprintf(stderr, "Required external model is missing: %s\n", key);
+	showError("Required model is missing from manifest.txt");
+	exit(1);
+	}
+    return model->displayList;
+    }
+
+static GLuint requiredTexture(const char *key)
+    {
+    const struct AssetManifestTexture *texture;
+
+    texture = assetManifestFindTexture(&externalAssets, key);
+    if (texture == NULL || texture->displayList == 0)
+	{
+	fprintf(stderr, "Required external texture is missing: %s\n", key);
+	showError("Required texture is missing from manifest.txt");
+	exit(1);
+	}
+    return texture->displayList;
+    }
+#endif
+
 void makeObjects(char * dataPath)
     {
+#ifndef BATTALION_ASSET_EXPORT
+    char assetError[256];
+
+    assetManifestInitialize(&externalAssets);
+    assetPoseInitialize(&externalHeloPoses[0]);
+    assetPoseInitialize(&externalHeloPoses[1]);
+    assetPoseInitialize(&externalProjectilePoses[0]);
+    assetPoseInitialize(&externalProjectilePoses[1]);
+    assetPoseInitialize(&externalProjectilePoses[2]);
+    assetPoseInitialize(&externalProjectilePoses[3]);
+    if (!assetManifestLoad(dataPath, &externalAssets,
+			   assetError, sizeof(assetError)))
+	{
+	fprintf(stderr, "Could not load external assets: %s\n", assetError);
+	showError("Cannot load manifest.txt");
+	exit(1);
+	}
+
+    leftScreen = requiredTexture("screen-left");
+    rightScreen = requiredTexture("screen-right");
+    treeWood = requiredTexture("tree-wood");
+    roadtex = requiredTexture("road");
+    officeLogo = requiredTexture("office-logo");
+
+#define LOAD_MODEL(variable, key) variable = requiredModel(key)
+    LOAD_MODEL(plaintank, "tank");
+    LOAD_MODEL(slagtank, "tank-slag");
+    LOAD_MODEL(masertank, "tank-maser");
+    LOAD_MODEL(slagmasertank, "tank-maser-slag");
+    LOAD_MODEL(launchertank, "tank-launcher");
+    LOAD_MODEL(slaglaunchertank, "tank-launcher-slag");
+    LOAD_MODEL(propeller, "propeller");
+    LOAD_MODEL(airplaneBody, "airplane-body");
+    LOAD_MODEL(fighterBody, "fighter-body");
+    LOAD_MODEL(monsterleg, "googelon-leg");
+    LOAD_MODEL(monsterHead, "googelon-head");
+    LOAD_MODEL(monsterSimpleHead, "googelon-head-simple");
+    LOAD_MODEL(monsterTail, "googelon-tail");
+    LOAD_MODEL(monsterSimpleTail, "googelon-tail-simple");
+    LOAD_MODEL(monsterBody, "googelon-body");
+    LOAD_MODEL(flutterHead, "flutter-head");
+    LOAD_MODEL(flutterShadow, "flutter-shadow");
+    LOAD_MODEL(flutterXMas, "flutter-xmas");
+    LOAD_MODEL(flutterBody, "flutter-body");
+    LOAD_MODEL(flutterWing1, "flutter-wing-1");
+    LOAD_MODEL(flutterWing2, "flutter-wing-2");
+    LOAD_MODEL(techsBody, "techs-body");
+    LOAD_MODEL(techsHead, "techs-head");
+    LOAD_MODEL(techsSimpleBody, "techs-body-simple");
+    LOAD_MODEL(techsSimpleHead, "techs-head-simple");
+    LOAD_MODEL(techsShadow, "techs-shadow");
+    LOAD_MODEL(shell2Obj, "projectile-techs");
+    LOAD_MODEL(heroshellObj, "projectile-hero");
+    LOAD_MODEL(watershellObj, "projectile-water");
+    LOAD_MODEL(tankShadow, "tank-shadow");
+    LOAD_MODEL(planeShadow, "plane-shadow");
+    LOAD_MODEL(fighterShadow, "fighter-shadow");
+    LOAD_MODEL(titleObj, "title-high");
+    LOAD_MODEL(titleObjOO, "title-medium");
+    LOAD_MODEL(titleObjOOO, "title-low");
+    LOAD_MODEL(planeDotsObj, "plane-dots-high");
+    LOAD_MODEL(planeDotsObjD0, "plane-dots-low");
+    LOAD_MODEL(powerTower, "power-tower");
+    LOAD_MODEL(genericWindows, "generic-windows");
+    LOAD_MODEL(strip1Obj, "strip-1-high");
+    LOAD_MODEL(strip1ObjD0, "strip-1-low");
+    LOAD_MODEL(strip2Obj, "strip-2-high");
+    LOAD_MODEL(strip2ObjD0, "strip-2-low");
+    LOAD_MODEL(strip3Obj, "strip-3-high");
+    LOAD_MODEL(strip3ObjD0, "strip-3-low");
+    LOAD_MODEL(building1Obj, "building-1-high");
+    LOAD_MODEL(building1ObjD0, "building-1-low");
+    LOAD_MODEL(building2Obj, "building-2-high");
+    LOAD_MODEL(building2ObjD0, "building-2-low");
+    LOAD_MODEL(building5Obj, "building-5-high");
+    LOAD_MODEL(building5ObjD0, "building-5-low");
+    LOAD_MODEL(building7Obj, "building-7");
+    LOAD_MODEL(building9Obj, "building-9");
+    LOAD_MODEL(building9ObjOO, "building-9-alternate");
+    LOAD_MODEL(building10Obj, "building-10");
+    LOAD_MODEL(building12Obj, "building-12-high");
+    LOAD_MODEL(building12ObjD0, "building-12-low");
+    LOAD_MODEL(building14Obj, "building-14");
+    LOAD_MODEL(building19Obj, "building-19-high");
+    LOAD_MODEL(building19ObjD0, "building-19-low");
+    LOAD_MODEL(building20Obj, "building-20-high");
+    LOAD_MODEL(building20ObjD0, "building-20-low");
+    LOAD_MODEL(building21Obj, "building-21-high");
+    LOAD_MODEL(building21ObjD0, "building-21-low");
+    LOAD_MODEL(building31Obj, "building-31");
+    LOAD_MODEL(building32Obj, "building-32");
+    LOAD_MODEL(lowDPlane, "plane-ground-low");
+    LOAD_MODEL(highDPlane, "plane-ground-high");
+    LOAD_MODEL(bigPlane, "plane-ground-large");
+    LOAD_MODEL(roundTreeShadow, "round-tree-shadow");
+    LOAD_MODEL(boom1Obj, "boom-01-high");
+    LOAD_MODEL(boom1ObjD0, "boom-01-low");
+    LOAD_MODEL(boom2Obj, "boom-02-high");
+    LOAD_MODEL(boom2ObjD0, "boom-02-low");
+    LOAD_MODEL(boom3Obj, "boom-03-high");
+    LOAD_MODEL(boom3ObjD0, "boom-03-low");
+    LOAD_MODEL(boom4Obj, "boom-04-high");
+    LOAD_MODEL(boom4ObjD0, "boom-04-low");
+    LOAD_MODEL(boom5Obj, "boom-05-high");
+    LOAD_MODEL(boom5ObjD0, "boom-05-low");
+    LOAD_MODEL(boom6Obj, "boom-06-high");
+    LOAD_MODEL(boom6ObjD0, "boom-06-low");
+    LOAD_MODEL(boom7Obj, "boom-07-high");
+    LOAD_MODEL(boom7ObjD0, "boom-07-low");
+    LOAD_MODEL(boom8Obj, "boom-08-high");
+    LOAD_MODEL(boom8ObjD0, "boom-08-low");
+    LOAD_MODEL(boom9Obj, "boom-09-high");
+    LOAD_MODEL(boom9ObjD0, "boom-09-low");
+    LOAD_MODEL(boom10Obj, "boom-10-high");
+    LOAD_MODEL(boom10ObjD0, "boom-10-low");
+#undef LOAD_MODEL
+
+    if (!assetManifestFindAnimation(
+	&externalAssets, "helo-rotors", &externalHeloModels[0],
+	&externalHeloClips[0], &externalHeloLoops[0]) ||
+	!assetManifestFindAnimation(
+	&externalAssets, "helo-slag-rotors", &externalHeloModels[1],
+	&externalHeloClips[1], &externalHeloLoops[1]))
+	{
+	showError("Required helo-rotors animation is missing from external assets");
+	exit(1);
+	}
+
+    if (!assetManifestFindAnimation(
+	&externalAssets, "projectile-standard-low-spin",
+	&externalProjectileModels[0], &externalProjectileClips[0],
+	&externalProjectileLoops[0]) ||
+	!assetManifestFindAnimation(
+	&externalAssets, "projectile-standard-high-spin",
+	&externalProjectileModels[1], &externalProjectileClips[1],
+	&externalProjectileLoops[1]) ||
+	!assetManifestFindAnimation(
+	&externalAssets, "projectile-standard-low-xmas-spin",
+	&externalProjectileModels[2], &externalProjectileClips[2],
+	&externalProjectileLoops[2]) ||
+	!assetManifestFindAnimation(
+	&externalAssets, "projectile-standard-high-xmas-spin",
+	&externalProjectileModels[3], &externalProjectileClips[3],
+	&externalProjectileLoops[3]))
+	{
+	showError("Required projectile animation is missing from external assets");
+	exit(1);
+	}
+
+    initFonts();
+    return;
+#else
     GLfloat lineWidthNow;
-
-    /********************/
-    /* load in textures */
-    /********************/
-
-    doTexStuff(dataPath, "TEXTURES/screenleft.tex", 128, 128, picleft, &leftScreen, 0, 0);
-    doTexStuff(dataPath, "TEXTURES/screenright.tex", 128, 128, picright, &rightScreen, 0, 0);
-
-    doTexStuff(dataPath, "TEXTURES/treewood.tex", 64, 64, treeWoodData, &treeWood, 1, 0);
-    doTexStuff(dataPath, "TEXTURES/road.tex", 64, 64, roadtexData, &roadtex, 1, 0);
-
-/*     doTexStuff(dataPath,"TEXTURES/logo.tex", 128, 128, officeLogoData, &officeLogo, 0, 0);
-*/
 
     /********************/
     /* make the objects */
     /********************/
-
     plaintank		= makeTank();
     slagtank		= makeSlagTank();
     masertank		= makeMaserTank();
@@ -317,7 +443,459 @@ void makeObjects(char * dataPath)
     makeBooms();
 
     initFonts();
+#endif
     }
+
+#ifdef BATTALION_ASSET_EXPORT
+struct ExportModelEntry
+    {
+    const char *name;
+    GLuint *displayList;
+    };
+
+#define EXPORT_MODEL(name, variable) {name, &variable}
+
+static struct ExportModelEntry exportModels[] =
+    {
+    EXPORT_MODEL("tank", plaintank),
+    EXPORT_MODEL("tank-slag", slagtank),
+    EXPORT_MODEL("tank-maser", masertank),
+    EXPORT_MODEL("tank-maser-slag", slagmasertank),
+    EXPORT_MODEL("tank-launcher", launchertank),
+    EXPORT_MODEL("tank-launcher-slag", slaglaunchertank),
+    EXPORT_MODEL("propeller", propeller),
+    EXPORT_MODEL("airplane-body", airplaneBody),
+    EXPORT_MODEL("fighter-body", fighterBody),
+    EXPORT_MODEL("googelon-leg", monsterleg),
+    EXPORT_MODEL("googelon-head", monsterHead),
+    EXPORT_MODEL("googelon-head-simple", monsterSimpleHead),
+    EXPORT_MODEL("googelon-tail", monsterTail),
+    EXPORT_MODEL("googelon-tail-simple", monsterSimpleTail),
+    EXPORT_MODEL("googelon-body", monsterBody),
+    EXPORT_MODEL("flutter-head", flutterHead),
+    EXPORT_MODEL("flutter-shadow", flutterShadow),
+    EXPORT_MODEL("flutter-xmas", flutterXMas),
+    EXPORT_MODEL("flutter-body", flutterBody),
+    EXPORT_MODEL("flutter-wing-1", flutterWing1),
+    EXPORT_MODEL("flutter-wing-2", flutterWing2),
+    EXPORT_MODEL("techs-body", techsBody),
+    EXPORT_MODEL("techs-head", techsHead),
+    EXPORT_MODEL("techs-body-simple", techsSimpleBody),
+    EXPORT_MODEL("techs-head-simple", techsSimpleHead),
+    EXPORT_MODEL("techs-shadow", techsShadow),
+    EXPORT_MODEL("projectile-techs", shell2Obj),
+    EXPORT_MODEL("projectile-hero", heroshellObj),
+    EXPORT_MODEL("projectile-water", watershellObj),
+    EXPORT_MODEL("tank-shadow", tankShadow),
+    EXPORT_MODEL("plane-shadow", planeShadow),
+    EXPORT_MODEL("fighter-shadow", fighterShadow),
+    EXPORT_MODEL("title-high", titleObj),
+    EXPORT_MODEL("title-medium", titleObjOO),
+    EXPORT_MODEL("title-low", titleObjOOO),
+    EXPORT_MODEL("plane-dots-high", planeDotsObj),
+    EXPORT_MODEL("plane-dots-low", planeDotsObjD0),
+    EXPORT_MODEL("power-tower", powerTower),
+    EXPORT_MODEL("generic-windows", genericWindows),
+    EXPORT_MODEL("strip-1-high", strip1Obj),
+    EXPORT_MODEL("strip-2-high", strip2Obj),
+    EXPORT_MODEL("strip-3-high", strip3Obj),
+    EXPORT_MODEL("strip-1-low", strip1ObjD0),
+    EXPORT_MODEL("strip-2-low", strip2ObjD0),
+    EXPORT_MODEL("strip-3-low", strip3ObjD0),
+    EXPORT_MODEL("building-1-high", building1Obj),
+    EXPORT_MODEL("building-1-low", building1ObjD0),
+    EXPORT_MODEL("building-2-high", building2Obj),
+    EXPORT_MODEL("building-2-low", building2ObjD0),
+    EXPORT_MODEL("building-5-high", building5Obj),
+    EXPORT_MODEL("building-5-low", building5ObjD0),
+    EXPORT_MODEL("building-7", building7Obj),
+    EXPORT_MODEL("building-9", building9Obj),
+    EXPORT_MODEL("building-9-alternate", building9ObjOO),
+    EXPORT_MODEL("building-10", building10Obj),
+    EXPORT_MODEL("building-12-high", building12Obj),
+    EXPORT_MODEL("building-12-low", building12ObjD0),
+    EXPORT_MODEL("building-14", building14Obj),
+    EXPORT_MODEL("building-19-high", building19Obj),
+    EXPORT_MODEL("building-19-low", building19ObjD0),
+    EXPORT_MODEL("building-20-high", building20Obj),
+    EXPORT_MODEL("building-20-low", building20ObjD0),
+    EXPORT_MODEL("building-21-high", building21Obj),
+    EXPORT_MODEL("building-21-low", building21ObjD0),
+    EXPORT_MODEL("building-31", building31Obj),
+    EXPORT_MODEL("building-32", building32Obj),
+    EXPORT_MODEL("plane-ground-low", lowDPlane),
+    EXPORT_MODEL("plane-ground-high", highDPlane),
+    EXPORT_MODEL("plane-ground-large", bigPlane),
+    EXPORT_MODEL("round-tree-shadow", roundTreeShadow),
+    EXPORT_MODEL("boom-01-high", boom1Obj),
+    EXPORT_MODEL("boom-02-high", boom2Obj),
+    EXPORT_MODEL("boom-03-high", boom3Obj),
+    EXPORT_MODEL("boom-04-high", boom4Obj),
+    EXPORT_MODEL("boom-05-high", boom5Obj),
+    EXPORT_MODEL("boom-06-high", boom6Obj),
+    EXPORT_MODEL("boom-07-high", boom7Obj),
+    EXPORT_MODEL("boom-08-high", boom8Obj),
+    EXPORT_MODEL("boom-09-high", boom9Obj),
+    EXPORT_MODEL("boom-10-high", boom10Obj),
+    EXPORT_MODEL("boom-01-low", boom1ObjD0),
+    EXPORT_MODEL("boom-02-low", boom2ObjD0),
+    EXPORT_MODEL("boom-03-low", boom3ObjD0),
+    EXPORT_MODEL("boom-04-low", boom4ObjD0),
+    EXPORT_MODEL("boom-05-low", boom5ObjD0),
+    EXPORT_MODEL("boom-06-low", boom6ObjD0),
+    EXPORT_MODEL("boom-07-low", boom7ObjD0),
+    EXPORT_MODEL("boom-08-low", boom8ObjD0),
+    EXPORT_MODEL("boom-09-low", boom9ObjD0),
+    EXPORT_MODEL("boom-10-low", boom10ObjD0)
+    };
+
+#undef EXPORT_MODEL
+
+static void setExportError(char *error, size_t errorSize, const char *message)
+    {
+    if (error == NULL || errorSize == 0)
+	return;
+    strncpy(error, message, errorSize - 1);
+    error[errorSize - 1] = '\0';
+    }
+
+static void initializeExportNode(struct AssetNode *node, int mesh)
+    {
+    node->mesh = mesh;
+    node->rotation[3] = 1.0f;
+    node->scale[0] = 1.0f;
+    node->scale[1] = 1.0f;
+    node->scale[2] = 1.0f;
+    }
+
+static int exportHelicopterGLB(const char *path, GLuint body,
+			       char *error, size_t errorSize)
+    {
+    static const float times[5] = {
+	0.0f, 0.25f, 0.5f, 0.75f, 1.0f
+	};
+    static const float mainRotorRotations[20] = {
+	0.0f,  0.0f,       0.0f,  1.0f,
+	0.0f, -0.70710678f, 0.0f,  0.70710678f,
+	0.0f, -1.0f,       0.0f,  0.0f,
+	0.0f, -0.70710678f, 0.0f, -0.70710678f,
+	0.0f,  0.0f,       0.0f, -1.0f
+	};
+    static const float tailRotorRotations[20] = {
+	 0.0f,       0.0f, 0.0f,  1.0f,
+	-0.70710678f, 0.0f, 0.0f,  0.70710678f,
+	-1.0f,       0.0f, 0.0f,  0.0f,
+	-0.70710678f, 0.0f, 0.0f, -0.70710678f,
+	 0.0f,       0.0f, 0.0f, -1.0f
+	};
+    GLuint displayLists[3];
+    struct AssetModel parts[3];
+    struct AssetModel model;
+    struct AssetAnimationTrack *track;
+    size_t part;
+    int result;
+
+    displayLists[0] = body;
+    displayLists[1] = bigRotor;
+    displayLists[2] = smallRotor;
+    for (part = 0; part < 3; part++)
+	assetModelInitialize(&parts[part]);
+    assetModelInitialize(&model);
+    result = 0;
+
+    for (part = 0; part < 3; part++)
+	if (!legacyGLCaptureDisplayList(displayLists[part], &parts[part],
+					error, errorSize))
+	    goto cleanup;
+
+    model.meshes = (struct AssetMesh *)calloc(3, sizeof(*model.meshes));
+    model.nodes = (struct AssetNode *)calloc(3, sizeof(*model.nodes));
+    model.sceneRoots = (int *)calloc(3, sizeof(*model.sceneRoots));
+    model.animations = (struct AssetAnimation *)calloc(
+	1, sizeof(*model.animations));
+    if (model.meshes == NULL || model.nodes == NULL ||
+	model.sceneRoots == NULL || model.animations == NULL)
+	{
+	setExportError(error, errorSize,
+		       "Out of memory building helicopter asset");
+	goto cleanup;
+	}
+    model.meshCount = 3;
+    model.nodeCount = 3;
+    model.sceneRootCount = 3;
+    model.animationCount = 1;
+    for (part = 0; part < 3; part++)
+	{
+	model.meshes[part] = parts[part].meshes[0];
+	parts[part].meshes[0].vertices = NULL;
+	initializeExportNode(&model.nodes[part], (int)part);
+	model.sceneRoots[part] = (int)part;
+	}
+    model.nodes[2].translation[0] = 0.04f;
+    model.nodes[2].translation[2] = 0.375f;
+
+    model.animations[0].name = (char *)malloc(7);
+    model.animations[0].tracks = (struct AssetAnimationTrack *)calloc(
+	2, sizeof(*model.animations[0].tracks));
+    if (model.animations[0].name == NULL ||
+	model.animations[0].tracks == NULL)
+	{
+	setExportError(error, errorSize,
+		       "Out of memory building helicopter animation");
+	goto cleanup;
+	}
+    strcpy(model.animations[0].name, "rotors");
+    model.animations[0].trackCount = 2;
+    model.animations[0].duration = 1.0f;
+    for (part = 0; part < 2; part++)
+	{
+	track = &model.animations[0].tracks[part];
+	track->node = (int)part + 1;
+	track->path = ASSET_ANIMATION_ROTATION;
+	track->interpolation = ASSET_INTERPOLATION_LINEAR;
+	track->components = 4;
+	track->keyframeCount = 5;
+	track->times = (float *)malloc(sizeof(times));
+	track->values = (float *)malloc(sizeof(mainRotorRotations));
+	if (track->times == NULL || track->values == NULL)
+	    {
+	    setExportError(error, errorSize,
+			   "Out of memory building helicopter keyframes");
+	    goto cleanup;
+	    }
+	memcpy(track->times, times, sizeof(times));
+	memcpy(track->values,
+	       part == 0 ? mainRotorRotations : tailRotorRotations,
+	       sizeof(mainRotorRotations));
+	}
+
+    result = assetModelWriteGLB(path, &model, error, errorSize);
+
+cleanup:
+    assetModelDestroy(&model);
+    for (part = 0; part < 3; part++)
+	assetModelDestroy(&parts[part]);
+    return result;
+    }
+
+static int exportProjectileGLB(const char *path, int highDetail,
+			       int christmas, char *error, size_t errorSize)
+    {
+    struct AssetModel model;
+    struct AssetAnimation *animation;
+    struct AssetAnimationTrack *track;
+    GLuint displayList;
+    size_t key;
+    float angle;
+    float sine;
+    float cosine;
+    int result;
+
+    displayList = glGenLists(1);
+    glNewList(displayList, GL_COMPILE);
+    if (highDetail)
+	makerrotcubexy(0.05, 0.05, 0.05, 0, colorwhite);
+    else
+	makerrotcubexyflat(0.035, 0.035, 0.035, 0, colorwhite);
+    if (christmas)
+	{
+	makerrotcubexy(0.01, 0.051, 0.051, 0, colorred);
+	makerrotcubexy(0.051, 0.051, 0.01, 0, colorred);
+	}
+    glEndList();
+
+    assetModelInitialize(&model);
+    if (!legacyGLCaptureDisplayList(displayList, &model, error, errorSize))
+	return 0;
+    model.nodes = (struct AssetNode *)calloc(model.meshCount + 1,
+					     sizeof(*model.nodes));
+    model.sceneRoots = (int *)calloc(1, sizeof(*model.sceneRoots));
+    model.nodes[0].children = (int *)calloc(model.meshCount,
+					    sizeof(*model.nodes[0].children));
+    if (model.nodes == NULL || model.sceneRoots == NULL ||
+	model.nodes[0].children == NULL)
+	{
+	setExportError(error, errorSize,
+		       "Out of memory building projectile scene");
+	assetModelDestroy(&model);
+	return 0;
+	}
+    model.nodeCount = model.meshCount + 1;
+    model.sceneRootCount = 1;
+    initializeExportNode(&model.nodes[0], -1);
+    model.nodes[0].childCount = model.meshCount;
+    for (key = 0; key < model.meshCount; key++)
+	{
+	model.nodes[0].children[key] = (int)key + 1;
+	initializeExportNode(&model.nodes[key + 1], (int)key);
+	}
+    model.animations = (struct AssetAnimation *)calloc(
+	1, sizeof(*model.animations));
+    if (model.animations == NULL)
+	{
+	setExportError(error, errorSize,
+		       "Out of memory building projectile animation");
+	assetModelDestroy(&model);
+	return 0;
+	}
+    model.animationCount = 1;
+    animation = &model.animations[0];
+    animation->name = (char *)malloc(5);
+    animation->tracks = (struct AssetAnimationTrack *)calloc(
+	1, sizeof(*animation->tracks));
+    if (animation->name == NULL || animation->tracks == NULL)
+	{
+	setExportError(error, errorSize,
+		       "Out of memory building projectile animation");
+	assetModelDestroy(&model);
+	return 0;
+	}
+    strcpy(animation->name, "spin");
+    animation->trackCount = 1;
+    animation->duration = 36.0f;
+    track = &animation->tracks[0];
+    track->node = 0;
+    track->path = ASSET_ANIMATION_ROTATION;
+    track->interpolation = ASSET_INTERPOLATION_LINEAR;
+    track->components = 4;
+    track->keyframeCount = 37;
+    track->times = (float *)malloc(track->keyframeCount * sizeof(float));
+    track->values = (float *)malloc(track->keyframeCount * 4 * sizeof(float));
+    if (track->times == NULL || track->values == NULL)
+	{
+	setExportError(error, errorSize,
+		       "Out of memory building projectile keyframes");
+	assetModelDestroy(&model);
+	return 0;
+	}
+    for (key = 0; key < track->keyframeCount; key++)
+	{
+	track->times[key] = (float)key;
+	angle = (float)key * 10.0f * (float)M_PI / 360.0f;
+	sine = (float)sin((double)angle);
+	cosine = (float)cos((double)angle);
+	track->values[key * 4] = sine * cosine;
+	track->values[key * 4 + 1] = cosine * sine;
+	track->values[key * 4 + 2] = sine * sine;
+	track->values[key * 4 + 3] = cosine * cosine;
+	}
+    result = assetModelWriteGLB(path, &model, error, errorSize);
+    assetModelDestroy(&model);
+    return result;
+    }
+
+static int exportProjectileAssets(const char *directory,
+				  char *error, size_t errorSize)
+    {
+    static const char *names[4] = {
+	"projectile-standard-low.glb",
+	"projectile-standard-high.glb",
+	"projectile-standard-low-xmas.glb",
+	"projectile-standard-high-xmas.glb"
+    };
+    char path[MAXPATH];
+    int variant;
+
+    for (variant = 0; variant < 4; variant++)
+	{
+	if (strlen(directory) + strlen(names[variant]) + 2 > sizeof(path))
+	    {
+	    setExportError(error, errorSize,
+			   "Projectile export path is too long");
+	    return 0;
+	    }
+	strcpy(path, directory);
+	strcat(path, "/");
+	strcat(path, names[variant]);
+	if (!exportProjectileGLB(path, variant & 1, variant >= 2,
+				error, errorSize))
+	    return 0;
+	}
+    return 1;
+    }
+
+int exportBuiltinModelGLB(const char *name, const char *path,
+			  char *error, size_t errorSize)
+    {
+    struct AssetModel model;
+    GLuint displayList;
+    size_t entry;
+    int result;
+
+    if (strcmp(name, "helo") == 0)
+	return exportHelicopterGLB(path, helo, error, errorSize);
+    if (strcmp(name, "helo-slag") == 0)
+	return exportHelicopterGLB(path, slagHelo, error, errorSize);
+    displayList = 0;
+    for (entry = 0; entry < sizeof(exportModels) / sizeof(exportModels[0]);
+	 entry++)
+	if (strcmp(name, exportModels[entry].name) == 0)
+	    {
+	    displayList = *exportModels[entry].displayList;
+	    break;
+	    }
+    if (displayList == 0)
+	{
+	setExportError(error, errorSize, "Unknown built-in model");
+	return 0;
+	}
+
+    if (!legacyGLCaptureDisplayList(displayList, &model, error, errorSize))
+	return 0;
+    result = assetModelWriteGLB(path, &model, error, errorSize);
+    assetModelDestroy(&model);
+    return result;
+    }
+
+int exportAllBuiltinModelsGLB(const char *directory,
+			      char *error, size_t errorSize)
+    {
+    char path[MAXPATH];
+    size_t entry;
+
+    if (!exportProjectileAssets(directory, error, errorSize))
+	return 0;
+
+    if (strlen(directory) + strlen("/helo.glb") + 1 > sizeof(path))
+	{
+	setExportError(error, errorSize, "Model export directory is too long");
+	return 0;
+	}
+    strcpy(path, directory);
+    strcat(path, "/helo.glb");
+    if (!exportHelicopterGLB(path, helo, error, errorSize))
+	return 0;
+
+    if (strlen(directory) + strlen("/helo-slag.glb") + 1 > sizeof(path))
+	{
+	setExportError(error, errorSize, "Model export directory is too long");
+	return 0;
+	}
+    strcpy(path, directory);
+    strcat(path, "/helo-slag.glb");
+    if (!exportHelicopterGLB(path, slagHelo, error, errorSize))
+	return 0;
+
+    for (entry = 0; entry < sizeof(exportModels) / sizeof(exportModels[0]);
+	 entry++)
+	{
+	if (strlen(directory) + strlen(exportModels[entry].name) +
+	    strlen("/.glb") + 1 > sizeof(path))
+	    {
+	    setExportError(error, errorSize, "Model export path is too long");
+	    return 0;
+	    }
+	strcpy(path, directory);
+	strcat(path, "/");
+	strcat(path, exportModels[entry].name);
+	strcat(path, ".glb");
+	if (!exportBuiltinModelGLB(exportModels[entry].name, path,
+				   error, errorSize))
+	    return 0;
+	}
+    return 1;
+    }
+#endif
 
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
@@ -391,8 +969,26 @@ void makeCHH(int dam)
 void drawHelo(float percent,  int slag)
     {
     GLint shadeNow;
+#ifndef BATTALION_ASSET_EXPORT
+    int variant;
+#endif
     
     glGetIntegerv(GL_SHADE_MODEL, &shadeNow);
+
+#ifndef BATTALION_ASSET_EXPORT
+    variant = slag ? 1 : 0;
+    if (assetPoseSample(&externalHeloModels[variant]->model,
+			externalHeloClips[variant], percent / 360.0f,
+			externalHeloLoops[variant],
+			&externalHeloPoses[variant]))
+	{
+	glShadeModel(GL_FLAT);
+	assetModelDraw(&externalHeloModels[variant]->model,
+		       &externalHeloPoses[variant]);
+	glShadeModel(shadeNow);
+	return;
+	}
+#else
     
     /*************/
     /* draw body */
@@ -425,6 +1021,7 @@ void drawHelo(float percent,  int slag)
 	glRotatef( -percent, 1, 0, 0);
 	glCallList(smallRotor);
     glPopMatrix();
+#endif
 	}
 
     
@@ -1835,7 +2432,7 @@ void drawBuilding37(float * color, int detail)
     glPushMatrix();
     glColor4fv(colorwhite);
 
-    if ((detail >= 2) && (officeLogoData != NULL))
+    if ((detail >= 2) && (officeLogo != 0))
 	{	
 	glCallList(officeLogo);
 	glEnable(GL_TEXTURE_2D);
@@ -1848,7 +2445,7 @@ void drawBuilding37(float * color, int detail)
 
     glBegin(GL_QUADS);
 
-    if ((detail >= 2) && (picleft != NULL))
+    if ((detail >= 2) && (officeLogo != 0))
 	{	
 	glTexCoord2fv(tv1);
 	glVertex3fv(vec1);
@@ -2027,7 +2624,7 @@ void drawBuilding26(int rorl, int detail)
     /* back of the screen */    
     makercubenobtm( 0, 0.42, 0.28, 0.4,0.42, 0.01, colorwhite);
 
-    if ((detail >= 2) &&  (picleft != NULL) && (picright != NULL))
+    if ((detail >= 2) && (leftScreen != 0) && (rightScreen != 0))
 	{	
 	glPushMatrix();
 	    glColor4fv(colorwhite);
@@ -4048,20 +4645,19 @@ void drawProjectiles(struct projectile * allProjs, int counter,
     register int i;
     register int rotRatio;
     int beamCounter;
+#ifndef BATTALION_ASSET_EXPORT
+    int projectileVariant;
+#endif
 
     static float beamhitx[MAXBEAMS], beamhitz[MAXBEAMS];
 
     GLfloat lineWidthNow;
     glGetFloatv(GL_LINE_WIDTH, &lineWidthNow);
 
-    /***********************************/
-    /* make standard projectile object */
-    /***********************************/
-  
     rotRatio = (counter*100) % 3600;
-    
     floatRatio = rotRatio * 0.1;
 
+#ifdef BATTALION_ASSET_EXPORT
     glDeleteLists( shellObj, 1);
     glNewList(shellObj, GL_COMPILE);
 
@@ -4076,6 +4672,15 @@ void drawProjectiles(struct projectile * allProjs, int counter,
 	    makerrotcubexy(0.051, 0.051, 0.01, rotRatio, colorred);
 	    }
     glEndList();
+#else
+    projectileVariant = (detail > 0 ? 1 : 0) + (itsChristmas ? 2 : 0);
+    if (!assetPoseSample(&externalProjectileModels[projectileVariant]->model,
+			externalProjectileClips[projectileVariant],
+			(float)counter,
+			externalProjectileLoops[projectileVariant],
+			&externalProjectilePoses[projectileVariant]))
+	return;
+#endif
 
     beamCounter = 0;
     for (temp = allProjs->next;temp != NULL;temp = temp->next)
@@ -4093,7 +4698,13 @@ void drawProjectiles(struct projectile * allProjs, int counter,
 		case PROJTANK:
 		case PROJROCKET:glPushMatrix();		/* white cube shells */
 				    glTranslatef(x,  y,  z);
+#ifdef BATTALION_ASSET_EXPORT
 				    glCallList(shellObj);			
+#else
+				    assetModelDraw(
+					&externalProjectileModels[projectileVariant]->model,
+					&externalProjectilePoses[projectileVariant]);
+#endif
 				glPopMatrix();
 				if (detail > 0)
 				    {
@@ -4300,4 +4911,3 @@ void drawProjectiles(struct projectile * allProjs, int counter,
     char flutterJapanese[]  	= {J_K_HU, J_K_RA, J_K_TU, J_K_TA, J_SPACE, J_9, 0};
     char vapourJapanese[]   	= {J_K_ZA, J_DASH, J_K_BE, J_DASH, J_K_PA, J_DASH, J_SPACE, J_8, 0};
 */
-

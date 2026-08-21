@@ -144,7 +144,7 @@ int rendererBackendInitialize(void *nativeView)
          "  out.position = p; out.color = in.color; out.uv = in.uv; out.pointSize = max(u.pointSize, 1.0); return out; }\n"
          "fragment float4 battalionFragment(VertexOut in [[stage_in]], constant Uniforms &u [[buffer(1)]],\n"
          "  texture2d<float> tex [[texture(0)]], sampler smp [[sampler(0)]]) {\n"
-         "  if (u.textured != 0) { float l = tex.sample(smp, in.uv).r; return in.color * float4(l,l,l,1.0); }\n"
+         "  if (u.textured != 0) { return in.color * tex.sample(smp, in.uv); }\n"
          "  return in.color; }\n";
     NSError *error = nil;
     id<MTLLibrary> library;
@@ -269,6 +269,27 @@ unsigned int rendererBackendCreateLuminanceTexture(int width, int height,
     textures[texture] = [device newTextureWithDescriptor:descriptor];
     region = MTLRegionMake2D(0, 0, width, height);
     [textures[texture] replaceRegion:region mipmapLevel:0 withBytes:pixels bytesPerRow:width];
+    return texture;
+}
+
+unsigned int rendererBackendCreateRGBA8Texture(int width, int height,
+                                                const unsigned char *pixels)
+{
+    MTLTextureDescriptor *descriptor;
+    MTLRegion region;
+    unsigned int texture;
+
+    if (!device || nextTexture >= MAX_TEXTURES || width <= 0 || height <= 0)
+        return 0;
+    texture = nextTexture++;
+    descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
+                                                                    width:width
+                                                                   height:height
+                                                                mipmapped:NO];
+    descriptor.usage = MTLTextureUsageShaderRead;
+    textures[texture] = [device newTextureWithDescriptor:descriptor];
+    region = MTLRegionMake2D(0, 0, width, height);
+    [textures[texture] replaceRegion:region mipmapLevel:0 withBytes:pixels bytesPerRow:width * 4];
     return texture;
 }
 

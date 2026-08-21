@@ -165,30 +165,30 @@ void checkSound(char * dataPath)
 	/* load all the sound effects into memory */
 	/******************************************/
 
-	InitAudio("SOUNDS/beam.aiff",        dataPath,  0);
-	InitAudio("SOUNDS/boom.aiff",        dataPath,  1);
-	InitAudio("SOUNDS/crash.aiff",       dataPath,  2);
-	InitAudio("SOUNDS/monsterbeam.aiff", dataPath,  3);
-	InitAudio("SOUNDS/rocket.aiff",      dataPath,  4);
-	InitAudio("SOUNDS/slag.aiff",        dataPath,  5);
-	InitAudio("SOUNDS/tank.aiff",        dataPath,  6);
-	InitAudio("SOUNDS/tech.aiff",        dataPath,  7);
+	InitAudio("sounds/beam.aiff",        dataPath,  0);
+	InitAudio("sounds/boom.aiff",        dataPath,  1);
+	InitAudio("sounds/crash.aiff",       dataPath,  2);
+	InitAudio("sounds/monsterbeam.aiff", dataPath,  3);
+	InitAudio("sounds/rocket.aiff",      dataPath,  4);
+	InitAudio("sounds/slag.aiff",        dataPath,  5);
+	InitAudio("sounds/tank.aiff",        dataPath,  6);
+	InitAudio("sounds/tech.aiff",        dataPath,  7);
 
 	/*********************************************/
 	/* load all the background music into memory */
 	/*********************************************/
 
-	InitAudio("MUSIC/1.aiff",        dataPath,  10);
-	InitAudio("MUSIC/2.aiff",        dataPath,  11);
-	InitAudio("MUSIC/3.aiff",        dataPath,  12);
-	InitAudio("MUSIC/4.aiff",        dataPath,  13);
-	InitAudio("MUSIC/5.aiff",        dataPath,  14);
+	InitAudio("music/1.aiff",        dataPath,  10);
+	InitAudio("music/2.aiff",        dataPath,  11);
+	InitAudio("music/3.aiff",        dataPath,  12);
+	InitAudio("music/4.aiff",        dataPath,  13);
+	InitAudio("music/5.aiff",        dataPath,  14);
 
-	InitAudio("MUSIC/d1.aiff",       dataPath,  15);
-	InitAudio("MUSIC/d2.aiff",       dataPath,  16);
-	InitAudio("MUSIC/d3.aiff",       dataPath,  17);
-	InitAudio("MUSIC/d4.aiff",       dataPath,  18);
-	InitAudio("MUSIC/d5.aiff",       dataPath,  19);
+	InitAudio("music/d1.aiff",       dataPath,  15);
+	InitAudio("music/d2.aiff",       dataPath,  16);
+	InitAudio("music/d3.aiff",       dataPath,  17);
+	InitAudio("music/d4.aiff",       dataPath,  18);
+	InitAudio("music/d5.aiff",       dataPath,  19);
 
 	}
 #else
@@ -213,27 +213,27 @@ void checkSound(char * dataPath)
 
     if (!noSound) {  
 	/* Load all sound effects into memory */
-	InitAudio("SOUNDS/beam.au",	    dataPath,  0);
-	InitAudio("SOUNDS/boom.au",         dataPath,  1);
-	InitAudio("SOUNDS/crash.au",        dataPath,  2);
-	InitAudio("SOUNDS/monsterbeam.au",  dataPath,  3);
-	InitAudio("SOUNDS/rocket.au",       dataPath,  4);
-	InitAudio("SOUNDS/slag.au",         dataPath,  5);
-	InitAudio("SOUNDS/tank.au",         dataPath,  6);
-	InitAudio("SOUNDS/tech.au",         dataPath,  7);
+	InitAudio("sounds/beam.au",	    dataPath,  0);
+	InitAudio("sounds/boom.au",         dataPath,  1);
+	InitAudio("sounds/crash.au",        dataPath,  2);
+	InitAudio("sounds/monsterbeam.au",  dataPath,  3);
+	InitAudio("sounds/rocket.au",       dataPath,  4);
+	InitAudio("sounds/slag.au",         dataPath,  5);
+	InitAudio("sounds/tank.au",         dataPath,  6);
+	InitAudio("sounds/tech.au",         dataPath,  7);
 
 	/* Load all background music into memory */
-	InitAudio("MUSIC/1.au",        	    dataPath,  10);
-	InitAudio("MUSIC/2.au",		    dataPath,  11);
-	InitAudio("MUSIC/3.au",		    dataPath,  12);
-	InitAudio("MUSIC/4.au",		    dataPath,  13);
-	InitAudio("MUSIC/5.au",		    dataPath,  14);
+	InitAudio("music/1.au",        	    dataPath,  10);
+	InitAudio("music/2.au",		    dataPath,  11);
+	InitAudio("music/3.au",		    dataPath,  12);
+	InitAudio("music/4.au",		    dataPath,  13);
+	InitAudio("music/5.au",		    dataPath,  14);
 
-	InitAudio("MUSIC/d1.au",	    dataPath,  15);
-	InitAudio("MUSIC/d2.au",	    dataPath,  16);
-	InitAudio("MUSIC/d3.au",	    dataPath,  17);
-	InitAudio("MUSIC/d4.au",	    dataPath,  18);
-	InitAudio("MUSIC/d5.au",	    dataPath,  19);
+	InitAudio("music/d1.au",	    dataPath,  15);
+	InitAudio("music/d2.au",	    dataPath,  16);
+	InitAudio("music/d3.au",	    dataPath,  17);
+	InitAudio("music/d4.au",	    dataPath,  18);
+	InitAudio("music/d5.au",	    dataPath,  19);
     }
 #else
 #ifdef MACVERSION
@@ -288,28 +288,28 @@ SHPlayPause(monsterbeamRefNum);
 
     if (!noSound) {  
 	/* Load all sound effects into memory */
-	Snd_loadRawSample("SOUNDS/beam.raw", &snd[0]);
-	Snd_loadRawSample("SOUNDS/boom.raw", &snd[1]);
-	Snd_loadRawSample("SOUNDS/crash.raw",&snd[2]);
-	Snd_loadRawSample("SOUNDS/monsterbeam.raw",&snd[3]);
-	Snd_loadRawSample("SOUNDS/rocket.raw",&snd[4]);
-	Snd_loadRawSample("SOUNDS/slag.raw",&snd[5]);
-	Snd_loadRawSample("SOUNDS/tank.raw",&snd[6]);
-	Snd_loadRawSample("SOUNDS/tech.raw",&snd[7]);
+	Snd_loadRawSample("sounds/beam.raw", &snd[0]);
+	Snd_loadRawSample("sounds/boom.raw", &snd[1]);
+	Snd_loadRawSample("sounds/crash.raw",&snd[2]);
+	Snd_loadRawSample("sounds/monsterbeam.raw",&snd[3]);
+	Snd_loadRawSample("sounds/rocket.raw",&snd[4]);
+	Snd_loadRawSample("sounds/slag.raw",&snd[5]);
+	Snd_loadRawSample("sounds/tank.raw",&snd[6]);
+	Snd_loadRawSample("sounds/tech.raw",&snd[7]);
 
 	/* Load all background music into memory */
 
-	Snd_loadRawSample("MUSIC/1.raw",&snd[10]);
-	Snd_loadRawSample("MUSIC/2.raw",&snd[11]);
-/*	Snd_loadRawSample("MUSIC/3.au",&snd[12]);
-	Snd_loadRawSample("MUSIC/4.au",&snd[13]);
-	Snd_loadRawSample("MUSIC/5.au",&snd[14]);
+	Snd_loadRawSample("music/1.raw",&snd[10]);
+	Snd_loadRawSample("music/2.raw",&snd[11]);
+/*	Snd_loadRawSample("music/3.au",&snd[12]);
+	Snd_loadRawSample("music/4.au",&snd[13]);
+	Snd_loadRawSample("music/5.au",&snd[14]);
 
-	Snd_loadRawSample("MUSIC/d1.au",&snd[15]);
-	Snd_loadRawSample("MUSIC/d2.au",&snd[16]);
-	Snd_loadRawSample("MUSIC/d3.au",&snd[17]);
-	Snd_loadRawSample("MUSIC/d4.au",&snd[18]);
-	Snd_loadRawSample("MUSIC/d5.au",&snd[19]);
+	Snd_loadRawSample("music/d1.au",&snd[15]);
+	Snd_loadRawSample("music/d2.au",&snd[16]);
+	Snd_loadRawSample("music/d3.au",&snd[17]);
+	Snd_loadRawSample("music/d4.au",&snd[18]);
+	Snd_loadRawSample("music/d5.au",&snd[19]);
 */
         if (Snd_init( NUM_SAMPLES, snd, SAMPLE_RATE, NUM_CHANNELS, audio_dev )==EXIT_FAILURE){
    	    printf("Can't init soundIt library. yech..\n");

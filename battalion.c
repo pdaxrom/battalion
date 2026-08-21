@@ -18,6 +18,10 @@
 /**************************************************/
 
 #include "battalion.h"
+#include "map.h"
+#ifdef BATTALION_MAP_PACKAGES
+#include "map_package.h"
+#endif
 
 /*****************/
 /* network stuff */
@@ -111,6 +115,11 @@ struct boom * projectboom;
 struct tank * tanklist;
 struct tank * slaglist;
 struct tree * treelist;
+
+#ifdef BATTALION_MAP_PACKAGES
+static struct BattalionMapPackage battlefieldMap;
+static int battlefieldMapLoaded;
+#endif
 
 /*********/
 /* files */
@@ -2223,6 +2232,9 @@ void setPlayConditions()
     FILE * roadFile;
     int type, shape;
     int buildingNumber;
+#ifdef BATTALION_MAP_PACKAGES
+    size_t mapRecord;
+#endif
 
     struct tree unitHill;
 
@@ -2315,23 +2327,59 @@ void setPlayConditions()
     /* read in data file of structures (trees, buildings, etc.) */
     /************************************************************/
 
-    strcpy(fullPath, dataPath);
-    strcat(fullPath, "DATA/tree.data");
-    roadFile = fopen(fullPath, "r");
+    roadFile = NULL;
+#ifdef BATTALION_MAP_PACKAGES
+    if (!battlefieldMapLoaded)
+#endif
+	{
+    if (!battalionMapBuildPath(dataPath, "tree", fullPath, sizeof(fullPath)))
+	{
+	showError("Map tree path is too long\n");
+	roadFile = NULL;
+	}
+    else
+	roadFile = fopen(fullPath, "r");
+	}
 
     treeID = 0;
 
-    if (roadFile == NULL)
+    if (roadFile == NULL
+#ifdef BATTALION_MAP_PACKAGES
+	&& !battlefieldMapLoaded
+#endif
+	)
 	showError("Could not load in tree.data\n");
     else
 	{
-	do
+
+#ifdef BATTALION_MAP_PACKAGES
+	mapRecord = 0;
+#endif
+	for (;;)
 	    {
+
+#ifdef BATTALION_MAP_PACKAGES
+	    if (battlefieldMapLoaded)
+		{
+		if (mapRecord >= battlefieldMap.structureCount)
+		    break;
+		x = battlefieldMap.structures[mapRecord].x;
+		z = battlefieldMap.structures[mapRecord].z;
+		type = battlefieldMap.structures[mapRecord].type;
+		shape = battlefieldMap.structures[mapRecord].shape;
+		mapRecord++;
+		}
+	    else
+#endif
+		{
+		if (fscanf(roadFile, "%f %f %d %d", &x, &z, &type, &shape) != 4 ||
+		    (!x && !z && !type && !shape))
+		    break;
+		}
+
 	    temptree = (struct tree *) amalloc(sizeof(struct tree), arena);
 	    if (temptree != NULL)
 		{
-		fscanf(roadFile,  "%f %f %d %d ", &x, &z, &type, &shape);
-
 		temptree->x		    = x;
 		temptree->z		    = z;
 		temptree->type		    = (char) type;
@@ -2373,10 +2421,6 @@ void setPlayConditions()
 		treelist->next	    = temptree;
 		}
 	    }
-	while (x || z || type || shape);
-
-	treelist->next = treelist->next->next;
-	afree(temptree, arena);
 
 	/**************************************************************************/
 	/* eliminate all trees that have been destroyed already in a network game */
@@ -2388,7 +2432,8 @@ void setPlayConditions()
 		    if (temptree->number == buildingBoomSoFar[buildingNumber])
 			temptree->intact = 0;
 
-	fclose(roadFile);
+	if (roadFile != NULL)
+	    fclose(roadFile);
 	}
 
     /***********************************************/
@@ -2397,23 +2442,57 @@ void setPlayConditions()
 
     if (!netUp && !client)
 	{
-	strcpy(fullPath, dataPath);
-	strcat(fullPath, "DATA/tank.data");
-	roadFile = fopen(fullPath, "r");
+	roadFile = NULL;
+#ifdef BATTALION_MAP_PACKAGES
+	if (!battlefieldMapLoaded)
+#endif
+	    {
+	if (!battalionMapBuildPath(dataPath, "tank", fullPath, sizeof(fullPath)))
+	    {
+	    showError("Map tank path is too long\n");
+	    roadFile = NULL;
+	    }
+	else
+	    roadFile = fopen(fullPath, "r");
+	    }
 
-	if (roadFile == NULL)
+	if (roadFile == NULL
+#ifdef BATTALION_MAP_PACKAGES
+	    && !battlefieldMapLoaded
+#endif
+	    )
 	    showError("Could not load in tank.data\n");
 	else
 	    {
-	    do  {
-		fscanf(roadFile,  "%f %f %d", &x, &z, &type);
 
-		if (x || z || type)
-		    addNewTank(targets, x, z, type, tanklist, treelist, mainCounter, firingDelay, &Googelon);
+#ifdef BATTALION_MAP_PACKAGES
+	    mapRecord = 0;
+#endif
+	    for (;;)
+		{
+#ifdef BATTALION_MAP_PACKAGES
+		if (battlefieldMapLoaded)
+		    {
+		    if (mapRecord >= battlefieldMap.unitCount)
+			break;
+		    x = battlefieldMap.units[mapRecord].x;
+		    z = battlefieldMap.units[mapRecord].z;
+		    type = battlefieldMap.units[mapRecord].type;
+		    mapRecord++;
+		    }
+		else
+#endif
+		    {
+		    if (fscanf(roadFile, "%f %f %d", &x, &z, &type) != 3 ||
+			(!x && !z && !type))
+			break;
+		    }
+		addNewTank(targets, x, z, type, tanklist, treelist,
+			   mainCounter, firingDelay, &Googelon);
 		}
-	    while (x || z || type);
 
-	    fclose(roadFile);
+	    if (roadFile != NULL)
+		fclose(roadFile);
 	    }
 	}
 
@@ -2861,10 +2940,10 @@ void initialization()
 	else
 */
 	    {
-	    roadFile = fopen("./battalion.data/battalion.sho", "rb");
+	    roadFile = fopen("./assets/battalion.sho", "rb");
 	    if (roadFile != NULL)
 		{
-		strcpy(dataPath, "./battalion.data/");
+		strcpy(dataPath, "./assets/");
 		fclose(roadFile);
 		}
 	    else
@@ -2876,14 +2955,75 @@ void initialization()
     /* build all the objects            */
     /************************************/
 
+    if (!battalionMapResolve(dataPath, textBuffer, sizeof(textBuffer)))
+	{
+	showError(textBuffer);
+	exit(1);
+	}
+
+#ifdef BATTALION_MAP_PACKAGES
+    battalionMapPackageInit(&battlefieldMap);
+    battlefieldMapLoaded = 0;
+    if (!battalionMapBuildPackagePath(dataPath, fullPath, sizeof(fullPath)))
+	strcpy(textBuffer, "Map package path is too long");
+    else if (battalionMapPackageLoad(fullPath, &battlefieldMap,
+				    textBuffer, sizeof(textBuffer)))
+	{
+	if (strcmp(battlefieldMap.id, battalionMapId()) ||
+	    strcmp(battlefieldMap.name, battalionMapName()))
+	    {
+	    battalionMapPackageFree(&battlefieldMap);
+	    strcpy(textBuffer, "Map package identity does not match selection");
+	    }
+	else
+	    battlefieldMapLoaded = 1;
+	}
+    if (!battlefieldMapLoaded)
+	{
+#ifdef BATTALION_MAP_PACKAGES_REQUIRED
+	showError(textBuffer);
+	exit(1);
+#else
+	fprintf(stderr, "Map package unavailable for %s; using legacy DATA files\n",
+		battalionMapName());
+#endif
+	}
+#endif
+
     makeObjects(dataPath);
 
     /************************************/
     /* read in data file of roads       */
     /************************************/
 
-    strcpy(fullPath, dataPath);
-    strcat(fullPath, "DATA/road.data");
+#ifdef BATTALION_MAP_PACKAGES
+    if (battlefieldMapLoaded)
+	{
+	garb3 = (int)battlefieldMap.roadCount;
+	roadSystem = (struct road *) acalloc(garb3 + 1,
+					       sizeof(struct road), arena);
+	if (roadSystem == NULL)
+	    showError("Could not allocate array for map roads\n");
+	else
+	    {
+	    roadSystem[garb3].type = NULLROAD;
+	    for (i = garb3 - 1; i >= 0; i--)
+		{
+		roadSystem[i].x = battlefieldMap.roads[garb3 - 1 - i].x;
+		roadSystem[i].y = battlefieldMap.roads[garb3 - 1 - i].z;
+		roadSystem[i].type =
+		    (char)battlefieldMap.roads[garb3 - 1 - i].type;
+		}
+	    }
+	}
+    else
+#endif
+    {
+    if (!battalionMapBuildPath(dataPath, "road", fullPath, sizeof(fullPath)))
+	{
+	showError("Map road path is too long\n");
+	exit(1);
+	}
     roadFile = fopen(fullPath, "r");
 
     if (roadFile == NULL)
@@ -2922,6 +3062,7 @@ void initialization()
 	    fclose(roadFile);
 	    }
 	}
+    }
 
     /***************************************/
     /* see if this machine can play sounds */
@@ -3487,7 +3628,7 @@ GLenum processKey(int key, GLenum mask)
 	case TK_H:
 			    if (mode3D)
 				goto1d();
-			    system("showcase -bfv battalion.data/battalion.sho");
+			    system("showcase -bfv assets/battalion.sho");
 			    break;
 #endif
 
@@ -5544,9 +5685,9 @@ void showCommands(char * progName)
     fprintf (stderr, "\n\n");
 
 #ifdef SOLARIS
-    fprintf (stderr, "Usage: %s [-a] [-b] [-d level] [-m] [-s] [-help]\n", progName);
+    fprintf (stderr, "Usage: %s [-a] [-b] [-d level] [-m] [-s] [--map name] [-help]\n", progName);
 #else
-    fprintf (stderr, "Usage: %s [-a] [-b] [-d level] [-m] [-s] [-c] [-h #] [-n] [-p #] [-help]\n", progName);
+    fprintf (stderr, "Usage: %s [-a] [-b] [-d level] [-m] [-s] [--map name] [-c] [-h #] [-n] [-p #] [-help]\n", progName);
 #endif
 
     fprintf (stderr, "  -a)lone        fight alone\n");
@@ -5554,7 +5695,11 @@ void showCommands(char * progName)
     fprintf (stderr, "  -d)etail n     set level-of-detail from 0 (low) to 2 (high)\n");
     fprintf (stderr, "  -m)usic        initially turn on the music\n");
     fprintf (stderr, "  -s)ound        initially turn on the sound effects\n");
+    fprintf (stderr, "  --map name     select a battlefield by number or city name\n");
     fprintf (stderr, "  -help          show this list of command line options\n\n");
+
+    battalionMapPrintAvailable(dataPath, stderr);
+    fprintf (stderr, "\n");
 
 #ifdef SOLARIS
     fprintf (stderr, "Multiplayer options not yet supported:\n");
@@ -5576,11 +5721,61 @@ void showCommands(char * progName)
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
+static void preparseMapArguments(int argc, char **argv)
+    {
+    int argument;
+
+    for (argument = 1; argument < argc; argument++)
+	if ((strcmp(argv[argument], "--map") == 0) ||
+	    (strcmp(argv[argument], "-map") == 0) ||
+	    (strcmp(argv[argument], "-level") == 0) ||
+	    (strcmp(argv[argument], "-l") == 0))
+	    {
+	    if ((argument + 1) >= argc)
+		{
+		fprintf(stderr, "%s requires a map number or city name\n", argv[argument]);
+		exit(1);
+		}
+	    battalionMapRequest(argv[++argument]);
+	    }
+    }
+
 main (int argc, char*argv[])
     {
     register int argument;
     int port;
     char portName[40];
+#ifdef BATTALION_ASSET_EXPORT
+    const char *exportModelName;
+    const char *exportModelPath;
+    const char *exportAllDirectory;
+    char exportError[160];
+
+    exportModelName = NULL;
+    exportModelPath = NULL;
+    exportAllDirectory = NULL;
+    for (argument = 1; argument < argc; argument++)
+	if (strcmp(argv[argument], "--export-model") == 0)
+	    {
+	    if (argument + 2 >= argc)
+		{
+		fprintf(stderr, "--export-model requires a model name and output path\n");
+		return 1;
+		}
+	    exportModelName = argv[argument + 1];
+	    exportModelPath = argv[argument + 2];
+	    argument += 2;
+	    }
+	else if (strcmp(argv[argument], "--export-all-models") == 0)
+	    {
+	    if (argument + 1 >= argc)
+		{
+		fprintf(stderr, "--export-all-models requires an output directory\n");
+		return 1;
+		}
+	    exportAllDirectory = argv[++argument];
+	    }
+#endif
 
 #if defined(SGIVERSION) || defined(SOLARIS) || defined(LINUXVERSION) || defined(MACOSVERSION)
 
@@ -5590,7 +5785,35 @@ main (int argc, char*argv[])
 
     frames = 0;
 
+    preparseMapArguments(argc, argv);
     initialization();
+
+#ifdef BATTALION_ASSET_EXPORT
+    if (exportAllDirectory != NULL)
+	{
+	if (!exportAllBuiltinModelsGLB(exportAllDirectory,
+				       exportError, sizeof(exportError)))
+	    {
+	    fprintf(stderr, "Could not export model registry: %s\n", exportError);
+	    return 1;
+	    }
+	fprintf(stdout, "Exported model registry to %s\n", exportAllDirectory);
+	return 0;
+	}
+    if (exportModelName != NULL)
+	{
+	if (!exportBuiltinModelGLB(exportModelName, exportModelPath,
+				   exportError, sizeof(exportError)))
+	    {
+	    fprintf(stderr, "Could not export %s: %s\n",
+		    exportModelName, exportError);
+	    return 1;
+	    }
+	fprintf(stdout, "Exported %s to %s\n",
+		exportModelName, exportModelPath);
+	return 0;
+	}
+#endif
 
     for (argument=1;argument < argc;argument++)
 	{
@@ -5605,6 +5828,17 @@ main (int argc, char*argv[])
 	else if ((strcmp(argv[argument], "-alone") == 0) ||
 	    (strcmp(argv[argument], "-a") == 0))
 	    alone = 1;
+
+	else if ((strcmp(argv[argument], "--map") == 0) ||
+		 (strcmp(argv[argument], "-map") == 0) ||
+		 (strcmp(argv[argument], "-level") == 0) ||
+		 (strcmp(argv[argument], "-l") == 0))
+	    {
+	    if ((argument + 1) < argc)
+		argument++;
+	    else
+		showCommands(argv[0]);
+	    }
 
 	else if ((strcmp(argv[argument], "-detail") == 0) ||
 		 (strcmp(argv[argument], "-d") == 0))

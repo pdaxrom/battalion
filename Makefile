@@ -60,8 +60,17 @@ DEFAULT_GRAPHICS := opengl
 endif
 GRAPHICS ?= $(DEFAULT_GRAPHICS)
 
+ifeq ($(filter $(PLATFORM),linux macos),$(PLATFORM))
+DEFAULT_MAPS := hybrid
+else
+DEFAULT_MAPS := legacy
+endif
+MAPS ?= $(DEFAULT_MAPS)
+EXPORT_ASSETS ?= 0
+
 SUPPORTED_PLATFORMS := linux macos solaris sunos sgi hpux aix
 SUPPORTED_GRAPHICS := opengl mesa metal gles
+SUPPORTED_MAPS := legacy hybrid json
 
 ifeq ($(filter $(PLATFORM),$(SUPPORTED_PLATFORMS)),)
 $(error Unsupported PLATFORM '$(PLATFORM)'. Choose one of: $(SUPPORTED_PLATFORMS))
@@ -69,6 +78,14 @@ endif
 
 ifeq ($(filter $(GRAPHICS),$(SUPPORTED_GRAPHICS)),)
 $(error Unsupported GRAPHICS '$(GRAPHICS)'. Choose one of: $(SUPPORTED_GRAPHICS))
+endif
+
+ifeq ($(filter $(MAPS),$(SUPPORTED_MAPS)),)
+$(error Unsupported MAPS '$(MAPS)'. Choose one of: $(SUPPORTED_MAPS))
+endif
+
+ifeq ($(filter $(EXPORT_ASSETS),0 1),)
+$(error Unsupported EXPORT_ASSETS '$(EXPORT_ASSETS)'. Choose 0 or 1)
 endif
 
 ifeq ($(PLATFORM),macos)
@@ -85,15 +102,37 @@ endif
 
 SOURCES := \
 	battalion.c \
+	map.c \
 	audio.c \
 	net.c \
 	gprim.c \
 	graphics.c \
-	objects.c \
+	camera.c \
 	text.c \
 	update.c \
 	tk_x11.c \
 	font.c
+
+SOURCES += asset.c asset_gltf.c asset_animation.c asset_render.c \
+	asset_manifest.c asset_tga.c
+
+ifneq ($(MAPS),legacy)
+SOURCES += map_package.c
+MAP_CPPFLAGS := -DBATTALION_MAP_PACKAGES
+ifeq ($(MAPS),json)
+MAP_CPPFLAGS += -DBATTALION_MAP_PACKAGES_REQUIRED
+endif
+endif
+
+ifeq ($(EXPORT_ASSETS),1)
+ifneq ($(PLATFORM),macos)
+$(error EXPORT_ASSETS=1 currently requires PLATFORM=macos)
+endif
+SOURCES := $(filter-out camera.c,$(SOURCES))
+SOURCES += objects.c asset_write.c
+ASSET_CPPFLAGS := -DBATTALION_ASSET_EXPORT
+EXPORT_SUFFIX := -export
+endif
 
 PLATFORM_CPPFLAGS :=
 PLATFORM_LDFLAGS :=
@@ -192,7 +231,7 @@ AUDIO_CPPFLAGS := -DSGIAUDIO
 AUDIO_LDLIBS := -laudio -laudiofile
 endif
 
-BUILD_DIR ?= build/$(PLATFORM)-$(GRAPHICS)-$(AUDIO)
+BUILD_DIR ?= build/$(PLATFORM)-$(GRAPHICS)-$(AUDIO)-$(MAPS)$(EXPORT_SUFFIX)
 TARGET := $(BUILD_DIR)/$(PROGRAM)
 OBJECTS := $(addprefix $(BUILD_DIR)/,$(SOURCES))
 OBJECTS := $(OBJECTS:.c=.o)
@@ -212,7 +251,7 @@ DEPFLAGS ?=
 endif
 CFLAGS ?= -O2
 
-.PHONY: all clean help print-config
+.PHONY: all clean export-assets export-maps help print-config test
 
 all: $(TARGET)
 
@@ -221,11 +260,11 @@ $(TARGET): $(OBJECTS)
 
 $(BUILD_DIR)/%.o: %.c Makefile | $(BUILD_DIR)
 	@mkdir -p $(dir $@)
-	$(CC) $(CPPFLAGS) $(PLATFORM_CPPFLAGS) $(GRAPHICS_CPPFLAGS) $(AUDIO_CPPFLAGS) $(COMPAT_CFLAGS) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
+	$(CC) $(CPPFLAGS) $(PLATFORM_CPPFLAGS) $(GRAPHICS_CPPFLAGS) $(AUDIO_CPPFLAGS) $(ASSET_CPPFLAGS) $(MAP_CPPFLAGS) $(COMPAT_CFLAGS) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
 
 $(BUILD_DIR)/%.o: %.m Makefile | $(BUILD_DIR)
 	@mkdir -p $(dir $@)
-	$(CC) $(CPPFLAGS) $(PLATFORM_CPPFLAGS) $(GRAPHICS_CPPFLAGS) $(AUDIO_CPPFLAGS) $(COMPAT_CFLAGS) $(CFLAGS) $(DEPFLAGS) -fobjc-arc -c $< -o $@
+	$(CC) $(CPPFLAGS) $(PLATFORM_CPPFLAGS) $(GRAPHICS_CPPFLAGS) $(AUDIO_CPPFLAGS) $(ASSET_CPPFLAGS) $(MAP_CPPFLAGS) $(COMPAT_CFLAGS) $(CFLAGS) $(DEPFLAGS) -fobjc-arc -c $< -o $@
 
 $(BUILD_DIR):
 	mkdir -p $@
@@ -235,24 +274,64 @@ print-config:
 	@echo "platform:   $(PLATFORM)"
 	@echo "graphics:   $(GRAPHICS)"
 	@echo "audio:      $(AUDIO)"
+	@echo "assets:     external (assets/manifest.txt)"
+	@echo "maps:       $(MAPS)"
+	@echo "exporter:   $(EXPORT_ASSETS)"
 	@echo "compiler:   $(CC)"
 	@echo "output:     $(TARGET)"
 
 help:
-	@echo "Usage: make [PLATFORM=<platform>] [GRAPHICS=<graphics>] [AUDIO=<audio>]"
+	@echo "Usage: make [PLATFORM=<platform>] [GRAPHICS=<graphics>] [AUDIO=<audio>] [MAPS=<mode>]"
 	@echo
 	@echo "Platforms: $(SUPPORTED_PLATFORMS)"
 	@echo "Graphics:  $(SUPPORTED_GRAPHICS)"
 	@echo "Audio:     $(SUPPORTED_AUDIO)"
+	@echo "Assets:    external manifest (required)"
+	@echo "Maps:      $(SUPPORTED_MAPS)"
 	@echo
 	@echo "Examples:"
 	@echo "  make PLATFORM=linux"
 	@echo "  make PLATFORM=macos"
 	@echo "  make PLATFORM=linux AUDIO=none"
 	@echo "  make PLATFORM=linux GRAPHICS=mesa"
+	@echo "  make export-assets"
+	@echo "  make export-maps"
 	@echo
 	@echo "macOS uses the native Metal backend; XQuartz and OpenGL are not required."
 	@echo "GRAPHICS=gles is part of the renderer design but is not implemented yet."
+
+TEST_BUILD_DIR := build/tests
+MAP_TEST := $(TEST_BUILD_DIR)/map-test
+ASSET_TEST := $(TEST_BUILD_DIR)/asset-gltf-test
+
+$(MAP_TEST): tests/map_test.c map.c map.h map_package.c map_package.h | $(TEST_BUILD_DIR)
+	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< map.c map_package.c -o $@
+
+$(ASSET_TEST): tests/asset_gltf_test.c asset.c asset_gltf.c asset_animation.c asset_write.c asset_tga.c asset.h asset_animation.h asset_write.h asset_tga.h | $(TEST_BUILD_DIR)
+	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< asset.c asset_gltf.c asset_animation.c asset_write.c asset_tga.c -lm -o $@
+
+$(TEST_BUILD_DIR):
+	mkdir -p $@
+
+test: $(MAP_TEST) $(ASSET_TEST)
+	./$(MAP_TEST)
+	./$(ASSET_TEST)
+
+EXPORT_BUILD_DIR := build/macos-metal-none-legacy-export
+
+export-assets:
+	$(MAKE) PLATFORM=macos GRAPHICS=metal AUDIO=none MAPS=legacy EXPORT_ASSETS=1 BUILD_DIR=$(EXPORT_BUILD_DIR)
+	@mkdir -p assets/models
+	./$(EXPORT_BUILD_DIR)/$(PROGRAM) --export-all-models assets/models
+
+MAP_CONVERTER := build/tools/map-convert
+
+$(MAP_CONVERTER): tools/map_convert.c map.c map.h map_package.c map_package.h
+	@mkdir -p $(dir $@)
+	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) tools/map_convert.c map.c map_package.c -o $@
+
+export-maps: $(MAP_CONVERTER)
+	./$(MAP_CONVERTER) assets/
 
 clean:
 	rm -rf build

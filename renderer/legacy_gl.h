@@ -77,6 +77,7 @@ typedef double GLclampd;
 #define GL_VIEWPORT                      0x0ba2
 #define GL_SHADE_MODEL                   0x0b54
 #define GL_LINE_WIDTH                    0x0b21
+#define GL_POINT_SIZE                    0x0b11
 #define GL_DEPTH_BITS                    0x0d56
 #define GL_RED_BITS                      0x0d52
 #define GL_STEREO                        0x0c33
@@ -94,6 +95,8 @@ typedef double GLclampd;
 #define GL_COMPILE                       0x1300
 #define GL_UNSIGNED_BYTE                 0x1401
 #define GL_LUMINANCE                     0x1909
+#define GL_RGB                           0x1907
+#define GL_RGBA                          0x1908
 #define GL_TEXTURE_ENV                   0x2300
 #define GL_TEXTURE_ENV_MODE              0x2200
 #define GL_MODULATE                      0x2100
@@ -176,6 +179,12 @@ void gluLookAt(GLdouble eyeX, GLdouble eyeY, GLdouble eyeZ,
                GLdouble centerX, GLdouble centerY, GLdouble centerZ,
                GLdouble upX, GLdouble upY, GLdouble upZ);
 const GLubyte *gluErrorString(GLenum error);
+
+#ifdef BATTALION_ASSET_EXPORT
+struct AssetModel;
+int legacyGLCaptureDisplayList(GLuint list, struct AssetModel *model,
+                               char *error, size_t errorSize);
+#endif
 
 #ifdef __cplusplus
 }

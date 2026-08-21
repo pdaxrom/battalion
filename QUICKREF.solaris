@@ -28,6 +28,7 @@ COMMAND LINE OPTIONS
 		    F2 changes the detail level while the game is running.
   -m(usic)	    Initially turn on the background music.
   -s(ound)	    Initially turn on sound effects.
+  --map name        Select a battlefield by number or city name.
   -lscores¹	    Use local high scores file (in /var/tmp), even if startup
 		    script has been set up to access a global high score file.
   -mesa¹	    If OpenGL² is installed, use this option to tell the

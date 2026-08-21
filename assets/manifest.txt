@@ -1,0 +1,122 @@
+# Battalion external asset manifest.
+# Geometry and animation clips live in GLB; image dimensions come from TGA.
+battalion-assets 1
+
+texture screen-left textures/screenleft.tga nearest clamp
+texture screen-right textures/screenright.tga nearest clamp
+texture tree-wood textures/treewood.tga linear clamp
+texture road textures/road.tga linear repeat
+texture office-logo textures/logo.tga nearest clamp
+
+model tank models/tank.glb
+model tank-slag models/tank-slag.glb
+model tank-maser models/tank-maser.glb
+model tank-maser-slag models/tank-maser-slag.glb
+model tank-launcher models/tank-launcher.glb
+model tank-launcher-slag models/tank-launcher-slag.glb
+model tank-shadow models/tank-shadow.glb
+
+model helo models/helo.glb
+model helo-slag models/helo-slag.glb
+animation helo-rotors helo rotors loop
+animation helo-slag-rotors helo-slag rotors loop
+
+model propeller models/propeller.glb
+model airplane-body models/airplane-body.glb
+model fighter-body models/fighter-body.glb
+model plane-shadow models/plane-shadow.glb
+model fighter-shadow models/fighter-shadow.glb
+model plane-dots-high models/plane-dots-high.glb
+model plane-dots-low models/plane-dots-low.glb
+model plane-ground-low models/plane-ground-low.glb
+model plane-ground-high models/plane-ground-high.glb
+model plane-ground-large models/plane-ground-large.glb
+
+model googelon-leg models/googelon-leg.glb
+model googelon-head models/googelon-head.glb
+model googelon-head-simple models/googelon-head-simple.glb
+model googelon-tail models/googelon-tail.glb
+model googelon-tail-simple models/googelon-tail-simple.glb
+model googelon-body models/googelon-body.glb
+
+model flutter-head models/flutter-head.glb
+model flutter-shadow models/flutter-shadow.glb
+model flutter-xmas models/flutter-xmas.glb
+model flutter-body models/flutter-body.glb
+model flutter-wing-1 models/flutter-wing-1.glb
+model flutter-wing-2 models/flutter-wing-2.glb
+
+model techs-body models/techs-body.glb
+model techs-head models/techs-head.glb
+model techs-body-simple models/techs-body-simple.glb
+model techs-head-simple models/techs-head-simple.glb
+model techs-shadow models/techs-shadow.glb
+
+model projectile-techs models/projectile-techs.glb
+model projectile-hero models/projectile-hero.glb
+model projectile-water models/projectile-water.glb
+model projectile-standard-low models/projectile-standard-low.glb
+model projectile-standard-high models/projectile-standard-high.glb
+model projectile-standard-low-xmas models/projectile-standard-low-xmas.glb
+model projectile-standard-high-xmas models/projectile-standard-high-xmas.glb
+animation projectile-standard-low-spin projectile-standard-low spin loop
+animation projectile-standard-high-spin projectile-standard-high spin loop
+animation projectile-standard-low-xmas-spin projectile-standard-low-xmas spin loop
+animation projectile-standard-high-xmas-spin projectile-standard-high-xmas spin loop
+
+model title-high models/title-high.glb
+model title-medium models/title-medium.glb
+model title-low models/title-low.glb
+model power-tower models/power-tower.glb
+model generic-windows models/generic-windows.glb
+model round-tree-shadow models/round-tree-shadow.glb
+
+model strip-1-high models/strip-1-high.glb
+model strip-1-low models/strip-1-low.glb
+model strip-2-high models/strip-2-high.glb
+model strip-2-low models/strip-2-low.glb
+model strip-3-high models/strip-3-high.glb
+model strip-3-low models/strip-3-low.glb
+
+model building-1-high models/building-1-high.glb
+model building-1-low models/building-1-low.glb
+model building-2-high models/building-2-high.glb
+model building-2-low models/building-2-low.glb
+model building-5-high models/building-5-high.glb
+model building-5-low models/building-5-low.glb
+model building-7 models/building-7.glb
+model building-9 models/building-9.glb
+model building-9-alternate models/building-9-alternate.glb
+model building-10 models/building-10.glb
+model building-12-high models/building-12-high.glb
+model building-12-low models/building-12-low.glb
+model building-14 models/building-14.glb
+model building-19-high models/building-19-high.glb
+model building-19-low models/building-19-low.glb
+model building-20-high models/building-20-high.glb
+model building-20-low models/building-20-low.glb
+model building-21-high models/building-21-high.glb
+model building-21-low models/building-21-low.glb
+model building-31 models/building-31.glb
+model building-32 models/building-32.glb
+
+model boom-01-high models/boom-01-high.glb
+model boom-01-low models/boom-01-low.glb
+model boom-02-high models/boom-02-high.glb
+model boom-02-low models/boom-02-low.glb
+model boom-03-high models/boom-03-high.glb
+model boom-03-low models/boom-03-low.glb
+model boom-04-high models/boom-04-high.glb
+model boom-04-low models/boom-04-low.glb
+model boom-05-high models/boom-05-high.glb
+model boom-05-low models/boom-05-low.glb
+model boom-06-high models/boom-06-high.glb
+model boom-06-low models/boom-06-low.glb
+model boom-07-high models/boom-07-high.glb
+model boom-07-low models/boom-07-low.glb
+model boom-08-high models/boom-08-high.glb
+model boom-08-low models/boom-08-low.glb
+model boom-09-high models/boom-09-high.glb
+model boom-09-low models/boom-09-low.glb
+model boom-10-high models/boom-10-high.glb
+model boom-10-low models/boom-10-low.glb

@@ -832,6 +832,11 @@ void showScores(int, struct score*, struct score*, struct score*, struct score*,
 
 void makeObjects(char *);
 
+#ifdef BATTALION_ASSET_EXPORT
+int exportBuiltinModelGLB(const char *, const char *, char *, size_t);
+int exportAllBuiltinModelsGLB(const char *, char *, size_t);
+#endif
+
 void shadow (float,  float,  float,  float);
 
 void makeCHH(int);

@@ -55,7 +55,7 @@ Mesa to be able to compile this program.
 
 For users without access to Showcase on a Silicon Graphics workstation
 the help files are provided as individual .gif files in the help
-directory in the battalion.data directory.
+directory in the assets directory.
 
 
 This is version 1.4b of the OpenGL version of battalion released on 8/17/96.
@@ -75,7 +75,23 @@ The host platform is detected automatically, or it can be selected explicitly:
 
 macOS uses the native Metal backend and does not require OpenGL or XQuartz.
 Linux and the historical Unix targets keep the X11/GLX backend. Build products
-are written to build/<platform>-<graphics>-<audio>/ so configurations do not
-reuse incompatible object files.
+are written to build/<platform>-<graphics>-<audio>-<maps>/ so configurations do
+not reuse incompatible object files.
 
-Run `make help` to see the supported PLATFORM, GRAPHICS, and AUDIO values.
+Game content is external and required at runtime. The `assets/manifest.txt`
+file declares models, textures, and animation clips. Models are Khronos glTF
+2.0 binary files under `assets/models`; textures are under `assets/textures`.
+The normal game build does not compile the old C model factories as a fallback.
+
+Battlefields have versioned JSON packages under `assets/maps`. Use
+`MAPS=hybrid` to load JSON with fallback to the original `road/tree/tank.data`
+files, `MAPS=json` to require JSON, or `MAPS=legacy` for the unchanged old
+loader. Linux and macOS default to `hybrid`; historical Unix targets default to
+`legacy`. Rebuild every JSON package deterministically with `make export-maps`.
+
+Run `make help` to see all supported values. Run the game with `--map 0`,
+`--map Andyville`, or another entry shown by `-help` to select one of the
+existing external battlefields. See `assets/readme.md` and
+`docs/assets-and-maps.md` for the migration format and compatibility policy.
+The checked-in GLB files are reproducibly regenerated from the original source
+material with `make export-assets` on macOS.

@@ -44,6 +44,8 @@ void rendererBackendDraw(enum RendererPrimitive primitive,
                          const RendererDrawState *state);
 unsigned int rendererBackendCreateLuminanceTexture(int width, int height,
                                                     const unsigned char *pixels);
+unsigned int rendererBackendCreateRGBA8Texture(int width, int height,
+                                                const unsigned char *pixels);
 void rendererBackendPresent(void);
 
 #endif
