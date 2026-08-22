@@ -5,6 +5,7 @@
 #include "camera_view.h"
 
 #include <math.h>
+#include <string.h>
 
 #define CHASE_MAX_DISTANCE 1.40f
 #define CHASE_EYE_HEIGHT 0.85f
@@ -28,6 +29,83 @@ static float clippedNearPlane(float distance)
     if (nearClip > CHASE_MAX_NEAR)
         nearClip = CHASE_MAX_NEAR;
     return nearClip;
+    }
+
+float cameraViewportAspect(int width, int height)
+    {
+    if (width <= 0 || height <= 0)
+        return 1.0f;
+    return (float)width / (float)height;
+    }
+
+int cameraStereoLayoutFromName(const char *name, int *layout)
+    {
+    if (name == 0 || layout == 0)
+        return 0;
+    if (strcmp(name, "off") == 0)
+        *layout = CAMERA_STEREO_OFF;
+    else if (strcmp(name, "top-bottom") == 0)
+        *layout = CAMERA_STEREO_TOP_BOTTOM;
+    else if (strcmp(name, "side-by-side") == 0)
+        *layout = CAMERA_STEREO_SIDE_BY_SIDE;
+    else
+        return 0;
+    return 1;
+    }
+
+const char *cameraStereoLayoutName(int layout)
+    {
+    if (layout == CAMERA_STEREO_TOP_BOTTOM)
+        return "top-bottom";
+    if (layout == CAMERA_STEREO_SIDE_BY_SIDE)
+        return "side-by-side";
+    return "off";
+    }
+
+int cameraStereoViewport(int layout, int eye, int width, int height,
+                         struct CameraViewport *viewport)
+    {
+    int firstSize;
+
+    if (viewport == 0 || width <= 0 || height <= 0 ||
+        (eye != CAMERA_STEREO_RIGHT_EYE &&
+         eye != CAMERA_STEREO_LEFT_EYE))
+        return 0;
+    if (layout == CAMERA_STEREO_TOP_BOTTOM)
+        {
+        firstSize = height / 2;
+        viewport->x = 0;
+        viewport->width = width;
+        if (eye == CAMERA_STEREO_RIGHT_EYE)
+            {
+            viewport->y = 0;
+            viewport->height = firstSize;
+            }
+        else
+            {
+            viewport->y = firstSize;
+            viewport->height = height - firstSize;
+            }
+        return viewport->height > 0;
+        }
+    if (layout == CAMERA_STEREO_SIDE_BY_SIDE)
+        {
+        firstSize = width / 2;
+        viewport->y = 0;
+        viewport->height = height;
+        if (eye == CAMERA_STEREO_LEFT_EYE)
+            {
+            viewport->x = 0;
+            viewport->width = firstSize;
+            }
+        else
+            {
+            viewport->x = firstSize;
+            viewport->width = width - firstSize;
+            }
+        return viewport->width > 0;
+        }
+    return 0;
     }
 
 static float projectedChaseHeight(float height, float distance)

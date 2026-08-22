@@ -98,7 +98,6 @@ long monitorType;
 long windowWide, windowTall, windowLeft, windowTop;
 GLuint viewL, viewR;
 long zmax;
-int doBigClear;
 
 float lastTankY, lastTankTheta, lastTankRad;
 
@@ -120,6 +119,7 @@ static struct BattalionMapPackage battlefieldMap;
 static struct EntityCatalog gameEntities;
 static char requestedPlayerEntity[ENTITY_NAME_SIZE];
 static int requestedView = -1;
+static int requestedStereoLayout = CAMERA_STEREO_OFF;
 static const struct EntityArchetype *playerEntityArchetype;
 static size_t playerEntitySelection;
 
@@ -438,7 +438,7 @@ static int playerBodyHeading;
 static int playerProjectileTriggerLatched;
 static int playerWeaponReloadRemaining;
 static int showHelp;
-static int commandKeys[5];
+static int commandKeys[6];
 
 static void clearPlayerInput(void);
 static void setPointerCaptured(int);
@@ -3694,7 +3694,6 @@ void initialization()
     turnMusicOff();
     no3D	    = 0;
     mode3D	    = 0;
-    doBigClear	    = 0;
     showOptions	    = 0;
     backdrop	    = 0;
     showframes	    = 0;
@@ -3771,11 +3770,6 @@ void initialization()
     glGetIntegerv(GL_RED_BITS, &gdtmp);
     if (gdtmp == GL_FALSE)
 	showError("Double buffered RGB not available on this machine");
-
-    glGetIntegerv(GL_STEREO, &gdtmp);
-    if (gdtmp == GL_FALSE)
-	no3D = 1;
-
 
     /********************************************/
     /* find where all the data files are stored */
@@ -3954,61 +3948,8 @@ void initialization()
 
 void goto3d(void)
     {
-    GLint gdtmp;
-
-	/* OGLXXX
-	 * getsize not supported -- See Window Manager
-	 * getsize(&windowWide,  &windowTall);
-	 */
-
-	/* OGLXXX
-	 * getorigin not supported -- See Window Manager
-	 * getorigin(&windowLeft,  &windowTop);
-	 */
-
-	/* OGLXXX
-	 * getgdesc other posiblilties:
-	 * 	glxGetConfig();
-	 * 	glxGetCurrentContext();
-	 * 	glxGetCurrentDrawable();
-	 * GLint gdtmp;
-	 */
-    if ((glGetIntegerv(GL_STEREO, &gdtmp), gdtmp))
-	    {
-	/* OGLXXX
-	 * setmonitor not supported
-	 * setmonitor(STR_RECT)
-	 */
-
-	/* OGLXXX
-	 * getgdesc other posiblilties:
-	 * 	glxGetConfig();
-	 * 	glxGetCurrentContext();
-	 * 	glxGetCurrentDrawable();
-	 * GLint gdtmp;
-	 * getgdesc other posiblilties:
-	 * 	glxGetConfig();
-	 * 	glxGetCurrentContext();
-	 * 	glxGetCurrentDrawable();
-	 * GLint gdtmp;
-	 * see window manager
-	 * see window manager
-	 * prefposition not supported -- See Window Manager
-	 * prefposition(0, (glGetIntegerv(XXX_XPMAX, &gdtmp), gdtmp), 0, (glGetIntegerv(XXX_YPMAX, &gdtmp), gdtmp))
-	 */
-
-	    }
-	/* OGLXXX
-	 * winconstraints not supported -- See Window Manager
-	 * winconstraints()
-	 */
-	/* OGLXXX
-	 * setvaluator not supported -- See Events
-	 * setvaluator(MOUSEY, YMAXSTEREO/2, 0, YMAXSTEREO)
-	 */
-
-    mode3D = 1;
-    doBigClear = 2;
+    mode3D = CAMERA_STEREO_TOP_BOTTOM;
+    no3D = 0;
     }
 
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
@@ -4018,50 +3959,26 @@ void goto3d(void)
 
 void goto1d(void)
     {
-    GLint gdtmp;
+    mode3D = CAMERA_STEREO_OFF;
+    }
 
-	/* OGLXXX
-	 * getgdesc other posiblilties:
-	 * 	glxGetConfig();
-	 * 	glxGetCurrentContext();
-	 * 	glxGetCurrentDrawable();
-	 * GLint gdtmp;
-	 */
-	if ((glGetIntegerv(GL_STEREO, &gdtmp), gdtmp))
-	/* OGLXXX
-	 * setmonitor not supported
-	 * setmonitor((short) monitorType)
-	 */
+static void setStereoLayout(int layout)
+    {
+    if (layout != CAMERA_STEREO_TOP_BOTTOM &&
+        layout != CAMERA_STEREO_SIDE_BY_SIDE)
+        layout = CAMERA_STEREO_OFF;
+    mode3D = layout;
+    no3D = 0;
+    }
 
-	/* OGLXXX
-	 * winposition not supported -- See Window Manager
-	 * winposition(windowLeft, windowLeft + windowWide, windowTop, windowTop + windowTall)
-	 */
-
-	/* OGLXXX
-	 * keepaspect not supported -- See Window Manager
-	 * keepaspect(1280, 1000)
-	 */
-
-	/* OGLXXX
-	 * winconstraints not supported -- See Window Manager
-	 * winconstraints()
-	 */
-
-	/* OGLXXX
-	 * getgdesc other posiblilties:
-	 * 	glxGetConfig();
-	 * 	glxGetCurrentContext();
-	 * 	glxGetCurrentDrawable();
-	 * GLint gdtmp;
-	 * see window manager
-	 * getvaluator not supported -- See Events
-	 * getvaluator(MOUSEY)
-	 * setvaluator not supported -- See Events
-	 * setvaluator(MOUSEY, (short) ???, 0, (short) (glGetIntegerv(XXX_YPMAX, &gdtmp), gdtmp))
-	 */
-
- 	mode3D = 0;
+static void cycleStereoLayout(void)
+    {
+    if (mode3D == CAMERA_STEREO_OFF)
+        setStereoLayout(CAMERA_STEREO_TOP_BOTTOM);
+    else if (mode3D == CAMERA_STEREO_TOP_BOTTOM)
+        setStereoLayout(CAMERA_STEREO_SIDE_BY_SIDE);
+    else
+        setStereoLayout(CAMERA_STEREO_OFF);
     }
 
 
@@ -4267,6 +4184,8 @@ static int commandKeyIndex(int key)
 	case TK_F4: return 3;
 	case TK_p:
 	case TK_P: return 4;
+	case TK_v:
+	case TK_V: return 5;
 	default: return -1;
 	}
     }
@@ -4460,6 +4379,11 @@ GLenum processKey(int key, GLenum mask)
 				goToLowDetail();
 			    else
 				goToHighDetail();
+			    break;
+
+	case TK_v:
+	case TK_V:	    cycleStereoLayout();
+			    time3d = now;
 			    break;
 
 #ifdef SGIVERSION
@@ -5365,9 +5289,16 @@ void doUpdate()
 /* view the scene from the monster's point of view               */
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
+static float currentViewportAspect(void)
+    {
+    GLint viewport[4];
+
+    glGetIntegerv(GL_VIEWPORT, viewport);
+    return cameraViewportAspect(viewport[2], viewport[3]);
+    }
+
 void goToMonsterView(int eyeball)
     {
-    float aspect;
     float cameraDistance;
     float cameraX;
     float cameraY;
@@ -5403,8 +5334,7 @@ void goToMonsterView(int eyeball)
 
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    aspect = viewH > 0 ? (float)viewW / (float)viewH : 1.0f;
-    gluPerspective(90, aspect, nearClip, 15);
+    gluPerspective(90, currentViewportAspect(), nearClip, 15);
     glMatrixMode(GL_MODELVIEW);
 
     cameraX = 0.0f;
@@ -5446,7 +5376,6 @@ void goToMonsterView(int eyeball)
 
 void goToFirstPersonView(int eyeball)
     {
-    float aspect;
     float eyeX;
     float eyeY;
     float lookY;
@@ -5460,8 +5389,7 @@ void goToFirstPersonView(int eyeball)
 	}
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    aspect = viewH > 0 ? (float)viewW / (float)viewH : 1.0f;
-    gluPerspective(90, aspect, 0.1, 15);
+    gluPerspective(90, currentViewportAspect(), 0.1, 15);
     glMatrixMode(GL_MODELVIEW);
 
     eyeX = 0.0f;
@@ -5497,7 +5425,7 @@ void goToArmyView(int eyeball)
 
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    gluPerspective(60,  1,   0.1,   20);
+    gluPerspective(60, currentViewportAspect(), 0.1, 20);
     glMatrixMode(GL_MODELVIEW);
 
     switch(eyeball){
@@ -5535,13 +5463,17 @@ void goToArmyView(int eyeball)
 
 void goToMapView()
     {
+	float aspect;
+
 				 /* used to get overhead map of the town */
 				/* also set plane size to 40 */
 			       /* and eliminate prepositioned vehicles */
 			      /* and hide motion dots */
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    glOrtho(mapHeight*viewW/viewH, -mapHeight*viewW/viewH, mapHeight,
+    aspect = currentViewportAspect();
+    glOrtho((GLdouble)mapHeight * aspect,
+	   -(GLdouble)mapHeight * aspect, mapHeight,
 	   -mapHeight, 0.1, 50);
     glMatrixMode(GL_MODELVIEW);
 
@@ -5581,7 +5513,7 @@ void goToOverView(int eyeball)
 
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    gluPerspective(60,  1,   nearClip,   25);
+    gluPerspective(60, currentViewportAspect(), nearClip, 25);
     glMatrixMode(GL_MODELVIEW);
 
     switch(eyeball){
@@ -5979,7 +5911,7 @@ void doDrawing (int eyeball)
 
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
-	gluPerspective(60,  1,   0.1,   20);
+	gluPerspective(60, currentViewportAspect(), 0.1, 20);
 	glMatrixMode(GL_MODELVIEW);
 
 	switch(eyeball){
@@ -6041,9 +5973,6 @@ textLineWidth = 1.01;
 
 	glPopMatrix();
 	}
-
-   tkSwapBuffers();
-
     }
 
 
@@ -6409,6 +6338,9 @@ void reshape( int width, int height )
 
 static void doDisplay(void)
     {
+    int eye;
+    struct CameraViewport stereoViewport;
+
     /**********************************/
     /* draw everything                */
     /**********************************/
@@ -6428,50 +6360,32 @@ static void doDisplay(void)
  	}
     else
 	{
-	short Height3d,  Width3d;
-
 	/**********************************/
 	/* draw in stereo                 */
 	/**********************************/
 
-	if (doBigClear)
-	    {
-	    glViewport(0,  0, XMAXSCREEN+1, YMAXSCREEN+1);
-	    glScissor(0,  0, XMAXSCREEN+1, YMAXSCREEN+1);
-
+	glViewport(0, 0, viewW, viewH);
+	glScissor(0, 0, viewW, viewH);
+	if (lod == -1)
+	    glClear(GL_COLOR_BUFFER_BIT);
+	else
 	    glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
-	    doBigClear -= 1;
-	    }
 
-	Height3d = (short) windowTall/4;
-	Width3d = (short) windowWide/2;
-
-	glViewport((short) (XMAXSCREEN/2 - Width3d),
-	    (short) (YMAXSTEREO/2 - Height3d),
-	    ( (short) (XMAXSCREEN/2 + Width3d))-((short) (XMAXSCREEN/2 - Width3d))+1,
-	    ( (short) (YMAXSTEREO/2 + Height3d))-( (short) (YMAXSTEREO/2 - Height3d))+1);
-
-	glScissor((short) (XMAXSCREEN/2 - Width3d),  (short) (YMAXSTEREO/2 - Height3d),
-	    ( (short) (XMAXSCREEN/2 + Width3d))-((short) (XMAXSCREEN/2 - Width3d))+1,
-	    ( (short) (YMAXSTEREO/2 + Height3d))-( (short) (YMAXSTEREO/2 - Height3d))+1);
-
-	glClear(GL_DEPTH_BUFFER_BIT|GL_COLOR_BUFFER_BIT);
-
-	doDrawing(0);
-
-	glViewport((short) (XMAXSCREEN/2 - Width3d),
-	    (short) (YOFFSET+YMAXSTEREO/2 - Height3d),
-	    ( (short) (XMAXSCREEN/2 + Width3d))-((short) (XMAXSCREEN/2 - Width3d))+1,
-	    ((short) (YOFFSET+YMAXSTEREO/2 + Height3d))-( (short) (YOFFSET+YMAXSTEREO/2 - Height3d))+1);
-
-	glScissor((short) (XMAXSCREEN/2 - Width3d),  (short) (YOFFSET+YMAXSTEREO/2 - Height3d),
-	    ( (short) (XMAXSCREEN/2 + Width3d))-((short) (XMAXSCREEN/2 - Width3d))+1,
-	    ((short) (YOFFSET+YMAXSTEREO/2 + Height3d))-( (short) (YOFFSET+YMAXSTEREO/2 - Height3d))+1);
-
-	glClear(GL_DEPTH_BUFFER_BIT|GL_COLOR_BUFFER_BIT);
-
-	doDrawing(1);
+	for (eye = CAMERA_STEREO_RIGHT_EYE;
+	     eye <= CAMERA_STEREO_LEFT_EYE; eye++)
+	    if (cameraStereoViewport(mode3D, eye, viewW, viewH,
+	                             &stereoViewport))
+		{
+		glViewport(stereoViewport.x, stereoViewport.y,
+		           stereoViewport.width, stereoViewport.height);
+		glScissor(stereoViewport.x, stereoViewport.y,
+		          stereoViewport.width, stereoViewport.height);
+		doDrawing(eye);
+		}
+	glViewport(0, 0, viewW, viewH);
+	glScissor(0, 0, viewW, viewH);
 	}
+    tkSwapBuffers();
     }
 
 
@@ -6712,9 +6626,9 @@ void showCommands(char * progName)
     fprintf (stderr, "\n\n");
 
 #ifdef SOLARIS
-    fprintf (stderr, "Usage: %s [-a] [-b] [-d level] [-m] [-s] [--map name] [-help]\n", progName);
+    fprintf (stderr, "Usage: %s [-a] [-b] [-d level] [-m] [-s] [--map name] [--stereo mode] [-help]\n", progName);
 #else
-    fprintf (stderr, "Usage: %s [-a] [-b] [-d level] [-m] [-s] [--map name] [-c] [-h #] [-n] [-p #] [-help]\n", progName);
+    fprintf (stderr, "Usage: %s [-a] [-b] [-d level] [-m] [-s] [--map name] [--stereo mode] [-c] [-h #] [-n] [-p #] [-help]\n", progName);
 #endif
 
     fprintf (stderr, "  -a)lone        fight alone\n");
@@ -6725,6 +6639,8 @@ void showCommands(char * progName)
     fprintf (stderr, "  --map name     select a battlefield by number or city name\n");
     fprintf (stderr, "  --player id    select a controllable entity archetype\n");
     fprintf (stderr, "  --view n       select view 0, 1, 2, 4, or 5\n");
+    fprintf (stderr, "  --stereo mode  select off, top-bottom, or side-by-side\n");
+    fprintf (stderr, "                  V cycles stereo mode while running\n");
     fprintf (stderr, "  -help          show this list of command line options\n\n");
 
     battalionMapPrintAvailable(dataPath, stderr);
@@ -6810,6 +6726,18 @@ static void preparseMapArguments(int argc, char **argv)
 		exit(1);
 		}
 	    }
+	else if (strcmp(argv[argument], "--stereo") == 0)
+	    {
+	    if ((argument + 1) >= argc ||
+	        !cameraStereoLayoutFromName(argv[argument + 1],
+	                                    &requestedStereoLayout))
+		{
+		fprintf(stderr,
+		        "--stereo requires off, top-bottom, or side-by-side\n");
+		exit(1);
+		}
+	    argument++;
+	    }
     }
 
 static int selectRequestedPlayerEntity(void)
@@ -6892,6 +6820,14 @@ main (int argc, char*argv[])
 		showCommands(argv[0]);
 	    }
 
+	else if (strcmp(argv[argument], "--stereo") == 0)
+	    {
+	    if ((argument + 1) < argc)
+		argument++;
+	    else
+		showCommands(argv[0]);
+	    }
+
 	else if ((strcmp(argv[argument], "-detail") == 0) ||
 		 (strcmp(argv[argument], "-d") == 0))
 	    {
@@ -6960,6 +6896,8 @@ main (int argc, char*argv[])
 	showError("Selected player entity has no network-code");
 	exit(1);
 	}
+
+    setStereoLayout(requestedStereoLayout);
 
     /**********************************************/
     /* set starting conditions for chosen monster */

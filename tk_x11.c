@@ -120,6 +120,7 @@ static int keyFromKeysym(KeySym key)
       case XK_L: return TK_L;
       case XK_P: return TK_P;
       case XK_S: return TK_S;
+      case XK_V: return TK_V;
       case XK_W: return TK_W;
       case XK_a: return TK_a;
       case XK_d: return TK_d;
@@ -129,6 +130,7 @@ static int keyFromKeysym(KeySym key)
       case XK_l: return TK_l;
       case XK_p: return TK_p;
       case XK_s: return TK_s;
+      case XK_v: return TK_v;
       case XK_w: return TK_w;
       default: return GL_FALSE;
     }

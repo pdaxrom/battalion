@@ -214,13 +214,6 @@
 #define BLASTPOINTS	    2
 
 /**********************/
-/* stereo stuff       */
-/**********************/
-
-#define YMAXSTEREO	    491
-#define YOFFSET		    532
-
-/**********************/
 /* battlefield stuff  */
 /**********************/
 
