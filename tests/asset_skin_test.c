@@ -346,6 +346,10 @@ static int testMoiraRegression(void)
     int clip;
     int sample;
     int success;
+    int texturedMeshes;
+    int decodedTextures;
+    size_t meshIndex;
+    size_t textureIndex;
 
     assetModelInitialize(&model);
     assetPoseInitialize(&pose);
@@ -362,6 +366,33 @@ static int testMoiraRegression(void)
               model.animations[forward].trackCount > 0 &&
               model.animations[backward].trackCount > 0 &&
               assetModelPoseBounds(&model, NULL, minimum, maximum);
+    texturedMeshes = 0;
+    for (meshIndex = 0; meshIndex < model.meshCount; meshIndex++)
+        {
+        if (model.meshes[meshIndex].partCount != 1 ||
+            model.meshes[meshIndex].parts[0].vertexCount !=
+                model.meshes[meshIndex].vertexCount)
+            success = 0;
+        if (model.meshes[meshIndex].partCount == 1 &&
+            model.meshes[meshIndex].parts[0].texture >= 0)
+            texturedMeshes++;
+        }
+    decodedTextures = 0;
+    for (textureIndex = 0; textureIndex < model.textureCount; textureIndex++)
+        if (model.textures[textureIndex].pixels != NULL)
+            {
+            if (model.textures[textureIndex].width <= 0 ||
+                model.textures[textureIndex].height <= 0)
+                success = 0;
+            decodedTextures++;
+            }
+    if (texturedMeshes != 12 || decodedTextures != 9 ||
+        model.textureCount != 18 || model.textures[0].width != 2048 ||
+        model.textures[0].height != 2048 ||
+        (model.textures[0].pixels[0] == 255 &&
+         model.textures[0].pixels[1] == 255 &&
+         model.textures[0].pixels[2] == 255))
+        success = 0;
     entityCatalogInitialize(&catalog);
     moira = NULL;
     if (success && entityCatalogLoad("assets", "entities/catalog.txt",

@@ -61,3 +61,5 @@ aim-pitch-min -20
 aim-pitch-max 35
 first-person-eye-height 0.28
 first-person-visible no
+view-1-height-fraction 0.34
+view-2-height-fraction 0.25

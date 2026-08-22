@@ -13,6 +13,8 @@
 /***********************************************************************/
 
 #include "asset.h"
+#include "asset_png.h"
+#include "asset_tga.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -71,6 +73,7 @@ struct GltfMaterial
     {
     float color[4];
     int blend;
+    int texture;
     };
 
 static void setAssetError(char *error, size_t errorSize, const char *message)
@@ -531,6 +534,7 @@ static struct GltfMaterial *readMaterials(const char *json,
     int component;
     int colorToken;
     int alphaMode;
+    int textureInfo;
     struct GltfMaterial *materials;
 
     array = objectValue(json, tokens, tokenCount, 0, "materials");
@@ -553,6 +557,7 @@ static struct GltfMaterial *readMaterials(const char *json,
         materials[index].color[1] = 1.0f;
         materials[index].color[2] = 1.0f;
         materials[index].color[3] = 1.0f;
+        materials[index].texture = -1;
         object = arrayItem(tokens, tokenCount, array, index);
         pbr = objectValue(json, tokens, tokenCount, object,
                           "pbrMetallicRoughness");
@@ -565,6 +570,22 @@ static struct GltfMaterial *readMaterials(const char *json,
                 materials[index].color[component] =
                     (float)tokenNumber(json, &tokens[colorToken]);
             }
+        textureInfo = objectValue(json, tokens, tokenCount, pbr,
+                                  "baseColorTexture");
+        if (textureInfo >= 0)
+            {
+            if (tokenInteger(json, tokens,
+                objectValue(json, tokens, tokenCount, textureInfo,
+                            "texCoord"), 0) != 0)
+                {
+                free(materials);
+                *resultCount = -2;
+                return NULL;
+                }
+            materials[index].texture = tokenInteger(json, tokens,
+                objectValue(json, tokens, tokenCount, textureInfo,
+                            "index"), -1);
+            }
         alphaMode = objectValue(json, tokens, tokenCount, object,
                                 "alphaMode");
         materials[index].blend = alphaMode >= 0 &&
@@ -572,6 +593,148 @@ static struct GltfMaterial *readMaterials(const char *json,
         }
     *resultCount = count;
     return materials;
+    }
+
+static int textureUsesLinearFilter(int magnification, int minification)
+    {
+    if (magnification == 9728 || minification == 9728 ||
+        minification == 9984 || minification == 9986)
+        return 0;
+    return 1;
+    }
+
+static int readTextures(const char *json, const struct JsonToken *tokens,
+                        int tokenCount, const unsigned char *binary,
+                        size_t binaryLength,
+                        const struct GltfBufferView *views, int viewCount,
+                        const struct GltfMaterial *materials,
+                        int materialCount, struct AssetModel *model)
+    {
+    struct AssetImage image;
+    unsigned char *used;
+    int texturesArray;
+    int textureCount;
+    int imagesArray;
+    int imageCount;
+    int samplersArray;
+    int samplerCount;
+    int material;
+    int textureIndex;
+    int textureObject;
+    int samplerIndex;
+    int samplerObject;
+    int source;
+    int imageObject;
+    int viewIndex;
+    int mimeToken;
+    int magnification;
+    int minification;
+    int wrapS;
+    int wrapT;
+    char imageError[128];
+
+    texturesArray = objectValue(json, tokens, tokenCount, 0, "textures");
+    textureCount = arrayLength(tokens, tokenCount, texturesArray);
+    for (material = 0; material < materialCount; material++)
+        if (materials[material].texture >= textureCount)
+            return 0;
+    if (textureCount <= 0)
+        {
+        for (material = 0; material < materialCount; material++)
+            if (materials[material].texture >= 0)
+                return 0;
+        return 1;
+        }
+    used = (unsigned char *)calloc((size_t)textureCount, sizeof(*used));
+    model->textures = (struct AssetTexture *)calloc(
+        (size_t)textureCount, sizeof(*model->textures));
+    if (used == NULL || model->textures == NULL)
+        {
+        free(used);
+        return 0;
+        }
+    model->textureCount = (size_t)textureCount;
+    for (material = 0; material < materialCount; material++)
+        if (materials[material].texture >= 0)
+            used[materials[material].texture] = 1;
+
+    imagesArray = objectValue(json, tokens, tokenCount, 0, "images");
+    imageCount = arrayLength(tokens, tokenCount, imagesArray);
+    samplersArray = objectValue(json, tokens, tokenCount, 0, "samplers");
+    samplerCount = arrayLength(tokens, tokenCount, samplersArray);
+    for (textureIndex = 0; textureIndex < textureCount; textureIndex++)
+        {
+        if (!used[textureIndex])
+            continue;
+        textureObject = arrayItem(tokens, tokenCount, texturesArray,
+                                  textureIndex);
+        source = tokenInteger(json, tokens,
+            objectValue(json, tokens, tokenCount, textureObject, "source"),
+            -1);
+        if (source < 0 || source >= imageCount)
+            goto invalid;
+        samplerIndex = tokenInteger(json, tokens,
+            objectValue(json, tokens, tokenCount, textureObject, "sampler"),
+            -1);
+        magnification = 9729;
+        minification = 9987;
+        wrapS = wrapT = 10497;
+        if (samplerIndex >= 0)
+            {
+            if (samplerIndex >= samplerCount)
+                goto invalid;
+            samplerObject = arrayItem(tokens, tokenCount, samplersArray,
+                                      samplerIndex);
+            magnification = tokenInteger(json, tokens,
+                objectValue(json, tokens, tokenCount, samplerObject,
+                            "magFilter"), magnification);
+            minification = tokenInteger(json, tokens,
+                objectValue(json, tokens, tokenCount, samplerObject,
+                            "minFilter"), minification);
+            wrapS = tokenInteger(json, tokens,
+                objectValue(json, tokens, tokenCount, samplerObject,
+                            "wrapS"), wrapS);
+            wrapT = tokenInteger(json, tokens,
+                objectValue(json, tokens, tokenCount, samplerObject,
+                            "wrapT"), wrapT);
+            }
+        model->textures[textureIndex].linear =
+            textureUsesLinearFilter(magnification, minification);
+        model->textures[textureIndex].repeat =
+            wrapS == 10497 && wrapT == 10497;
+
+        imageObject = arrayItem(tokens, tokenCount, imagesArray, source);
+        viewIndex = tokenInteger(json, tokens,
+            objectValue(json, tokens, tokenCount, imageObject, "bufferView"),
+            -1);
+        mimeToken = objectValue(json, tokens, tokenCount, imageObject,
+                                "mimeType");
+        if (viewIndex < 0 || viewIndex >= viewCount ||
+            views[viewIndex].buffer != 0 ||
+            views[viewIndex].offset > binaryLength ||
+            views[viewIndex].length > binaryLength - views[viewIndex].offset ||
+            mimeToken < 0 ||
+            !tokenEquals(json, &tokens[mimeToken], "image/png"))
+            goto invalid;
+        assetImageInitialize(&image);
+        if (!assetImageDecodePNG(binary + views[viewIndex].offset,
+                                 views[viewIndex].length, &image,
+                                 imageError, sizeof(imageError)) ||
+            !assetImageMakePowerOfTwo(&image,
+                                      imageError, sizeof(imageError)))
+            goto invalid;
+        model->textures[textureIndex].pixels = image.pixels;
+        model->textures[textureIndex].width = image.width;
+        model->textures[textureIndex].height = image.height;
+        image.pixels = NULL;
+        assetImageDestroy(&image);
+        }
+    free(used);
+    return 1;
+
+invalid:
+    free(used);
+    return 0;
     }
 
 static double readComponent(const unsigned char *bytes, int componentType,
@@ -1392,7 +1555,16 @@ static int buildStaticModel(const char *json, const struct JsonToken *tokens,
     materials = readMaterials(json, tokens, tokenCount, &materialCount);
     if (materialCount < 0)
         {
-        setAssetError(error, errorSize, "Out of memory loading GLB materials");
+        setAssetError(error, errorSize, materialCount == -2 ?
+                      "Only TEXCOORD_0 base-color textures are supported" :
+                      "Out of memory loading GLB materials");
+        goto cleanup;
+        }
+    if (!readTextures(json, tokens, tokenCount, binary, binaryLength,
+                      views, viewCount, materials, materialCount, model))
+        {
+        setAssetError(error, errorSize,
+                      "Invalid or unsupported embedded GLB texture");
         goto cleanup;
         }
 
@@ -1493,6 +1665,14 @@ static int buildStaticModel(const char *json, const struct JsonToken *tokens,
             goto cleanup;
             }
         mesh->vertexCount = meshVertices;
+        mesh->parts = (struct AssetMeshPart *)calloc(
+            (size_t)primitiveCount, sizeof(*mesh->parts));
+        if (mesh->parts == NULL)
+            {
+            setAssetError(error, errorSize,
+                          "Out of memory loading GLB mesh parts");
+            goto cleanup;
+            }
         outputOffset = 0;
         for (primitiveIndex = 0; primitiveIndex < primitiveCount; primitiveIndex++)
             {
@@ -1503,6 +1683,17 @@ static int buildStaticModel(const char *json, const struct JsonToken *tokens,
                                                         primitive);
             if (primitiveVertices == 0)
                 continue;
+            materialIndex = tokenInteger(json, tokens,
+                objectValue(json, tokens, tokenCount, primitive, "material"),
+                -1);
+            mesh->parts[mesh->partCount].firstVertex = outputOffset;
+            mesh->parts[mesh->partCount].vertexCount = primitiveVertices;
+            mesh->parts[mesh->partCount].texture =
+                materialIndex >= 0 && materialIndex < materialCount ?
+                    materials[materialIndex].texture : -1;
+            mesh->parts[mesh->partCount].blend =
+                materialIndex >= 0 && materialIndex < materialCount ?
+                    materials[materialIndex].blend : 0;
             if (!fillPrimitive(json, tokens, tokenCount, binary, binaryLength,
                                views, viewCount, accessors, accessorCount,
                                materials, materialCount, primitive,
@@ -1512,6 +1703,7 @@ static int buildStaticModel(const char *json, const struct JsonToken *tokens,
                 goto cleanup;
                 }
             outputOffset += primitiveVertices;
+            mesh->partCount++;
             }
         }
 

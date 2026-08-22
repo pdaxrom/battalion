@@ -196,11 +196,13 @@ authored canonical assets and non-height-based props. Do not specify `height`
 and `scale` together: the descriptor is rejected rather than choosing an
 ambiguous precedence.
 
-The close chase camera selected with `1` uses the controllable entity's
-collision height. Small entities therefore move the camera closer
-automatically; a human-sized actor fills at least one third of the vertical
-view. Large entities retain the historical maximum chase distance. This
-changes only camera framing and never rescales the model.
+Views `1` and `2` use the controllable entity's collision height together with
+its authored `view-1-height-fraction` and `view-2-height-fraction`. These values
+are the desired fraction of the viewport's vertical span, not world scale.
+Small entities therefore move the camera closer without being enlarged. Moira
+uses `0.34` in view 1 and `0.25` in view 2, so her projected height is at least
+one third and one quarter respectively. This changes only camera framing and
+never rescales the model.
 
 There are two valid export workflows:
 
@@ -239,6 +241,9 @@ The loader supports:
 - multiple primitives when every primitive in one glTF mesh uses the same
   primitive mode;
 - `pbrMetallicRoughness.baseColorFactor` as the material colour;
+- `pbrMetallicRoughness.baseColorTexture` using `TEXCOORD_0` and an embedded
+  non-interlaced 8-bit PNG image;
+- independent material/texture assignments for every primitive in a mesh;
 - `alphaMode: "BLEND"` and authored material or vertex alpha;
 - node hierarchies and the active glTF scene;
 - node matrix transforms for static nodes;
@@ -260,14 +265,18 @@ The following are not part of the current runtime profile:
 
 - morph targets;
 - mesh compression extensions;
-- embedded or external glTF image textures;
+- external glTF image URIs and image formats other than embedded PNG;
+- normal, metallic/roughness, occlusion, and emissive texture maps;
 - PBR metallic/roughness lighting beyond the base colour;
 - animation weights and arbitrary extension channels;
 - cubic-spline animation playback.
 
-Use material base colours and vertex colours for general entity models. TGA
-textures are loaded separately for registered renderer roles; a texture
-referenced inside a GLB is not bound automatically.
+Base-colour textures are decoded by the renderer-neutral asset layer and are
+modulated by `baseColorFactor` and `COLOR_0`. PNG decoding is built into the
+engine and adds no `libpng` or `zlib` dependency on historical platforms.
+Images are expanded to RGBA and, when necessary, power-of-two dimensions for
+older OpenGL implementations. TGA textures remain separate manifest assets
+for registered renderer roles; they are not glTF material images.
 
 ### Skeletal model
 
@@ -321,8 +330,9 @@ or any other exporter-specific name. When an entity moves backward and has no
 `backward-animation`, it deliberately falls back to `move-animation`.
 
 Current skeletal exclusions are morph targets (including blink/visemes),
-`CUBICSPLINE`, IK, retargeting, and animation blending. Texture images embedded
-in or referenced by the GLB are also not bound by the current renderer.
+`CUBICSPLINE`, IK, retargeting, and animation blending. Base-colour PNG images
+are supported independently of skinning; the texture-map exclusions listed
+above apply equally to static and skinned models.
 
 For historical line and point assets, the first primitive may carry these
 optional `extras` values:
@@ -707,6 +717,8 @@ actual barrel, hand, mouth, or eye without entity-specific engine code.
 | `aim-pitch-max` | `40` | Upper pitch limit in degrees. |
 | `first-person-eye-height` | `0` | True first-person eye/cockpit height. Must be positive when controllable. |
 | `first-person-visible` | `no` | Draw the player's model in true first-person view. |
+| `view-1-height-fraction` | required | Desired projected entity height in view 1, strictly between `0` and `1`. |
+| `view-2-height-fraction` | required | Desired projected entity height in view 2, strictly between `0` and `1`. |
 
 For a controllable armed entity, `muzzle-node` is mandatory. Pitch minimum must
 be below maximum and the default must lie inside the interval.
@@ -716,10 +728,12 @@ gives W/S forward and reverse with A/D hull turning, appropriate for tracked or
 wheeled vehicles. Mouse and IJKL aiming are independent from hull steering when
 aim nodes are configured.
 
-View 1 is the original close third-person chase view. View 5 is true
-first-person. Tune `vertical-offset`, collision/player dimensions, and
+View 1 is the original close third-person chase view, view 2 is the rotatable
+overview, and view 5 is true first-person. The two height-fraction directives
+control framing independently; increasing a fraction moves that camera closer.
+Tune `vertical-offset`, collision/player dimensions, and
 `first-person-eye-height` together; do not compensate for a bad model origin by
-moving only the camera.
+changing model scale merely to alter camera framing.
 
 `vertical-offset` moves the rendered/model origin. It does not move the
 controllable player's collision envelope. A ground actor normally uses
@@ -989,6 +1003,8 @@ aim-pitch-min -20
 aim-pitch-max 35
 first-person-eye-height 0.28
 first-person-visible no
+view-1-height-fraction 0.34
+view-2-height-fraction 0.25
 ```
 
 The tracks clip belongs inside the same complete tank GLB. Turret and barrel
@@ -1289,9 +1305,11 @@ ordinary and player collision envelopes to the visual body.
 
 ### Model loads but is white
 
-The GLB loader uses material base colour and vertex colour, not glTF image
-textures. Author colours in `baseColorFactor`/`COLOR_0`, or use an existing
-registered external TGA renderer role where appropriate.
+Check that each material uses `pbrMetallicRoughness.baseColorTexture`, that the
+texture uses `TEXCOORD_0`, and that its image is an embedded non-interlaced
+8-bit PNG. A material without a texture uses `baseColorFactor` and `COLOR_0`;
+their default is white. External image URIs and normal-map-only materials do
+not supply a base colour.
 
 ### Model is transparent in the authoring tool but opaque in game
 

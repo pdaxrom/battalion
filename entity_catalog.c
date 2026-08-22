@@ -271,6 +271,8 @@ static void initializeArchetype(struct EntityArchetype *entry)
     entry->aimPitchMin = -40.0f;
     entry->aimPitchMax = 40.0f;
     entry->firstPersonEyeHeight = 0.0f;
+    entry->view1HeightFraction = 0.0f;
+    entry->view2HeightFraction = 0.0f;
     }
 
 void entityCatalogInitialize(struct EntityCatalog *catalog)
@@ -592,6 +594,10 @@ static int assignDirective(struct EntityArchetype *entry,
         return parseFloat(value, &entry->aimPitchMax);
     if (strcmp(directive, "first-person-eye-height") == 0)
         return parseFloat(value, &entry->firstPersonEyeHeight);
+    if (strcmp(directive, "view-1-height-fraction") == 0)
+        return parseFloat(value, &entry->view1HeightFraction);
+    if (strcmp(directive, "view-2-height-fraction") == 0)
+        return parseFloat(value, &entry->view2HeightFraction);
     return 0;
     }
 
@@ -686,7 +692,11 @@ static int validArchetype(const struct EntityArchetype *entry,
           entry->aimPitchMin >= entry->aimPitchMax ||
           entry->aimPitchDefault < entry->aimPitchMin ||
           entry->aimPitchDefault > entry->aimPitchMax ||
-          entry->firstPersonEyeHeight <= 0.0f)))
+          entry->firstPersonEyeHeight <= 0.0f ||
+          entry->view1HeightFraction <= 0.0f ||
+          entry->view1HeightFraction >= 1.0f ||
+          entry->view2HeightFraction <= 0.0f ||
+          entry->view2HeightFraction >= 1.0f)))
         return 0;
     if (entry->weapon != ENTITY_WEAPON_NONE &&
         entry->muzzleNode[0] == '\0')

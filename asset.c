@@ -237,6 +237,8 @@ void assetModelInitialize(struct AssetModel *model)
     {
     model->meshes = NULL;
     model->meshCount = 0;
+    model->textures = NULL;
+    model->textureCount = 0;
     model->nodes = NULL;
     model->nodeCount = 0;
     model->skins = NULL;
@@ -258,7 +260,12 @@ void assetModelDestroy(struct AssetModel *model)
     if (model == NULL)
         return;
     for (mesh = 0; mesh < model->meshCount; mesh++)
+        {
         free(model->meshes[mesh].vertices);
+        free(model->meshes[mesh].parts);
+        }
+    for (mesh = 0; mesh < model->textureCount; mesh++)
+        free(model->textures[mesh].pixels);
     for (node = 0; node < model->nodeCount; node++)
         {
         free(model->nodes[node].name);
@@ -281,6 +288,7 @@ void assetModelDestroy(struct AssetModel *model)
         free(model->skins[skin].inverseBindMatrices);
         }
     free(model->meshes);
+    free(model->textures);
     free(model->nodes);
     free(model->skins);
     free(model->sceneRoots);

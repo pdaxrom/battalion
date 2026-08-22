@@ -102,6 +102,7 @@ SOURCES := \
 
 SOURCES += asset.c asset_gltf.c asset_animation.c asset_skin.c asset_render.c \
 	asset_manifest.c asset_bindings.c asset_tga.c asset_values.c stroke_font_asset.c \
+	asset_png.c \
 	audio_catalog.c entity_catalog.c entity_behavior.c world_coordinates.c
 
 PLATFORM_CPPFLAGS :=
@@ -301,11 +302,11 @@ CAMERA_VIEW_TEST := $(TEST_BUILD_DIR)/camera-view-test
 $(MAP_TEST): tests/map_test.c map.c map.h map_package.c map_package.h entity_behavior.c entity_behavior.h entity_catalog.c entity_catalog.h Makefile | $(TEST_BUILD_DIR)
 	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< map.c map_package.c entity_behavior.c entity_catalog.c -lm -o $@
 
-$(ASSET_TEST): tests/asset_gltf_test.c asset.c asset_gltf.c asset_animation.c asset_skin.c asset_write.c asset_tga.c asset.h asset_animation.h asset_skin.h asset_write.h asset_tga.h Makefile | $(TEST_BUILD_DIR)
-	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< asset.c asset_gltf.c asset_animation.c asset_skin.c asset_write.c asset_tga.c -lm -o $@
+$(ASSET_TEST): tests/asset_gltf_test.c asset.c asset_gltf.c asset_animation.c asset_skin.c asset_write.c asset_tga.c asset_png.c asset.h asset_animation.h asset_skin.h asset_write.h asset_tga.h asset_png.h Makefile | $(TEST_BUILD_DIR)
+	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< asset.c asset_gltf.c asset_animation.c asset_skin.c asset_write.c asset_tga.c asset_png.c -lm -o $@
 
-$(ASSET_SKIN_TEST): tests/asset_skin_test.c asset.c asset_gltf.c asset_animation.c asset_skin.c entity_catalog.c asset.h asset_animation.h asset_skin.h entity_catalog.h Makefile | $(TEST_BUILD_DIR)
-	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< asset.c asset_gltf.c asset_animation.c asset_skin.c entity_catalog.c -lm -o $@
+$(ASSET_SKIN_TEST): tests/asset_skin_test.c asset.c asset_gltf.c asset_animation.c asset_skin.c entity_catalog.c asset_png.c asset_tga.c asset.h asset_animation.h asset_skin.h entity_catalog.h asset_png.h asset_tga.h Makefile | $(TEST_BUILD_DIR)
+	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< asset.c asset_gltf.c asset_animation.c asset_skin.c entity_catalog.c asset_png.c asset_tga.c -lm -o $@
 
 $(ASSET_CATALOG_TEST): tests/asset_catalog_test.c Makefile | $(TEST_BUILD_DIR)
 	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< -o $@

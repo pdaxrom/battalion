@@ -17,15 +17,17 @@ clips. The engine-side `AssetModel` is renderer-neutral: neither the loader nor
 the animation sampler depends on OpenGL, Metal, or the future GLES backend.
 
 The import profile supports triangle, line, and point primitives; indexed and non-indexed
-positions, vertex normals/UVs/colors, `baseColorFactor`, scene nodes with matrix
-or TRS transforms, and animation channels for node translation, rotation, and
-scale. Standard glTF skins, joints, inverse-bind matrices, `JOINTS_0`, and
+positions, vertex normals/UVs/colors, `baseColorFactor`, embedded PNG
+`baseColorTexture` materials, scene nodes with matrix or TRS transforms, and
+animation channels for node translation, rotation, and scale. Standard glTF
+skins, joints, inverse-bind matrices, `JOINTS_0`, and
 `WEIGHTS_0` are evaluated with renderer-neutral linear-blend skinning. Every
 mesh-node/skin instance owns its palette, so packed actors may contain
 incompatible skeleton copies. `LINEAR` and `STEP` interpolation are supported.
-GLB image textures, morph targets, mesh compression, and cubic-spline playback
-remain later steps. External TGA textures used by the current assets are cataloged
-separately in the same manifest.
+Normal/metallic/occlusion/emissive maps, external image URIs, morph targets,
+mesh compression, and cubic-spline playback remain later steps. External TGA
+textures used by engine render roles are cataloged separately in the same
+manifest.
 
 `assets/manifest.txt` uses the `battalion-assets 2` catalog and declares every
 runtime model, texture, animation, and auxiliary authored file. Catalog keys
@@ -188,9 +190,13 @@ collision-envelope bounds relative to `PLANEY`; neither value inherits
 air actor declares both bounds above the terrain so it can clear low objects
 without passing through tall structures. Camera framing is derived from these
 authored values, so short ground vehicles, humanoids, tall monsters, and
-hovering aircraft do not require type-specific camera or placement code. View 1 remains the original
-close third-person camera, while view 5 is first-person. First-person eye height and
-player-model visibility are also authored per entity.
+hovering aircraft do not require type-specific camera or placement code. Each
+controllable descriptor must provide `view-1-height-fraction` and
+`view-2-height-fraction`; the renderer computes camera distance so the authored
+collision height occupies that fraction of the viewport. View 1 remains the
+original close third-person camera, view 2 is the overview, and view 5 is
+first-person. First-person eye height and player-model visibility are also
+authored per entity.
 `model-yaw-offset` is a data-side correction for imported models whose visual
 forward axis does not match the engine's `+Z`; it does not alter physics or aim.
 

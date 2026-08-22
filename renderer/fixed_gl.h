@@ -164,6 +164,9 @@ void glListBase(GLuint base);
 void glTexImage2D(GLenum target, GLint level, GLint internalFormat,
                   GLsizei width, GLsizei height, GLint border, GLenum format,
                   GLenum type, const GLvoid *pixels);
+void glGenTextures(GLsizei count, GLuint *textures);
+void glBindTexture(GLenum target, GLuint texture);
+void glDeleteTextures(GLsizei count, const GLuint *textures);
 void glTexParameterf(GLenum target, GLenum name, GLfloat value);
 void glTexEnvf(GLenum target, GLenum name, GLfloat value);
 

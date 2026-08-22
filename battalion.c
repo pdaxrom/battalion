@@ -390,6 +390,7 @@ struct targetInfo * targets;
 /*********************/
 
 GLfloat xrot, xsaverot, yrot, ysaverot;
+static float overviewRotationPivotY;
 
 struct tree allTreesOnPlane[MAXTREESONPLANE];
 struct tree * allTreesOnPlanePtrs[MAXTREESONPLANE];
@@ -5388,7 +5389,9 @@ void goToMonsterView(int eyeball)
 	{
 	playerBottom = PLANEY + playerEntityArchetype->verticalOffset;
 	playerHeight = playerEntityArchetype->collisionHeight;
-	if (chaseCameraFrame(playerBottom, playerHeight, &chaseFrame))
+	if (chaseCameraFrame(playerBottom, playerHeight,
+	                     playerEntityArchetype->view1HeightFraction,
+	                     &chaseFrame))
 	    {
 	    cameraDistance = chaseFrame.distance;
 	    nearClip = chaseFrame.nearClip;
@@ -5553,34 +5556,47 @@ void goToMapView()
 
 void goToOverView(int eyeball)
     {
+    float cameraDistance;
     float centerY;
+    float nearClip;
+    struct OverviewCameraFrame overviewFrame;
 
     view = OMNISCIENTVIEW;
 
+    cameraDistance = 9.0f;
+    nearClip = 0.1f;
+    centerY = 0.0f;
+    if (Googelon.monster == DATAENTITY && playerEntityArchetype != NULL &&
+        overviewCameraFrame(PLANEY + playerEntityArchetype->verticalOffset,
+                            playerEntityArchetype->collisionHeight,
+                            playerEntityArchetype->view2HeightFraction,
+                            xrot * 0.1f,
+                            &overviewFrame))
+	{
+	cameraDistance = overviewFrame.distance;
+	nearClip = overviewFrame.nearClip;
+	centerY = overviewFrame.centerY;
+	}
+    overviewRotationPivotY = centerY;
 
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    gluPerspective(60,  1,   0.1,   25);
+    gluPerspective(60,  1,   nearClip,   25);
     glMatrixMode(GL_MODELVIEW);
-
-    if (Googelon.monster == DATAENTITY && playerEntityArchetype != NULL)
-	centerY = PLANEY + playerEntityArchetype->verticalOffset +
-	          playerEntityArchetype->collisionHeight * 0.5f;
-    else
-	centerY = 0;
 
     switch(eyeball){
 	case 2: if (Googelon.monster == DATAENTITY)
-		    gluLookAt(0, centerY, 9, 0, centerY, 0, 0, 1, 0);
+		    gluLookAt(0, centerY, cameraDistance,
+		              0, centerY, 0, 0, 1, 0);
 		else
 		    glCallList(overviewLookat);
 		break;
 
-	case 0: gluLookAt( 0.05, centerY, 9,
+	case 0: gluLookAt( 0.05, centerY, cameraDistance,
 			   0.05, centerY, 0, 0,1,0);
 		break;
 
-	case 1: gluLookAt(-0.05, centerY, 9,
+	case 1: gluLookAt(-0.05, centerY, cameraDistance,
 			  -0.05, centerY, 0, 0,1,0);
 		break;
 	}
@@ -5774,7 +5790,13 @@ void doDrawing (int eyeball)
     /***********************************/
 
     if (xrot != 0)
+	{
+	if (view == OMNISCIENTVIEW && Googelon.monster == DATAENTITY)
+	    glTranslatef(0, overviewRotationPivotY, 0);
 	glRotatef(0.1 * xrot, 1,0,0);
+	if (view == OMNISCIENTVIEW && Googelon.monster == DATAENTITY)
+	    glTranslatef(0, -overviewRotationPivotY, 0);
+	}
 
     if (yrot != 0)
     	glRotatef(0.1 * yrot, 0,1,0);

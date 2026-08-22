@@ -143,7 +143,10 @@ int main(void)
         moira->weapon != ENTITY_WEAPON_NONE || moira->height != 0.165f ||
         !moira->heightSpecified || moira->scaleSpecified ||
         moira->scale != 1.0f ||
-        moira->collisionHeight != 0.165f)
+        moira->modelYawOffset != 180.0f ||
+        moira->collisionHeight != 0.165f ||
+        moira->view1HeightFraction != 0.34f ||
+        moira->view2HeightFraction != 0.25f)
         {
         entityCatalogDestroy(&catalog);
         return 1;

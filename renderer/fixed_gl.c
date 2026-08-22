@@ -30,6 +30,7 @@ typedef struct FixedState {
     GLenum polygonMode;
     GLuint listBase;
     unsigned int texture;
+    GLuint boundTexture;
     int textureEnabled;
     int textureLinear;
     int textureRepeat;
@@ -51,7 +52,7 @@ enum CommandOp {
     CMD_DEPTH_RANGE, CMD_SHADE_MODEL, CMD_POLYGON_MODE, CMD_LINE_WIDTH,
     CMD_POINT_SIZE, CMD_FOGI, CMD_HINT, CMD_PUSH_ATTRIB, CMD_POP_ATTRIB,
     CMD_CLEAR_COLOR, CMD_CLEAR_DEPTH, CMD_CLEAR, CMD_VIEWPORT, CMD_SCISSOR,
-    CMD_CALL_LIST, CMD_LIST_BASE, CMD_TEX_IMAGE, CMD_TEX_PARAMETER,
+    CMD_CALL_LIST, CMD_LIST_BASE, CMD_BIND_TEXTURE, CMD_TEX_IMAGE, CMD_TEX_PARAMETER,
     CMD_TEX_ENV
 };
 
@@ -89,6 +90,9 @@ static int insideBegin;
 static DisplayList **displayLists;
 static size_t displayListCapacity;
 static GLuint nextList = 1;
+static unsigned int *textureObjects;
+static size_t textureObjectCapacity;
+static GLuint nextTextureObject = 1;
 static DisplayList *recordingList;
 static int replayDepth;
 static GLenum lastError = GL_NO_ERROR;
@@ -196,6 +200,22 @@ static void ensureDisplayListCapacity(GLuint id)
     displayLists = (DisplayList **)realloc(displayLists, capacity * sizeof(DisplayList *));
     memset(displayLists + oldCapacity, 0, (capacity - oldCapacity) * sizeof(DisplayList *));
     displayListCapacity = capacity;
+}
+
+static void ensureTextureObjectCapacity(GLuint id)
+{
+    size_t capacity, oldCapacity;
+    if (id < textureObjectCapacity)
+        return;
+    oldCapacity = textureObjectCapacity;
+    capacity = oldCapacity ? oldCapacity : 256;
+    while (id >= capacity)
+        capacity *= 2;
+    textureObjects = (unsigned int *)realloc(
+        textureObjects, capacity * sizeof(*textureObjects));
+    memset(textureObjects + oldCapacity, 0,
+           (capacity - oldCapacity) * sizeof(*textureObjects));
+    textureObjectCapacity = capacity;
 }
 
 static void ensureVertexCapacity(size_t count)
@@ -705,6 +725,8 @@ static void executeCommand(Command *c)
       case CMD_SCISSOR: glScissor(c->i[0],c->i[1],c->i[2],c->i[3]); break;
       case CMD_CALL_LIST: glCallList((GLuint)c->i[0]); break;
       case CMD_LIST_BASE: glListBase((GLuint)c->i[0]); break;
+      case CMD_BIND_TEXTURE: glBindTexture((GLenum)c->i[0],
+                                           (GLuint)c->i[1]); break;
       case CMD_TEX_IMAGE:
         if (!c->cachedTexture) {
             if (c->i[2] == GL_RGBA)
@@ -712,6 +734,8 @@ static void executeCommand(Command *c)
             else
                 c->cachedTexture=rendererBackendCreateLuminanceTexture(c->i[0],c->i[1],c->data);
         }
+        ensureTextureObjectCapacity(state.boundTexture);
+        textureObjects[state.boundTexture]=c->cachedTexture;
         state.texture=c->cachedTexture;
         break;
       case CMD_TEX_PARAMETER: glTexParameterf((GLenum)c->i[0],(GLenum)c->i[1],c->f[0]); break;
@@ -744,6 +768,49 @@ void glListBase(GLuint base)
     Command *c; if(isRecording()){c=appendCommand(CMD_LIST_BASE);c->i[0]=(GLint)base;return;} state.listBase=base;
 }
 
+void glGenTextures(GLsizei count, GLuint *textures)
+{
+    int index;
+    initializeState();
+    if (count <= 0 || textures == NULL)
+        return;
+    ensureTextureObjectCapacity(nextTextureObject + (GLuint)count);
+    for (index = 0; index < count; index++)
+        textures[index] = nextTextureObject++;
+}
+
+void glBindTexture(GLenum target, GLuint texture)
+{
+    Command *command;
+    if (target != GL_TEXTURE_2D)
+        return;
+    if (isRecording()) {
+        command=appendCommand(CMD_BIND_TEXTURE);
+        command->i[0]=(GLint)target;
+        command->i[1]=(GLint)texture;
+        return;
+    }
+    initializeState();
+    ensureTextureObjectCapacity(texture);
+    state.boundTexture=texture;
+    state.texture=textureObjects[texture];
+}
+
+void glDeleteTextures(GLsizei count, const GLuint *textures)
+{
+    int index;
+    if (textures == NULL)
+        return;
+    for (index = 0; index < count; index++)
+        if (textures[index] < textureObjectCapacity) {
+            textureObjects[textures[index]]=0;
+            if (state.boundTexture == textures[index]) {
+                state.boundTexture=0;
+                state.texture=textureObjectCapacity > 0 ? textureObjects[0] : 0;
+            }
+        }
+}
+
 void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei width,
                   GLsizei height, GLint border, GLenum format, GLenum type,
                   const GLvoid *pixels)
@@ -756,10 +823,12 @@ void glTexImage2D(GLenum target, GLint level, GLint internalFormat, GLsizei widt
         c=appendCommand(CMD_TEX_IMAGE);c->i[0]=width;c->i[1]=height;c->i[2]=(GLint)format;c->dataSize=size;
         c->data=(unsigned char *)malloc(size);memcpy(c->data,pixels,size);return;
     }
+    ensureTextureObjectCapacity(state.boundTexture);
     if(format==GL_RGBA)
         state.texture=rendererBackendCreateRGBA8Texture(width,height,(const unsigned char *)pixels);
     else
         state.texture=rendererBackendCreateLuminanceTexture(width,height,(const unsigned char *)pixels);
+    textureObjects[state.boundTexture]=state.texture;
 }
 void glTexParameterf(GLenum target, GLenum name, GLfloat value)
 {

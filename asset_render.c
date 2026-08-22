@@ -100,9 +100,39 @@ static void nodeMatrix(const struct AssetNode *node,
     matrix[14] = pose != NULL ? pose->translation[2] : node->translation[2];
     }
 
-static void drawMesh(const struct AssetMesh *mesh, const float matrix[16],
-                     const struct AssetPose *pose,
-                     const struct AssetSkinPalette *palette)
+static void prepareTextures(struct AssetModel *model)
+    {
+    struct AssetTexture *texture;
+    size_t textureIndex;
+
+    for (textureIndex = 0; textureIndex < model->textureCount; textureIndex++)
+        {
+        texture = &model->textures[textureIndex];
+        if (texture->rendererTexture != 0 || texture->pixels == NULL ||
+            texture->width <= 0 || texture->height <= 0)
+            continue;
+        glGenTextures(1, &texture->rendererTexture);
+        glBindTexture(GL_TEXTURE_2D, texture->rendererTexture);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA,
+                     texture->width, texture->height, 0,
+                     GL_RGBA, GL_UNSIGNED_BYTE, texture->pixels);
+        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S,
+                        texture->repeat ? GL_REPEAT : GL_CLAMP);
+        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T,
+                        texture->repeat ? GL_REPEAT : GL_CLAMP);
+        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER,
+                        texture->linear ? GL_LINEAR : GL_NEAREST);
+        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
+                        texture->linear ? GL_LINEAR : GL_NEAREST);
+        glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+        }
+    }
+
+static void drawMeshPart(const struct AssetMesh *mesh,
+                         const struct AssetMeshPart *part,
+                         const float matrix[16],
+                         const struct AssetPose *pose,
+                         const struct AssetSkinPalette *palette)
     {
     const struct AssetVertex *vertex;
     float position[3];
@@ -115,7 +145,7 @@ static void drawMesh(const struct AssetMesh *mesh, const float matrix[16],
     GLboolean blending;
 
     blending = glIsEnabled(GL_BLEND);
-    if (mesh->blend && !blending)
+    if (part->blend && !blending)
 	glEnable(GL_BLEND);
 
     if (mesh->primitive == ASSET_PRIMITIVE_LINES)
@@ -134,7 +164,8 @@ static void drawMesh(const struct AssetMesh *mesh, const float matrix[16],
 	}
     else
 	glBegin(GL_TRIANGLES);
-    for (vertexIndex = 0; vertexIndex < mesh->vertexCount; vertexIndex++)
+    for (vertexIndex = part->firstVertex;
+         vertexIndex < part->firstVertex + part->vertexCount; vertexIndex++)
 	{
 	vertex = &mesh->vertices[vertexIndex];
 	assetSkinVertex(palette, vertex, localPosition, localNormal);
@@ -169,8 +200,45 @@ static void drawMesh(const struct AssetMesh *mesh, const float matrix[16],
 	glLineWidth(savedSize);
     else if (mesh->primitive == ASSET_PRIMITIVE_POINTS)
 	glPointSize(savedSize);
-    if (mesh->blend && !blending)
+    if (part->blend && !blending)
 	glDisable(GL_BLEND);
+    }
+
+static void drawMesh(const struct AssetModel *model,
+                     const struct AssetMesh *mesh, const float matrix[16],
+                     const struct AssetPose *pose,
+                     const struct AssetSkinPalette *palette)
+    {
+    struct AssetMeshPart fallbackPart;
+    const struct AssetMeshPart *part;
+    GLboolean texturing;
+    size_t partIndex;
+
+    texturing = glIsEnabled(GL_TEXTURE_2D);
+    fallbackPart.firstVertex = 0;
+    fallbackPart.vertexCount = mesh->vertexCount;
+    fallbackPart.texture = -1;
+    fallbackPart.blend = mesh->blend;
+    for (partIndex = 0;
+         partIndex < (mesh->partCount > 0 ? mesh->partCount : 1);
+         partIndex++)
+        {
+        part = mesh->partCount > 0 ? &mesh->parts[partIndex] : &fallbackPart;
+        if (part->texture >= 0 && part->texture < (int)model->textureCount &&
+            model->textures[part->texture].rendererTexture != 0)
+            {
+            glBindTexture(GL_TEXTURE_2D,
+                          model->textures[part->texture].rendererTexture);
+            glEnable(GL_TEXTURE_2D);
+            }
+        else
+            glDisable(GL_TEXTURE_2D);
+        drawMeshPart(mesh, part, matrix, pose, palette);
+        }
+    if (texturing)
+        glEnable(GL_TEXTURE_2D);
+    else
+        glDisable(GL_TEXTURE_2D);
     }
 
 static void drawNode(const struct AssetModel *model, int nodeIndex,
@@ -199,7 +267,8 @@ static void drawNode(const struct AssetModel *model, int nodeIndex,
 	assetSkinPaletteInitialize(&palette);
 	selectedPalette = assetSkinPaletteBuild(model, nodeIndex, pose,
 	                                         &palette) ? &palette : NULL;
-	drawMesh(&model->meshes[node->mesh], worldMatrix, pose, selectedPalette);
+	drawMesh(model, &model->meshes[node->mesh], worldMatrix, pose,
+                 selectedPalette);
 	assetSkinPaletteDestroy(&palette);
 	}
     for (child = 0; child < node->childCount; child++)
@@ -214,13 +283,14 @@ void assetModelDraw(const struct AssetModel *model, const struct AssetPose *pose
 
     if (model == NULL)
 	return;
+    prepareTextures((struct AssetModel *)model);
     identityMatrix(identity);
     if (model->nodeCount > 0 && model->sceneRootCount > 0)
 	for (root = 0; root < model->sceneRootCount; root++)
 	    drawNode(model, model->sceneRoots[root], pose, identity, 0);
     else
 	for (meshIndex = 0; meshIndex < model->meshCount; meshIndex++)
-	    drawMesh(&model->meshes[meshIndex], identity, pose, NULL);
+	    drawMesh(model, &model->meshes[meshIndex], identity, pose, NULL);
     }
 
 void assetModelDrawNode(const struct AssetModel *model, int node,
@@ -230,6 +300,7 @@ void assetModelDrawNode(const struct AssetModel *model, int node,
 
     if (model == NULL || node < 0 || node >= (int)model->nodeCount)
         return;
+    prepareTextures((struct AssetModel *)model);
     identityMatrix(identity);
     drawNode(model, node, pose, identity, 0);
     }
@@ -239,6 +310,10 @@ unsigned int assetModelCreateDisplayList(const struct AssetModel *model)
     GLuint displayList;
     if (model == NULL || model->meshCount == 0)
         return 0;
+
+    /* Upload textures immediately. Animated instances draw the model rather
+       than replaying this static list, so uploads must not be list commands. */
+    prepareTextures((struct AssetModel *)model);
 
     displayList = glGenLists(1);
     if (displayList == 0)

@@ -25,15 +25,35 @@ struct AssetVertex
     float weights[4];
     };
 
+struct AssetMeshPart
+    {
+    size_t firstVertex;
+    size_t vertexCount;
+    int texture;
+    int blend;
+    };
+
 struct AssetMesh
     {
     struct AssetVertex *vertices;
     size_t vertexCount;
+    struct AssetMeshPart *parts;
+    size_t partCount;
     int primitive;
     float lineWidth;
     float pointSize;
     int useCurrentColor;
     int blend;
+    };
+
+struct AssetTexture
+    {
+    unsigned char *pixels;
+    int width;
+    int height;
+    int linear;
+    int repeat;
+    unsigned int rendererTexture;
     };
 
 #define ASSET_PRIMITIVE_TRIANGLES 0
@@ -93,6 +113,8 @@ struct AssetModel
     {
     struct AssetMesh *meshes;
     size_t meshCount;
+    struct AssetTexture *textures;
+    size_t textureCount;
     struct AssetNode *nodes;
     size_t nodeCount;
     struct AssetSkin *skins;

@@ -162,6 +162,8 @@ struct EntityArchetype
     float aimPitchMin;
     float aimPitchMax;
     float firstPersonEyeHeight;
+    float view1HeightFraction;
+    float view2HeightFraction;
     };
 
 struct EntityCatalog
