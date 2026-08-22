@@ -2622,8 +2622,10 @@ void addNewTank(struct targetInfo * targets, float startx, float startz, int sta
     int howManyOfEach;
     float minX, minZ, maxX, maxZ;
     float ttankx, ttankz;
+    float spawnCenterX, spawnCenterZ;
     struct targetInfo * temptarget;
     char newtype;
+    int targetCount, targetPick;
 
     struct targetInfo * nearestTarget;
     float radToNearestTarget;
@@ -2699,28 +2701,9 @@ if ((!netUp) || (newtype == MASERTANK))
     /* choose where vehicle will appear */
     /************************************/
 
-    maxX = G->x;
-    maxZ = G->z;
-    minX = G->x;
-    minZ = G->z;
-
-
+    targetCount = 1;
     for(temptarget = targets->next;temptarget != NULL;temptarget = temptarget->next)
-	{
-	if (temptarget->x > maxX)
-	    maxX = temptarget->x;
-	if (temptarget->x < minX)
-	    minX = temptarget->x;
-	if (temptarget->z > maxZ)
-	    maxZ = temptarget->z;
-	if (temptarget->z < minZ)
-	    minZ = temptarget->z;
-	}
-
-	maxX += (PLANESIZE+1);
-	maxZ += (PLANESIZE+1);
-	minX -= (PLANESIZE+1);
-	minZ -= (PLANESIZE+1);
+	targetCount += 1;
 
     blocked = 1;
     attempts = 0;
@@ -2747,6 +2730,21 @@ if ((!netUp) || (newtype == MASERTANK))
 	while ((blocked) && (attempts < 1000))
 	    {
 	    attempts += 1;
+	    targetPick = rand() % targetCount;
+	    spawnCenterX = G->x;
+	    spawnCenterZ = G->z;
+	    temptarget = targets->next;
+	    while ((targetPick > 0) && (temptarget != NULL))
+		{
+		spawnCenterX = temptarget->x;
+		spawnCenterZ = temptarget->z;
+		temptarget = temptarget->next;
+		targetPick -= 1;
+		}
+	    minX = spawnCenterX - (PLANESIZE + 1);
+	    maxX = spawnCenterX + (PLANESIZE + 1);
+	    minZ = spawnCenterZ - (PLANESIZE + 1);
+	    maxZ = spawnCenterZ + (PLANESIZE + 1);
 	    side = rand() % 4;
 	    amount = minX + (maxX - minX) *
 		(float)(rand() % 1001) / 1000.0f;
@@ -2775,8 +2773,10 @@ if ((!netUp) || (newtype == MASERTANK))
 	    if (newtype == HERO)
 		{
 		heroScale = 2.0f + randy(0.5f);
-		temptank->x = G->x + (temptank->x - G->x) / heroScale;
-		temptank->z = G->z + (temptank->z - G->z) / heroScale;
+		temptank->x = spawnCenterX +
+		    (temptank->x - spawnCenterX) / heroScale;
+		temptank->z = spawnCenterZ +
+		    (temptank->z - spawnCenterZ) / heroScale;
 		}
 
 	    /***********************/
