@@ -11,6 +11,8 @@ render-node head
 render-node tail
 render-node leg-left
 render-node leg-right
+aim-yaw-node head
+aim-pitch-node head
 idle-animation googelon-tail-sway
 move-animation googelon-tail-sway
 attack-animation googelon-tail-sway

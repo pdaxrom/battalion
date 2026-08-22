@@ -576,6 +576,33 @@ static int testCharacterModels(void)
     return 1;
     }
 
+static int testCreatureAimNodes(void)
+    {
+    static const char *paths[3] = {
+        "assets/models/monsters/googelon.glb",
+        "assets/models/monsters/flutter.glb",
+        "assets/models/monsters/techs.glb"
+        };
+    struct AssetModel model;
+    char error[160];
+    int index;
+
+    assetModelInitialize(&model);
+    for (index = 0; index < 3; index++)
+        {
+        if (!assetModelLoadGLB(paths[index], &model, error, sizeof(error)) ||
+            assetModelFindNode(&model, "head") < 0)
+            {
+            fprintf(stderr, "creature aim node missing in %s: %s\n",
+                    paths[index], error);
+            assetModelDestroy(&model);
+            return 0;
+            }
+        assetModelDestroy(&model);
+        }
+    return 1;
+    }
+
 static int testProjectileAnimations(void)
     {
     static const char *paths[2] = {
@@ -708,6 +735,8 @@ int main(void)
     if (!testCompoundModels())
 	return 1;
     if (!testCharacterModels())
+	return 1;
+    if (!testCreatureAimNodes())
 	return 1;
     if (!testProjectileAnimations())
 	return 1;

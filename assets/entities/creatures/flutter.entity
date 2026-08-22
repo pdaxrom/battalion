@@ -10,6 +10,8 @@ render-node body
 render-node head
 render-node wing-left
 render-node wing-right
+aim-yaw-node head
+aim-pitch-node head
 idle-animation flutter-wing-flap
 move-animation flutter-wing-flap
 attack-animation flutter-wing-flap

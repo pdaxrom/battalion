@@ -275,6 +275,17 @@ Both directives must be present or both absent. The names must exist in the
 entity's normal GLB. Mouse movement and IJKL update these nodes after the
 current canned pose is sampled, so aim can be combined with a moving clip.
 
+Creatures whose head or eye assembly turns and tilts as one part may name the
+same GLB node in both directives:
+
+```text
+aim-yaw-node head
+aim-pitch-node head
+```
+
+This keeps the firing direction and visible head/eyes aligned without adding a
+creature-specific branch to the engine.
+
 Keep yaw and pitch pivots at their real mechanical axes. The barrel should be
 a descendant of the turret when it must inherit turret yaw.
 

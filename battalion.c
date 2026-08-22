@@ -740,6 +740,9 @@ int checkForBlock(struct tank * ttank, float rad, float theta, float y)
 
 	for(temptree = treelist->next;(temptree != NULL) && (!blocked); temptree = temptree->next)
 	    {
+	    if (!temptree->intact)
+		continue;
+
 	    if (useTarg) /* radius to the target */
 		{
 		raddy = sqrt((temptree->x - targx) * (temptree->x - targx) + (temptree->z - targz) * (temptree->z - targz));
@@ -4688,9 +4691,12 @@ void updateTargets()
 		    {
 		    ttree = *temptree;
 
-		    trad = sqrt((ttree.x - tx) * (ttree.x - tx) + (ttree.z - tz) * (ttree.z - tz));
+		    if (ttree.intact)
+			trad = sqrt((ttree.x - tx) * (ttree.x - tx) + (ttree.z - tz) * (ttree.z - tz));
+		    else
+			trad = mRad;
 
-		    if (trad < mRad)
+		    if (ttree.intact && (trad < mRad))
 			{
 			obsangle = computeAngle(ttree.z,  tz, ttree.x,  tx);
 
@@ -4750,7 +4756,8 @@ void updateTargets()
 		while ((temptarget2 != NULL) && (!blocked))
 		    {
 		    if ((temptarget2 != temptarget) &&
-		        monsterHasSolidCollision(&temptarget2->monster))
+		        monsterHasSolidCollision(&temptarget2->monster) &&
+		        (temptarget2->monster.monsterIsDead != 1))
 			{
 			rad = sqrt((temptarget2->x - tx) * (temptarget2->x - tx) + (temptarget2->z - tz) * (temptarget2->z - tz));
 
@@ -4774,7 +4781,8 @@ void updateTargets()
 
 		rad = sqrt(tx * tx + tz * tz);
 
-		if ((rad < mRad) && monsterHasSolidCollision(&Googelon))
+		if ((rad < mRad) && monsterHasSolidCollision(&Googelon) &&
+		    (Googelon.monsterIsDead != 1))
 		    {
 		    obsangle = computeAngle(-temptarget->z, 0, -temptarget->x, 0);
 
@@ -4965,7 +4973,7 @@ void doUpdate()
 		{
 		ttree = *temptree;
 
-		if (ttree.rad < mRad)
+		if (ttree.intact && (ttree.rad < mRad))
 		    {
 		    obsangle = ttree.theta;
 		    if (obsangle < 0)
@@ -5619,7 +5627,7 @@ void drawAMonster(float x, struct monsterInfo monster, float z,
 				             0);
 				bodyHeading = monster.headHorzRotate * 0.1f;
 				aimYaw = 0.0f;
-				aimPitch = 0.0f;
+				aimPitch = monster.headVertRotate * 0.1f;
 				if ((!isTarget) &&
 				    networkArchetype->controlMode ==
 				        ENTITY_CONTROL_STEERED)
@@ -5627,7 +5635,6 @@ void drawAMonster(float x, struct monsterInfo monster, float z,
 				    bodyHeading = playerBodyHeading * 0.1f;
 				    aimYaw = (monster.headHorzRotate -
 				              playerBodyHeading) * 0.1f;
-				    aimPitch = monster.headVertRotate * 0.1f;
 				    }
 				glRotatef(bodyHeading,
 				          0, 1, 0);

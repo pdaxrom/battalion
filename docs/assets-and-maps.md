@@ -161,6 +161,8 @@ player-model visibility are also authored per entity.
 phased actor passes through structures, vehicles, and other actors;
 Vapour uses this capability. Future smoke, ghosts, or similar entities can opt
 in through their descriptor without an engine id check.
+Destroyed structures stop participating in movement collision immediately;
+their collapse, explosion, or removal animation may continue independently.
 
 An entity may declare multiple named perception sensors. The current sensor
 types are `proximity`, forward `vision`, `hearing`, and `damage`. Each sensor

@@ -128,6 +128,18 @@ int main(void)
     flutter = entityCatalogFind(&catalog, "flutter");
     vapour = entityCatalogFind(&catalog, "vapour");
     techs = entityCatalogFind(&catalog, "techs");
+
+    if (monster == NULL || flutter == NULL || techs == NULL ||
+        strcmp(monster->aimYawNode, "head") != 0 ||
+        strcmp(monster->aimPitchNode, "head") != 0 ||
+        strcmp(flutter->aimYawNode, "head") != 0 ||
+        strcmp(flutter->aimPitchNode, "head") != 0 ||
+        strcmp(techs->aimYawNode, "head") != 0 ||
+        strcmp(techs->aimPitchNode, "head") != 0)
+        {
+        entityCatalogDestroy(&catalog);
+        return 1;
+        }
     if (helicopter == NULL || soldier == NULL || monster == NULL ||
         flutter == NULL ||
         vapour == NULL || techs == NULL ||
