@@ -63,6 +63,23 @@ static int copyName(char *target, const char *source)
     return 1;
     }
 
+static int copyDisplayName(char *target, const char *source)
+    {
+    const unsigned char *cursor;
+    size_t length;
+
+    if (source == NULL)
+        return 0;
+    length = strlen(source);
+    if (length == 0 || length >= ENTITY_NAME_SIZE)
+        return 0;
+    for (cursor = (const unsigned char *)source; *cursor; cursor++)
+        if (*cursor < 32 || *cursor > 126)
+            return 0;
+    strcpy(target, source);
+    return 1;
+    }
+
 static int parseInteger(const char *text, int *value)
     {
     char *end;
@@ -227,6 +244,9 @@ static void initializeArchetype(struct EntityArchetype *entry)
     entry->lostFrames = 180;
     entry->maxActive = 0;
     entry->scale = 1.0f;
+    entry->height = 0.0f;
+    entry->scaleSpecified = 0;
+    entry->heightSpecified = 0;
     entry->modelYawOffset = 0.0f;
     entry->speed = 0.03f;
     entry->turnRate = 0.2f;
@@ -396,6 +416,9 @@ static int assignDirective(struct EntityArchetype *entry,
     if (strcmp(directive, "move-animation") == 0)
         return entry->moveAnimation[0] == '\0' &&
                copyName(entry->moveAnimation, value);
+    if (strcmp(directive, "backward-animation") == 0)
+        return entry->backwardAnimation[0] == '\0' &&
+               copyName(entry->backwardAnimation, value);
     if (strcmp(directive, "attack-animation") == 0)
         return entry->attackAnimation[0] == '\0' &&
                copyName(entry->attackAnimation, value);
@@ -506,7 +529,19 @@ static int assignDirective(struct EntityArchetype *entry,
                parseInteger(value, &entry->networkCode) &&
                entry->networkCode >= 0;
     if (strcmp(directive, "scale") == 0)
-        return parseFloat(value, &entry->scale);
+        {
+        if (entry->scaleSpecified || !parseFloat(value, &entry->scale))
+            return 0;
+        entry->scaleSpecified = 1;
+        return 1;
+        }
+    if (strcmp(directive, "height") == 0)
+        {
+        if (entry->heightSpecified || !parseFloat(value, &entry->height))
+            return 0;
+        entry->heightSpecified = 1;
+        return 1;
+        }
     if (strcmp(directive, "model-yaw-offset") == 0)
         return parseFloat(value, &entry->modelYawOffset);
     if (strcmp(directive, "vertical-offset") == 0)
@@ -630,7 +665,10 @@ static int validArchetype(const struct EntityArchetype *entry,
         entry->health < 1 || entry->score < 0 || entry->fireInterval < 1 ||
         entry->lostFrames < 0 || entry->spawnWeight < 0 ||
         entry->spawnAfter < 0 || entry->maxActive < 0 ||
-        entry->scale <= 0.0f || entry->modelYawOffset < -360.0f ||
+        entry->scale <= 0.0f ||
+        (entry->heightSpecified && entry->height <= 0.0f) ||
+        (entry->scaleSpecified && entry->heightSpecified) ||
+        entry->modelYawOffset < -360.0f ||
         entry->modelYawOffset > 360.0f || entry->speed < 0.0f ||
         entry->turnRate <= 0.0f || entry->collisionRadius <= 0.0f ||
         entry->collisionHeight <= 0.0f || entry->weaponRange < 0.0f ||
@@ -682,6 +720,24 @@ static int validArchetype(const struct EntityArchetype *entry,
     return 1;
     }
 
+int entityArchetypeResolveScale(struct EntityArchetype *archetype,
+                                float modelHeight)
+    {
+    float resolved;
+
+    if (archetype == NULL)
+        return 0;
+    if (!archetype->heightSpecified)
+        return archetype->scale > 0.0f;
+    if (archetype->scaleSpecified || modelHeight <= 0.0f)
+        return 0;
+    resolved = archetype->height / modelHeight;
+    if (resolved <= 0.0f)
+        return 0;
+    archetype->scale = resolved;
+    return 1;
+    }
+
 static int loadArchetype(const char *path, struct EntityArchetype *entry,
                          char *error, size_t errorSize)
     {
@@ -722,6 +778,22 @@ static int loadArchetype(const char *path, struct EntityArchetype *entry,
                 strcmp(value, "1") != 0)
                 goto invalid;
             header = 1;
+            continue;
+            }
+        if (strncmp(line, "display-name ", 13) == 0)
+            {
+            char *display;
+            size_t length;
+
+            display = line + 13;
+            length = strlen(display);
+            while (length > 0 &&
+                   (display[length - 1] == '\n' ||
+                    display[length - 1] == '\r'))
+                display[--length] = '\0';
+            if (entry->displayName[0] != '\0' ||
+                !copyDisplayName(entry->displayName, display))
+                goto invalid;
             continue;
             }
         if (strcmp(directive, "sensor") == 0)

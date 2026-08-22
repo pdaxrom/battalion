@@ -16,6 +16,7 @@
 #include "asset.h"
 #include "asset_animation.h"
 #include "asset_render.h"
+#include "asset_skin.h"
 
 #include <math.h>
 #include <string.h>
@@ -100,10 +101,13 @@ static void nodeMatrix(const struct AssetNode *node,
     }
 
 static void drawMesh(const struct AssetMesh *mesh, const float matrix[16],
-                     const struct AssetPose *pose)
+                     const struct AssetPose *pose,
+                     const struct AssetSkinPalette *palette)
     {
     const struct AssetVertex *vertex;
     float position[3];
+    float localPosition[3];
+    float localNormal[3];
     float color[4];
     size_t vertexIndex;
 
@@ -133,15 +137,16 @@ static void drawMesh(const struct AssetMesh *mesh, const float matrix[16],
     for (vertexIndex = 0; vertexIndex < mesh->vertexCount; vertexIndex++)
 	{
 	vertex = &mesh->vertices[vertexIndex];
-	position[0] = matrix[0] * vertex->position[0] +
-	              matrix[4] * vertex->position[1] +
-	              matrix[8] * vertex->position[2] + matrix[12];
-	position[1] = matrix[1] * vertex->position[0] +
-	              matrix[5] * vertex->position[1] +
-	              matrix[9] * vertex->position[2] + matrix[13];
-	position[2] = matrix[2] * vertex->position[0] +
-	              matrix[6] * vertex->position[1] +
-	              matrix[10] * vertex->position[2] + matrix[14];
+	assetSkinVertex(palette, vertex, localPosition, localNormal);
+	position[0] = matrix[0] * localPosition[0] +
+	              matrix[4] * localPosition[1] +
+	              matrix[8] * localPosition[2] + matrix[12];
+	position[1] = matrix[1] * localPosition[0] +
+	              matrix[5] * localPosition[1] +
+	              matrix[9] * localPosition[2] + matrix[13];
+	position[2] = matrix[2] * localPosition[0] +
+	              matrix[6] * localPosition[1] +
+	              matrix[10] * localPosition[2] + matrix[14];
 	if (!mesh->useCurrentColor)
 	    {
 	    color[0] = vertex->color[0] +
@@ -175,6 +180,8 @@ static void drawNode(const struct AssetModel *model, int nodeIndex,
     const struct AssetNode *node;
     float localMatrix[16];
     float worldMatrix[16];
+    struct AssetSkinPalette palette;
+    const struct AssetSkinPalette *selectedPalette;
     size_t child;
 
     if (nodeIndex < 0 || nodeIndex >= (int)model->nodeCount ||
@@ -188,7 +195,13 @@ static void drawNode(const struct AssetModel *model, int nodeIndex,
 	       &pose->nodes[nodeIndex] : NULL, localMatrix);
     multiplyMatrix(worldMatrix, parentMatrix, localMatrix);
     if (node->mesh >= 0 && node->mesh < (int)model->meshCount)
-	drawMesh(&model->meshes[node->mesh], worldMatrix, pose);
+	{
+	assetSkinPaletteInitialize(&palette);
+	selectedPalette = assetSkinPaletteBuild(model, nodeIndex, pose,
+	                                         &palette) ? &palette : NULL;
+	drawMesh(&model->meshes[node->mesh], worldMatrix, pose, selectedPalette);
+	assetSkinPaletteDestroy(&palette);
+	}
     for (child = 0; child < node->childCount; child++)
     	drawNode(model, node->children[child], pose, worldMatrix, depth + 1);
     }
@@ -207,7 +220,7 @@ void assetModelDraw(const struct AssetModel *model, const struct AssetPose *pose
 	    drawNode(model, model->sceneRoots[root], pose, identity, 0);
     else
 	for (meshIndex = 0; meshIndex < model->meshCount; meshIndex++)
-	    drawMesh(&model->meshes[meshIndex], identity, pose);
+	    drawMesh(&model->meshes[meshIndex], identity, pose, NULL);
     }
 
 void assetModelDrawNode(const struct AssetModel *model, int node,

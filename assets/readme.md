@@ -46,7 +46,10 @@ hardcoded paths or catalog keys in gameplay source.
 The GLB loader supports triangle, line, and point primitives; indexed and
 non-indexed positions; normals, UVs and vertex colours; material base colours;
 scene-node hierarchies; named nodes; and named translation, rotation, and scale
-clips with `LINEAR` or `STEP` interpolation. Standard glTF `alphaMode: BLEND`
+clips with `LINEAR` or `STEP` interpolation. It also supports standard glTF
+skins, `JOINTS_0`, `WEIGHTS_0`, inverse-bind matrices, and independent skin
+instances through a renderer-neutral CPU evaluator shared by Metal/OpenGL/GLES.
+Standard glTF `alphaMode: BLEND`
 is honoured by every rendering backend, so transparent assets keep authored
 material and vertex alpha instead of being drawn opaque. `helo.glb`, `airplane.glb`,
 `googelon.glb`, `flutter.glb`, `techs.glb`, `vapour.glb`, both Hero files, and `mecha.glb`
@@ -96,6 +99,7 @@ new C type or a rebuild:
 build/macos-metal-none/battalion --player tank-standard
 build/macos-metal-none/battalion --player helo-standard
 build/macos-metal-none/battalion --player beam-soldier
+build/macos-metal-none/battalion --player moira-brown
 build/macos-metal-none/battalion --player googelon
 build/macos-metal-none/battalion --player vapour
 ```
@@ -106,6 +110,13 @@ also assign a unique one-character `shortcut`; the historical `6` through `9`
 choices are now ordinary data in the creature descriptors. Preview placement
 and scale are calculated from the current animated GLB pose and its configured
 render nodes, rather than from a model-specific offset.
+
+Entity visual size can be authored with `height` in world units. The loader
+measures the transformed rest-pose GLB Y extent and resolves a uniform scale;
+Moira Brown uses `height 0.165`, corresponding to 1.65 metres because one world
+unit is ten metres. Explicit `scale` is optional, defaults to `1`, and is
+mutually exclusive with `height`. Collision and player envelopes remain
+explicit descriptor values.
 
 `spawn-weight 0` disables random runtime instances. This is the default for the
 checked-in controllable creatures; place them as version 2 map actors or opt in

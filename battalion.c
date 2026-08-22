@@ -307,6 +307,7 @@ static int entityAssetsAvailable(const struct EntityArchetype *archetype)
             return 0;
     return assetAnimationAvailable(archetype->idleAnimation) &&
            assetAnimationAvailable(archetype->moveAnimation) &&
+           assetAnimationAvailable(archetype->backwardAnimation) &&
            assetAnimationAvailable(archetype->attackAnimation);
     }
 
@@ -323,6 +324,8 @@ static int loadGameEntityCatalog(char *error, size_t errorSize)
     {
     const char *catalogPath;
     const struct EntityArchetype *archetype;
+    struct EntityArchetype *mutableArchetype;
+    float modelHeight;
     size_t index;
 
     catalogPath = assetFilePath("game-entities");
@@ -331,12 +334,23 @@ static int loadGameEntityCatalog(char *error, size_t errorSize)
                            error, errorSize))
         return 0;
     for (index = 0; index < gameEntities.count; index++)
-        if (!entityAssetsAvailable(&gameEntities.entries[index]))
+        {
+        mutableArchetype = &gameEntities.entries[index];
+        if (!entityAssetsAvailable(mutableArchetype))
             {
             setGameEntityError(error, errorSize,
                                "An entity references missing assets");
             return 0;
             }
+        if (mutableArchetype->heightSpecified &&
+            (!assetModelUnscaledHeight(mutableArchetype, &modelHeight) ||
+             !entityArchetypeResolveScale(mutableArchetype, modelHeight)))
+            {
+            setGameEntityError(error, errorSize,
+                               "Could not resolve entity height from model");
+            return 0;
+            }
+        }
     for (index = 0; index < battlefieldMap.actorCount; index++)
         {
         archetype = entityCatalogFind(
@@ -5610,7 +5624,7 @@ void drawAMonster(float x, struct monsterInfo monster, float z,
 				              0, 1, 0);
 				    drawConfiguredPlayerEntity(
 				        networkArchetype, monster.monsterMoving,
-				        monster.beamOn, mainCounter,
+				        monster.monsterBack, monster.beamOn, mainCounter,
 				        monster.energyRemaining <= 0, 0.0f, 0.0f);
 				    }
 				break;
@@ -5671,7 +5685,7 @@ void drawAMonster(float x, struct monsterInfo monster, float z,
 				          0, 1, 0);
 				drawConfiguredPlayerEntity(
 				    networkArchetype, monster.monsterMoving,
-				    monster.beamOn, mainCounter,
+				    monster.monsterBack, monster.beamOn, mainCounter,
 				    monster.energyRemaining <= 0,
 				    aimYaw, aimPitch);
 				break;

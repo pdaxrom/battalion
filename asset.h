@@ -21,6 +21,8 @@ struct AssetVertex
     float normal[3];
     float texcoord[2];
     float color[4];
+    unsigned int joints[4];
+    float weights[4];
     };
 
 struct AssetMesh
@@ -42,6 +44,7 @@ struct AssetNode
     {
     char *name;
     int mesh;
+    int skin;
     int *children;
     size_t childCount;
     float translation[3];
@@ -49,6 +52,15 @@ struct AssetNode
     float scale[3];
     float matrix[16];
     int hasMatrix;
+    };
+
+struct AssetSkin
+    {
+    char *name;
+    int skeleton;
+    int *joints;
+    float *inverseBindMatrices;
+    size_t jointCount;
     };
 
 #define ASSET_ANIMATION_TRANSLATION 1
@@ -83,6 +95,8 @@ struct AssetModel
     size_t meshCount;
     struct AssetNode *nodes;
     size_t nodeCount;
+    struct AssetSkin *skins;
+    size_t skinCount;
     int *sceneRoots;
     size_t sceneRootCount;
     struct AssetAnimation *animations;

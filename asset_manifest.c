@@ -94,6 +94,18 @@ static int validAssetName(const char *text, int path)
     return 1;
     }
 
+static int validClipName(const char *text)
+    {
+    const unsigned char *cursor;
+
+    if (text == NULL || text[0] == '\0')
+        return 0;
+    for (cursor = (const unsigned char *)text; *cursor; cursor++)
+        if (*cursor < 33 || *cursor > 126 || *cursor == '\\')
+            return 0;
+    return 1;
+    }
+
 void assetManifestInitialize(struct AssetManifest *manifest)
     {
     manifest->models = NULL;
@@ -347,10 +359,10 @@ static int appendAnimation(struct AssetManifest *manifest, const char *key,
     size_t count;
 
     if (!validAssetName(key, 0) || !validAssetName(modelKey, 0) ||
-        !validAssetName(clipName, 0))
+        !validClipName(clipName))
         {
         setEntryError(error, errorSize,
-                      "Invalid lowercase animation entry", key);
+                      "Invalid animation entry", key);
         return 0;
         }
     for (index = 0; index < manifest->animationCount; index++)

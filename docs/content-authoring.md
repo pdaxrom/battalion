@@ -167,8 +167,9 @@ authored content added to `assets/`.
 
 Size belongs to the asset, not to `kind`. The engine never silently enlarges an
 NPC, shrinks a vehicle, or assigns dimensions from an entity id. The rendered
-size is derived from the transformed GLB bounds and the descriptor's uniform
-`scale`; the physical size is authored explicitly with the collision fields.
+size is derived from the transformed GLB bounds and either the descriptor's
+target `height` or its uniform `scale`; the physical size is authored
+explicitly with the collision fields.
 This lets a human, giant, miniature vehicle, or unusual creature use any
 capabilities without adding a type-specific rule to the engine.
 
@@ -184,25 +185,35 @@ Recommended starting dimensions are:
 | Giant creature | height `0.8`-`1.5` or more | author from its actual body volume |
 
 These are reference ranges, not type checks in the engine. A child, truck,
-mech, unusually large tank, or tiny creature may intentionally differ. Measure
-the model's rest-pose bounds after all node transforms: its rendered size is
-`GLB size * scale`. For new assets, prefer exporting at canonical size and
-leaving `scale 1`; use `scale` to adapt an existing asset, not to hide an
-unknown source unit.
+mech, unusually large tank, or tiny creature may intentionally differ. For an
+imported model, prefer declaring its desired world-unit `height`; after loading
+the GLB the engine measures the transformed rest-pose bounds of the rendered
+scene and computes the uniform scale. Moira Brown therefore declares
+`height 0.165`, which means 1.65 metres, regardless of the source file's units.
+
+`scale` is optional and defaults to `1`. It remains useful for deliberately
+authored canonical assets and non-height-based props. Do not specify `height`
+and `scale` together: the descriptor is rejected rather than choosing an
+ambiguous precedence.
 
 There are two valid export workflows:
 
-- preferred: export ten real metres as one GLB unit and use `scale 1`;
-- metre-based source: export one real metre as one GLB unit and use `scale 0.1`.
+- preferred for imported actors: export consistently and declare the desired
+  world-unit `height`;
+- canonical source: export ten real metres as one GLB unit and omit `scale`
+  (its default is `1`);
+- explicit conversion: export one real metre as one GLB unit and use
+  `scale 0.1` when height is not the desired sizing rule.
 
 Do not mix the workflows inside one model. Before registering the asset, check
-its transformed rest-pose bounding box. For example, a metre-based human whose
-GLB height is `1.8` becomes `0.18` world unit with `scale 0.1`; a canonically
-exported human whose GLB height is already `0.18` uses `scale 1`.
+its transformed rest-pose bounding box. `height` uses the Y extent after node
+transforms and, when `render-node` is present, only the rendered subtrees. Empty
+or zero-height model bounds make loading fail instead of producing an invalid
+scale.
 
-Visual and physical dimensions are deliberately independent. `scale` changes
-the rendered model and all named attachment nodes, including `muzzle`. It does
-not change `collision-radius`, `collision-height`, `player-width`,
+Visual and physical dimensions are deliberately independent. Resolved `height`
+or explicit `scale` changes the rendered model and all named attachment nodes,
+including `muzzle`. It does not change `collision-radius`, `collision-height`, `player-width`,
 `player-bottom`, or `player-height`. Update those fields explicitly whenever
 visual scale changes. An ordinary human NPC must therefore have a smaller
 visual model and collision envelope than a tank. A controllable entity's player
@@ -226,6 +237,14 @@ The loader supports:
 - node hierarchies and the active glTF scene;
 - node matrix transforms for static nodes;
 - node translation, quaternion rotation, and scale transforms.
+- glTF `skins[]`, joint node lists, optional skeleton roots, and float
+  `MAT4` inverse-bind matrices;
+- `JOINTS_0` as unsigned-byte or unsigned-short `VEC4` and `WEIGHTS_0` as
+  float or normalized unsigned-byte/unsigned-short `VEC4`;
+- renderer-neutral linear-blend deformation with up to four influences per
+  vertex, including normal deformation;
+- any number of mesh-node/skin instances, each evaluated with its own joint
+  list and inverse-bind matrices.
 
 Missing normals default to `(0, 1, 0)`, missing UVs to `(0, 0)`, and missing
 colours to white. Those defaults make a file load, but they rarely make a good
@@ -233,7 +252,6 @@ final asset.
 
 The following are not part of the current runtime profile:
 
-- skins and skeletal deformation;
 - morph targets;
 - mesh compression extensions;
 - embedded or external glTF image textures;
@@ -241,10 +259,64 @@ The following are not part of the current runtime profile:
 - animation weights and arbitrary extension channels;
 - cubic-spline animation playback.
 
-Use rigid node animation instead of a skin. Use material base colours and
-vertex colours for general entity models. TGA textures are loaded separately
-for registered renderer roles; a texture referenced inside a GLB is not bound
-automatically.
+Use material base colours and vertex colours for general entity models. TGA
+textures are loaded separately for registered renderer roles; a texture
+referenced inside a GLB is not bound automatically.
+
+### Skeletal model
+
+Skinned models use the standard glTF 2.0 hierarchy; Battalion has no bone-name
+convention. Names such as `Bip01`, `BASEHD`, `armature`, or `hips` have no
+special meaning and are never inspected by the skinning runtime.
+
+For every skinned mesh primitive:
+
+1. Export `JOINTS_0` and `WEIGHTS_0` together. Each must be a `VEC4` with the
+   same vertex count as `POSITION`.
+2. Keep at most four non-zero influences per vertex and normalize their
+   weights. The loader normalizes minor exporter drift again.
+3. Assign a glTF `skin` to the node that instantiates the mesh. Joint values
+   are indices into that skin's own `joints` array, not global node numbers.
+4. Export one float `MAT4` inverse-bind matrix for every joint. Omitting the
+   accessor is valid glTF and means identity matrices, but is rarely correct
+   for an authored humanoid.
+5. Keep all joint nodes reachable from the active scene. Bone animation uses
+   ordinary TRS channels with `LINEAR` or `STEP` interpolation.
+
+The runtime computes a separate palette for every skinned mesh node:
+
+```text
+inverse(mesh-world) * joint-world * inverse-bind
+```
+
+It then applies the mesh node's world transform through the normal render
+path. This is why a packed actor may contain several independent skeleton
+copies or several skins with incompatible inverse-bind matrices: palettes are
+never cached globally by model, joint name, or mesh. The CPU evaluator is
+shared by Metal, OpenGL, and GLES-facing rendering code.
+
+Skeletal animation does not imply a gameplay state. Register each raw clip in
+the manifest, then select it in the entity descriptor. For a walk cycle with
+separate reverse motion:
+
+```text
+model civilian models/npcs/civilian.glb
+animation civilian-forward civilian Forward loop
+animation civilian-backward civilian Backward loop
+```
+
+```text
+move-animation civilian-forward
+backward-animation civilian-backward
+```
+
+The clip names are data. The engine does not look for `Forward`, `Backward`,
+or any other exporter-specific name. When an entity moves backward and has no
+`backward-animation`, it deliberately falls back to `move-animation`.
+
+Current skeletal exclusions are morph targets (including blink/visemes),
+`CUBICSPLINE`, IK, retargeting, and animation blending. Texture images embedded
+in or referenced by the GLB are also not bound by the current renderer.
 
 For historical line and point assets, the first primitive may carry these
 optional `extras` values:
@@ -461,8 +533,9 @@ battalion-entity 1
 ```
 
 Comments beginning in column one with `#` and blank lines are ignored. Every
-ordinary directive has one value; sensors have five arguments after the word
-`sensor`, and reaction rules have three. Values cannot contain whitespace.
+ordinary directive has one value; `display-name` is the sole directive whose
+value may contain spaces. Sensors have five arguments after the word `sensor`,
+and reaction rules have three.
 
 The four required directives are:
 
@@ -483,13 +556,16 @@ vehicle can be stationary, and an object can have sensors.
 | Directive | Default | Meaning |
 | --- | ---: | --- |
 | `model` | required | Normal model manifest key. |
+| `display-name` | entity id | Human-readable selector label; spaces are allowed. |
 | `destroyed-model` | none | Optional model drawn after destruction. |
 | `shadow-model` | none | Optional separate shadow model. |
 | `idle-animation` | none | Animation key used while idle. |
 | `move-animation` | none | Animation key used while moving. |
+| `backward-animation` | none | Animation key used while moving backward; falls back to `move-animation`. |
 | `attack-animation` | none | Animation key used while attacking. |
 | `animation-speed` | `0.05` | Seconds added to clip time per simulation counter. Must be positive. |
-| `scale` | `1` | Uniform render scale. Must be positive. |
+| `height` | none | Desired rest-pose Y extent in world units; computes uniform scale after loading the GLB. Mutually exclusive with `scale`. |
+| `scale` | `1` | Optional explicit uniform render scale. Must be positive and cannot be combined with `height`. |
 | `vertical-offset` | `0` | Model-origin height relative to the battlefield plane. |
 | `aim-yaw-node` | none | Named GLB node receiving live yaw. Requires pitch node. |
 | `aim-pitch-node` | none | Named GLB node receiving live pitch. Requires yaw node. |
@@ -497,6 +573,8 @@ vehicle can be stationary, and an object can have sensors.
 
 The normal, destroyed, and shadow model names are manifest keys, not paths.
 Animation names are manifest animation keys, not raw GLB clip names.
+Manifest keys remain lowercase, while the raw glTF clip name is matched exactly
+and may retain exporter casing such as `Forward` or `Backward`.
 
 Use `render-node` when one GLB deliberately contains optional variants such as
 seasonal parts, LOD nodes, or a separately controlled shadow. The selected
@@ -806,7 +884,7 @@ idle-animation rifle-guard-idle
 move-animation rifle-guard-walk
 attack-animation rifle-guard-fire
 animation-speed 0.05
-scale 1
+height 0.18
 vertical-offset 0
 faction army
 hostile-faction monster
@@ -844,10 +922,10 @@ spawn-weight 0
 ```
 
 The route and patrol path belong to the map instance, not this reusable NPC
-archetype. This example assumes the rifle-guard GLB is a canonically exported
-1.8-metre human (`0.18` world unit tall). If the source GLB is authored in
-metres, set `scale 0.1`; the collision values remain world-unit values and do
-not inherit that scale.
+archetype. The requested `height 0.18` makes this guard 1.8 metres tall whether
+the source GLB is authored in metres, centimetres, or another consistent unit.
+The collision values remain explicit world-unit values and do not inherit the
+resolved visual scale.
 
 ### Steered vehicle with articulated weapon
 
@@ -1198,10 +1276,10 @@ offsets; the format intentionally has none.
 
 ### New human is as large as a tank
 
-Measure the exported rest-pose bounds. With one world unit equal to ten metres,
-a 1.8-metre human must be `0.18` unit tall after `scale`; a normal tank is about
-`0.22`-`0.30` unit tall and `0.45`-`0.65` unit long. Correct the export or
-`scale`, then explicitly correct both ordinary and player collision envelopes.
+Declare `height 0.18` for a 1.8-metre human. The loader measures the model's
+rest-pose Y extent and resolves the uniform scale; a normal tank is about
+`0.22`-`0.30` unit tall and `0.45`-`0.65` unit long. Then explicitly match both
+ordinary and player collision envelopes to the visual body.
 
 ### Model loads but is white
 

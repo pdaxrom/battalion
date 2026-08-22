@@ -398,6 +398,7 @@ struct tank
 	int maserCount;
 	int damage;		    /* amount of damage vehicle can take */
 	int walking;
+	int walkingBackwards;
 	int number;
 	char type;		    /* type of vehicle */
 	char subtype;		    /* sub type (for hero) */
@@ -697,9 +698,10 @@ const char *assetFilePath(const char *);
 GLuint assetModelDisplayList(const char *);
 int assetModelHasNode(const char *, const char *);
 int assetAnimationAvailable(const char *);
-void drawConfiguredPlayerEntity(const struct EntityArchetype *, int, int,
+int assetModelUnscaledHeight(const struct EntityArchetype *, float *);
+void drawConfiguredPlayerEntity(const struct EntityArchetype *, int, int, int,
 				int, int, float, float);
-int configuredPlayerEntityBounds(const struct EntityArchetype *, int, int,
+int configuredPlayerEntityBounds(const struct EntityArchetype *, int, int, int,
 				 int, float, float, float [3], float [3]);
 int configuredEntityMuzzlePose(const struct EntityArchetype *, int, int,
 			       int, float, float, float [3], float [3]);

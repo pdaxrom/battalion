@@ -19,9 +19,12 @@ the animation sampler depends on OpenGL, Metal, or the future GLES backend.
 The import profile supports triangle, line, and point primitives; indexed and non-indexed
 positions, vertex normals/UVs/colors, `baseColorFactor`, scene nodes with matrix
 or TRS transforms, and animation channels for node translation, rotation, and
-scale. `LINEAR` and `STEP` interpolation are supported. GLB image textures,
-skins, morph targets, mesh compression, and cubic-spline playback remain later
-steps. External TGA textures used by the current assets are cataloged
+scale. Standard glTF skins, joints, inverse-bind matrices, `JOINTS_0`, and
+`WEIGHTS_0` are evaluated with renderer-neutral linear-blend skinning. Every
+mesh-node/skin instance owns its palette, so packed actors may contain
+incompatible skeleton copies. `LINEAR` and `STEP` interpolation are supported.
+GLB image textures, morph targets, mesh compression, and cubic-spline playback
+remain later steps. External TGA textures used by the current assets are cataloged
 separately in the same manifest.
 
 `assets/manifest.txt` uses the `battalion-assets 2` catalog and declares every
@@ -122,13 +125,15 @@ collision dimensions, health, score, weapon, random-spawn policy, and whether
 the player may control it.
 
 For example, the checked-in catalog contains a ground tank, helicopter, armed
-NPC, Googelon, Flutter, Techs, and Vapour. All controllable catalog entries use the
+NPC, the skinned Moira Brown regression NPC, Googelon, Flutter, Techs, and
+Vapour. All controllable catalog entries use the
 same controls and can be selected without adding a C enum or switch branch:
 
 ```sh
 build/macos-metal-none/battalion --map default --player tank-standard
 build/macos-metal-none/battalion --map default --player helo-standard
 build/macos-metal-none/battalion --map default --player beam-soldier
+build/macos-metal-none/battalion --map default --player moira-brown
 build/macos-metal-none/battalion --map default --player flutter
 build/macos-metal-none/battalion --map default --player vapour
 ```
@@ -162,16 +167,18 @@ not part of the entity format and there is no fallback for a missing node.
 
 Canonical content scale is one world unit per ten metres. A 1.8-metre human is
 therefore `0.18` unit tall, while a typical tank is roughly `0.22`-`0.30` unit
-tall and `0.45`-`0.65` unit long. `scale` affects the visual hierarchy and its
-attachment nodes only; collision and player envelopes must be authored
-explicitly to match. The complete sizing table and workflow are in
-`content-authoring.md`.
+tall and `0.45`-`0.65` unit long. An entity can declare a target `height`; the
+loader measures its transformed rest-pose GLB bounds and computes uniform
+scale. Explicit `scale` remains optional and defaults to `1`. The two directives
+are mutually exclusive. Visual sizing affects attachment nodes only; collision
+and player envelopes must still be authored explicitly to match. The complete
+sizing table and workflow are in `content-authoring.md`.
 
-Entity `kind` never supplies an implicit size. Prefer canonical GLBs with
-`scale 1`; a source asset exported in metres uses `scale 0.1`. In either case,
-verify transformed GLB bounds and write collision/player dimensions in world
-units. This is what keeps a newly added human smaller than a tank without any
-hardcoded human-or-vehicle branch in the engine.
+Entity `kind` never supplies an implicit size. Prefer `height` for imported
+actors, such as Moira Brown's `height 0.165` (1.65 metres); use explicit `scale`
+for assets that require direct author control. In either case, write collision
+and player dimensions in world units. This keeps a newly added human smaller
+than a tank without any hardcoded human-or-vehicle branch in the engine.
 
 The descriptor's `vertical-offset` is only the model-origin height relative to
 `PLANEY`. An actor's `collision-height` extends above that model origin. For a

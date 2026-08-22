@@ -94,11 +94,13 @@ struct EntityReactionRule
 struct EntityArchetype
     {
     char id[ENTITY_NAME_SIZE];
+    char displayName[ENTITY_NAME_SIZE];
     char model[ENTITY_NAME_SIZE];
     char destroyedModel[ENTITY_NAME_SIZE];
     char shadowModel[ENTITY_NAME_SIZE];
     char idleAnimation[ENTITY_NAME_SIZE];
     char moveAnimation[ENTITY_NAME_SIZE];
+    char backwardAnimation[ENTITY_NAME_SIZE];
     char attackAnimation[ENTITY_NAME_SIZE];
     char aimYawNode[ENTITY_NAME_SIZE];
     char aimPitchNode[ENTITY_NAME_SIZE];
@@ -132,6 +134,9 @@ struct EntityArchetype
     int shortcut;
     int networkCode;
     float scale;
+    float height;
+    int scaleSpecified;
+    int heightSpecified;
     float modelYawOffset;
     float verticalOffset;
     float speed;
@@ -182,5 +187,7 @@ const struct EntityArchetype *entityCatalogControllableAt(
     const struct EntityCatalog *catalog, size_t ordinal);
 int entityArchetypeIsHostileTo(const struct EntityArchetype *archetype,
                                const char *faction);
+int entityArchetypeResolveScale(struct EntityArchetype *archetype,
+                                float modelHeight);
 
 #endif

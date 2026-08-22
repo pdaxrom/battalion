@@ -9,3 +9,4 @@ entity entities/creatures/flutter.entity
 entity entities/vehicles/tank-standard.entity
 entity entities/vehicles/helo-standard.entity
 entity entities/npcs/beam-soldier.entity
+entity entities/npcs/moira-brown.entity

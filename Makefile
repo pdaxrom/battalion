@@ -99,7 +99,7 @@ SOURCES := \
 	dynamic_primitives.c \
 	map_package.c
 
-SOURCES += asset.c asset_gltf.c asset_animation.c asset_render.c \
+SOURCES += asset.c asset_gltf.c asset_animation.c asset_skin.c asset_render.c \
 	asset_manifest.c asset_bindings.c asset_tga.c asset_values.c stroke_font_asset.c \
 	audio_catalog.c entity_catalog.c entity_behavior.c world_coordinates.c
 
@@ -285,6 +285,7 @@ c89-check:
 TEST_BUILD_DIR := build/tests
 MAP_TEST := $(TEST_BUILD_DIR)/map-test
 ASSET_TEST := $(TEST_BUILD_DIR)/asset-gltf-test
+ASSET_SKIN_TEST := $(TEST_BUILD_DIR)/asset-skin-test
 ASSET_CATALOG_TEST := $(TEST_BUILD_DIR)/asset-catalog-test
 ASSET_VALUES_TEST := $(TEST_BUILD_DIR)/asset-values-test
 STROKE_FONT_TEST := $(TEST_BUILD_DIR)/stroke-font-test
@@ -298,8 +299,11 @@ WORLD_COORDINATES_TEST := $(TEST_BUILD_DIR)/world-coordinates-test
 $(MAP_TEST): tests/map_test.c map.c map.h map_package.c map_package.h entity_behavior.c entity_behavior.h entity_catalog.c entity_catalog.h Makefile | $(TEST_BUILD_DIR)
 	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< map.c map_package.c entity_behavior.c entity_catalog.c -lm -o $@
 
-$(ASSET_TEST): tests/asset_gltf_test.c asset.c asset_gltf.c asset_animation.c asset_write.c asset_tga.c asset.h asset_animation.h asset_write.h asset_tga.h Makefile | $(TEST_BUILD_DIR)
-	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< asset.c asset_gltf.c asset_animation.c asset_write.c asset_tga.c -lm -o $@
+$(ASSET_TEST): tests/asset_gltf_test.c asset.c asset_gltf.c asset_animation.c asset_skin.c asset_write.c asset_tga.c asset.h asset_animation.h asset_skin.h asset_write.h asset_tga.h Makefile | $(TEST_BUILD_DIR)
+	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< asset.c asset_gltf.c asset_animation.c asset_skin.c asset_write.c asset_tga.c -lm -o $@
+
+$(ASSET_SKIN_TEST): tests/asset_skin_test.c asset.c asset_gltf.c asset_animation.c asset_skin.c entity_catalog.c asset.h asset_animation.h asset_skin.h entity_catalog.h Makefile | $(TEST_BUILD_DIR)
+	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< asset.c asset_gltf.c asset_animation.c asset_skin.c entity_catalog.c -lm -o $@
 
 $(ASSET_CATALOG_TEST): tests/asset_catalog_test.c Makefile | $(TEST_BUILD_DIR)
 	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< -o $@
@@ -331,9 +335,10 @@ $(WORLD_COORDINATES_TEST): tests/world_coordinates_test.c world_coordinates.c wo
 $(TEST_BUILD_DIR):
 	mkdir -p $@
 
-test: c89-check $(MAP_TEST) $(ASSET_TEST) $(ASSET_CATALOG_TEST) $(ASSET_VALUES_TEST) $(STROKE_FONT_TEST) $(AUDIO_CATALOG_TEST) $(ASSET_BINDINGS_TEST) $(ENTITY_CATALOG_TEST) $(ENTITY_BEHAVIOR_TEST) $(NO_EMBEDDED_ASSETS_TEST) $(WORLD_COORDINATES_TEST)
+test: c89-check $(MAP_TEST) $(ASSET_TEST) $(ASSET_SKIN_TEST) $(ASSET_CATALOG_TEST) $(ASSET_VALUES_TEST) $(STROKE_FONT_TEST) $(AUDIO_CATALOG_TEST) $(ASSET_BINDINGS_TEST) $(ENTITY_CATALOG_TEST) $(ENTITY_BEHAVIOR_TEST) $(NO_EMBEDDED_ASSETS_TEST) $(WORLD_COORDINATES_TEST)
 	./$(MAP_TEST)
 	./$(ASSET_TEST)
+	./$(ASSET_SKIN_TEST)
 	./$(ASSET_CATALOG_TEST)
 	./$(ASSET_VALUES_TEST)
 	./$(STROKE_FONT_TEST)

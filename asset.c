@@ -14,6 +14,7 @@
 
 #include "asset.h"
 #include "asset_animation.h"
+#include "asset_skin.h"
 
 #include <math.h>
 #include <stdlib.h>
@@ -159,24 +160,28 @@ static void includeBoundsPosition(struct AssetBounds *bounds,
 
 static void includeBoundsMesh(struct AssetBounds *bounds,
                               const struct AssetMesh *mesh,
-                              const float matrix[16])
+                              const float matrix[16],
+                              const struct AssetSkinPalette *palette)
     {
     const struct AssetVertex *vertex;
     float position[3];
+    float localPosition[3];
+    float localNormal[3];
     size_t vertexIndex;
 
     for (vertexIndex = 0; vertexIndex < mesh->vertexCount; vertexIndex++)
         {
         vertex = &mesh->vertices[vertexIndex];
-        position[0] = matrix[0] * vertex->position[0] +
-                      matrix[4] * vertex->position[1] +
-                      matrix[8] * vertex->position[2] + matrix[12];
-        position[1] = matrix[1] * vertex->position[0] +
-                      matrix[5] * vertex->position[1] +
-                      matrix[9] * vertex->position[2] + matrix[13];
-        position[2] = matrix[2] * vertex->position[0] +
-                      matrix[6] * vertex->position[1] +
-                      matrix[10] * vertex->position[2] + matrix[14];
+        assetSkinVertex(palette, vertex, localPosition, localNormal);
+        position[0] = matrix[0] * localPosition[0] +
+                      matrix[4] * localPosition[1] +
+                      matrix[8] * localPosition[2] + matrix[12];
+        position[1] = matrix[1] * localPosition[0] +
+                      matrix[5] * localPosition[1] +
+                      matrix[9] * localPosition[2] + matrix[13];
+        position[2] = matrix[2] * localPosition[0] +
+                      matrix[6] * localPosition[1] +
+                      matrix[10] * localPosition[2] + matrix[14];
         includeBoundsPosition(bounds, position);
         }
     }
@@ -190,6 +195,8 @@ static void includeBoundsNode(const struct AssetModel *model, int nodeIndex,
     const struct AssetNodePose *nodePose;
     float localMatrix[16];
     float worldMatrix[16];
+    struct AssetSkinPalette palette;
+    const struct AssetSkinPalette *selectedPalette;
     size_t child;
 
     if (nodeIndex < 0 || nodeIndex >= (int)model->nodeCount ||
@@ -203,7 +210,14 @@ static void includeBoundsNode(const struct AssetModel *model, int nodeIndex,
     boundsNodeMatrix(node, nodePose, localMatrix);
     boundsMultiplyMatrix(worldMatrix, parentMatrix, localMatrix);
     if (node->mesh >= 0 && node->mesh < (int)model->meshCount)
-        includeBoundsMesh(bounds, &model->meshes[node->mesh], worldMatrix);
+        {
+        assetSkinPaletteInitialize(&palette);
+        selectedPalette = assetSkinPaletteBuild(model, nodeIndex, pose,
+                                                 &palette) ? &palette : NULL;
+        includeBoundsMesh(bounds, &model->meshes[node->mesh], worldMatrix,
+                          selectedPalette);
+        assetSkinPaletteDestroy(&palette);
+        }
     for (child = 0; child < node->childCount; child++)
         includeBoundsNode(model, node->children[child], pose, worldMatrix,
                           depth + 1, bounds);
@@ -225,6 +239,8 @@ void assetModelInitialize(struct AssetModel *model)
     model->meshCount = 0;
     model->nodes = NULL;
     model->nodeCount = 0;
+    model->skins = NULL;
+    model->skinCount = 0;
     model->sceneRoots = NULL;
     model->sceneRootCount = 0;
     model->animations = NULL;
@@ -237,6 +253,7 @@ void assetModelDestroy(struct AssetModel *model)
     size_t node;
     size_t animation;
     size_t track;
+    size_t skin;
 
     if (model == NULL)
         return;
@@ -257,8 +274,15 @@ void assetModelDestroy(struct AssetModel *model)
             }
         free(model->animations[animation].tracks);
         }
+    for (skin = 0; skin < model->skinCount; skin++)
+        {
+        free(model->skins[skin].name);
+        free(model->skins[skin].joints);
+        free(model->skins[skin].inverseBindMatrices);
+        }
     free(model->meshes);
     free(model->nodes);
+    free(model->skins);
     free(model->sceneRoots);
     free(model->animations);
     assetModelInitialize(model);
@@ -296,7 +320,7 @@ int assetModelPoseBounds(const struct AssetModel *model,
                               0, &bounds);
     else
         for (mesh = 0; mesh < model->meshCount; mesh++)
-            includeBoundsMesh(&bounds, &model->meshes[mesh], identity);
+            includeBoundsMesh(&bounds, &model->meshes[mesh], identity, NULL);
     return copyAssetBounds(&bounds, minimum, maximum);
     }
 

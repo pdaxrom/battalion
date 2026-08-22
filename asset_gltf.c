@@ -741,16 +741,23 @@ static int fillPrimitive(const char *json, const struct JsonToken *tokens,
     int normalIndex;
     int texcoordIndex;
     int colorIndex;
+    int jointsIndex;
+    int weightsIndex;
     int indicesIndex;
     int materialIndex;
     size_t output;
     size_t source;
     float color[4];
     float vertexColor[4];
+    float jointValues[4];
+    float weightSum;
+    int influence;
     const struct GltfAccessor *position;
     const struct GltfAccessor *normal;
     const struct GltfAccessor *texcoord;
     const struct GltfAccessor *vertexColors;
+    const struct GltfAccessor *joints;
+    const struct GltfAccessor *weights;
     const struct GltfAccessor *indices;
 
     attributes = objectValue(json, tokens, tokenCount, primitive, "attributes");
@@ -762,6 +769,10 @@ static int fillPrimitive(const char *json, const struct JsonToken *tokens,
         objectValue(json, tokens, tokenCount, attributes, "TEXCOORD_0"), -1);
     colorIndex = tokenInteger(json, tokens,
         objectValue(json, tokens, tokenCount, attributes, "COLOR_0"), -1);
+    jointsIndex = tokenInteger(json, tokens,
+        objectValue(json, tokens, tokenCount, attributes, "JOINTS_0"), -1);
+    weightsIndex = tokenInteger(json, tokens,
+        objectValue(json, tokens, tokenCount, attributes, "WEIGHTS_0"), -1);
     indicesIndex = tokenInteger(json, tokens,
         objectValue(json, tokens, tokenCount, primitive, "indices"), -1);
     materialIndex = tokenInteger(json, tokens,
@@ -778,8 +789,24 @@ static int fillPrimitive(const char *json, const struct JsonToken *tokens,
         &accessors[texcoordIndex] : NULL;
     vertexColors = colorIndex >= 0 && colorIndex < accessorCount ?
         &accessors[colorIndex] : NULL;
+    joints = jointsIndex >= 0 && jointsIndex < accessorCount ?
+        &accessors[jointsIndex] : NULL;
+    weights = weightsIndex >= 0 && weightsIndex < accessorCount ?
+        &accessors[weightsIndex] : NULL;
     indices = indicesIndex >= 0 && indicesIndex < accessorCount ?
         &accessors[indicesIndex] : NULL;
+    if ((joints == NULL) != (weights == NULL))
+        return 0;
+    if (joints != NULL &&
+        (joints->components != 4 || joints->normalized ||
+         (joints->componentType != 5121 && joints->componentType != 5123)))
+        return 0;
+    if (weights != NULL &&
+        (weights->components != 4 ||
+         (weights->componentType != 5126 &&
+          !((weights->componentType == 5121 ||
+             weights->componentType == 5123) && weights->normalized))))
+        return 0;
 
     color[0] = color[1] = color[2] = color[3] = 1.0f;
     if (materialIndex >= 0 && materialIndex < materialCount)
@@ -824,6 +851,29 @@ static int fillPrimitive(const char *json, const struct JsonToken *tokens,
         vertices[output].color[1] = color[1] * vertexColor[1];
         vertices[output].color[2] = color[2] * vertexColor[2];
         vertices[output].color[3] = color[3] * vertexColor[3];
+        if (joints != NULL)
+            {
+            if (source >= joints->count || source >= weights->count ||
+                !readAccessor(binary, binaryLength, views, viewCount, joints,
+                              source, jointValues, 4) ||
+                !readAccessor(binary, binaryLength, views, viewCount, weights,
+                              source, vertices[output].weights, 4))
+                return 0;
+            weightSum = 0.0f;
+            for (influence = 0; influence < 4; influence++)
+                {
+                if (jointValues[influence] < 0.0f)
+                    return 0;
+                vertices[output].joints[influence] =
+                    (unsigned int)jointValues[influence];
+                if (vertices[output].weights[influence] < 0.0f)
+                    return 0;
+                weightSum += vertices[output].weights[influence];
+                }
+            if (weightSum > 0.0000001f)
+                for (influence = 0; influence < 4; influence++)
+                    vertices[output].weights[influence] /= weightSum;
+            }
         }
     return 1;
     }
@@ -834,6 +884,7 @@ static void initializeNode(struct AssetNode *node)
 
     node->name = NULL;
     node->mesh = -1;
+    node->skin = -1;
     node->children = NULL;
     node->childCount = 0;
     node->translation[0] = node->translation[1] = node->translation[2] = 0.0f;
@@ -882,6 +933,8 @@ static int readNodes(const char *json, const struct JsonToken *tokens,
             }
         node->mesh = tokenInteger(json, tokens,
             objectValue(json, tokens, tokenCount, object, "mesh"), -1);
+        node->skin = tokenInteger(json, tokens,
+            objectValue(json, tokens, tokenCount, object, "skin"), -1);
         if (node->mesh < -1 || node->mesh >= (int)model->meshCount)
             return 0;
 
@@ -929,6 +982,129 @@ static int readNodes(const char *json, const struct JsonToken *tokens,
                 }
             }
         }
+    return 1;
+    }
+
+static int readSkins(const char *json, const struct JsonToken *tokens,
+                     int tokenCount, const unsigned char *binary,
+                     size_t binaryLength,
+                     const struct GltfBufferView *views, int viewCount,
+                     const struct GltfAccessor *accessors, int accessorCount,
+                     struct AssetModel *model)
+    {
+    int skinsArray;
+    int skinCount;
+    int skinIndex;
+    int skinObject;
+    int jointsArray;
+    int jointCount;
+    int jointIndex;
+    int matrixAccessorIndex;
+    int nameToken;
+    int component;
+    struct AssetSkin *skin;
+    const struct GltfAccessor *matrixAccessor;
+
+    skinsArray = objectValue(json, tokens, tokenCount, 0, "skins");
+    skinCount = arrayLength(tokens, tokenCount, skinsArray);
+    if (skinCount <= 0)
+        {
+        size_t nodeIndex;
+        for (nodeIndex = 0; nodeIndex < model->nodeCount; nodeIndex++)
+            if (model->nodes[nodeIndex].skin >= 0)
+                return 0;
+        return 1;
+        }
+    model->skins = (struct AssetSkin *)calloc(skinCount,
+                                               sizeof(*model->skins));
+    if (model->skins == NULL)
+        return 0;
+    model->skinCount = (size_t)skinCount;
+
+    for (skinIndex = 0; skinIndex < skinCount; skinIndex++)
+        {
+        skin = &model->skins[skinIndex];
+        skin->skeleton = -1;
+        skinObject = arrayItem(tokens, tokenCount, skinsArray, skinIndex);
+        nameToken = objectValue(json, tokens, tokenCount, skinObject, "name");
+        if (nameToken >= 0)
+            {
+            skin->name = duplicateTokenString(json, &tokens[nameToken]);
+            if (skin->name == NULL)
+                return 0;
+            }
+        skin->skeleton = tokenInteger(json, tokens,
+            objectValue(json, tokens, tokenCount, skinObject, "skeleton"), -1);
+        if (skin->skeleton < -1 || skin->skeleton >= (int)model->nodeCount)
+            return 0;
+        jointsArray = objectValue(json, tokens, tokenCount, skinObject,
+                                  "joints");
+        jointCount = arrayLength(tokens, tokenCount, jointsArray);
+        if (jointCount <= 0)
+            return 0;
+        skin->joints = (int *)calloc(jointCount, sizeof(*skin->joints));
+        skin->inverseBindMatrices = (float *)calloc(
+            (size_t)jointCount * 16, sizeof(*skin->inverseBindMatrices));
+        if (skin->joints == NULL || skin->inverseBindMatrices == NULL)
+            return 0;
+        skin->jointCount = (size_t)jointCount;
+        for (jointIndex = 0; jointIndex < jointCount; jointIndex++)
+            {
+            skin->joints[jointIndex] = tokenInteger(json, tokens,
+                arrayItem(tokens, tokenCount, jointsArray, jointIndex), -1);
+            if (skin->joints[jointIndex] < 0 ||
+                skin->joints[jointIndex] >= (int)model->nodeCount)
+                return 0;
+            for (component = 0; component < 16; component++)
+                skin->inverseBindMatrices[jointIndex * 16 + component] =
+                    component % 5 == 0 ? 1.0f : 0.0f;
+            }
+        matrixAccessorIndex = tokenInteger(json, tokens,
+            objectValue(json, tokens, tokenCount, skinObject,
+                        "inverseBindMatrices"), -1);
+        if (matrixAccessorIndex >= 0)
+            {
+            if (matrixAccessorIndex >= accessorCount)
+                return 0;
+            matrixAccessor = &accessors[matrixAccessorIndex];
+            if (matrixAccessor->componentType != 5126 ||
+                matrixAccessor->components != 16 ||
+                matrixAccessor->count != (size_t)jointCount)
+                return 0;
+            for (jointIndex = 0; jointIndex < jointCount; jointIndex++)
+                if (!readAccessor(binary, binaryLength, views, viewCount,
+                                  matrixAccessor, (size_t)jointIndex,
+                                  skin->inverseBindMatrices + jointIndex * 16,
+                                  16))
+                    return 0;
+            }
+        }
+    {
+    size_t nodeIndex;
+    for (nodeIndex = 0; nodeIndex < model->nodeCount; nodeIndex++)
+        if (model->nodes[nodeIndex].skin < -1 ||
+            model->nodes[nodeIndex].skin >= skinCount ||
+            (model->nodes[nodeIndex].skin >= 0 &&
+             model->nodes[nodeIndex].mesh < 0))
+            return 0;
+        else if (model->nodes[nodeIndex].skin >= 0)
+            {
+            const struct AssetMesh *mesh;
+            const struct AssetSkin *nodeSkin;
+            size_t vertexIndex;
+            int influence;
+
+            mesh = &model->meshes[model->nodes[nodeIndex].mesh];
+            nodeSkin = &model->skins[model->nodes[nodeIndex].skin];
+            for (vertexIndex = 0; vertexIndex < mesh->vertexCount;
+                 vertexIndex++)
+                for (influence = 0; influence < 4; influence++)
+                    if (mesh->vertices[vertexIndex].weights[influence] > 0.0f &&
+                        mesh->vertices[vertexIndex].joints[influence] >=
+                            nodeSkin->jointCount)
+                        return 0;
+            }
+    }
     return 1;
     }
 
@@ -1346,11 +1522,14 @@ static int buildStaticModel(const char *json, const struct JsonToken *tokens,
         }
 
     if (!readNodes(json, tokens, tokenCount, model) ||
+        !readSkins(json, tokens, tokenCount, binary, binaryLength,
+                   views, viewCount, accessors, accessorCount, model) ||
         !readSceneRoots(json, tokens, tokenCount, model) ||
         !readAnimations(json, tokens, tokenCount, binary, binaryLength,
                         views, viewCount, accessors, accessorCount, model))
         {
-        setAssetError(error, errorSize, "Invalid GLB scene or animation");
+        setAssetError(error, errorSize,
+                      "Invalid GLB scene, skin, or animation");
         goto cleanup;
         }
     success = 1;

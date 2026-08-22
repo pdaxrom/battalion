@@ -91,6 +91,8 @@ int main(void)
              !manifestContainsModel(catalog.entries[index].shadowModel)) ||
             !manifestContainsAnimation(catalog.entries[index].idleAnimation) ||
             !manifestContainsAnimation(catalog.entries[index].moveAnimation) ||
+            !manifestContainsAnimation(
+                catalog.entries[index].backwardAnimation) ||
             !manifestContainsAnimation(catalog.entries[index].attackAnimation))
             {
             fprintf(stderr, "entity model is absent from manifest: %s\n",
@@ -128,6 +130,33 @@ int main(void)
     flutter = entityCatalogFind(&catalog, "flutter");
     vapour = entityCatalogFind(&catalog, "vapour");
     techs = entityCatalogFind(&catalog, "techs");
+
+    {
+    const struct EntityArchetype *moira;
+    struct EntityArchetype resolvedMoira;
+
+    moira = entityCatalogFind(&catalog, "moira-brown");
+    if (moira == NULL || moira->kind != ENTITY_KIND_NPC ||
+        !moira->controllable || strcmp(moira->displayName, "Moira Brown") != 0 ||
+        strcmp(moira->moveAnimation, "moira-forward") != 0 ||
+        strcmp(moira->backwardAnimation, "moira-backward") != 0 ||
+        moira->weapon != ENTITY_WEAPON_NONE || moira->height != 0.165f ||
+        !moira->heightSpecified || moira->scaleSpecified ||
+        moira->scale != 1.0f ||
+        moira->collisionHeight != 0.165f)
+        {
+        entityCatalogDestroy(&catalog);
+        return 1;
+        }
+    resolvedMoira = *moira;
+    if (!entityArchetypeResolveScale(&resolvedMoira, 126.03356f) ||
+        resolvedMoira.scale < 0.001308f ||
+        resolvedMoira.scale > 0.001310f)
+        {
+        entityCatalogDestroy(&catalog);
+        return 1;
+        }
+    }
 
     if (monster == NULL || flutter == NULL || techs == NULL ||
         strcmp(monster->aimYawNode, "head") != 0 ||
@@ -176,7 +205,7 @@ int main(void)
         entityCatalogFindShortcut(&catalog, '6') != monster ||
         entityCatalogFindNetworkCode(&catalog, 1) != vapour ||
         strcmp(catalog.fallback, "googelon") != 0 ||
-        entityCatalogControllableCount(&catalog) != 7 ||
+        entityCatalogControllableCount(&catalog) != 8 ||
         entityCatalogControllableAt(&catalog, 0) != monster)
         {
         entityCatalogDestroy(&catalog);

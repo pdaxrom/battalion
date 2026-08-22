@@ -406,7 +406,7 @@ glPushAttrib(GL_DEPTH_BUFFER_BIT);
 	glTranslatef(-0.8,  -0.23,  7.2);
 	glScalef(.2,  .2,  .2);
 	drawConfiguredPlayerEntity(networkEntityArchetype(VAPOUR),
-	                           1, 0, counter, 0, 0.0f, 0.0f);
+	                           1, 0, 0, counter, 0, 0.0f, 0.0f);
     glPopMatrix();
 	
     glPushMatrix();
@@ -1035,12 +1035,16 @@ void doOptions(struct monsterInfo monster, long xWin, int counter,
 	if (archetype != NULL)
 	    {
 	    if (archetype->shortcut != 0)
-		sprintf(optionLine, "%s [%c]  %lu/%lu", archetype->id,
+		sprintf(optionLine, "%s [%c]  %lu/%lu",
+		        archetype->displayName[0] != '\0' ?
+		            archetype->displayName : archetype->id,
 		        archetype->shortcut,
 		        (unsigned long)(selectedPlayerArchetypeNumber() + 1),
 		        (unsigned long)optionCount);
 	    else
-		sprintf(optionLine, "%s  %lu/%lu", archetype->id,
+		sprintf(optionLine, "%s  %lu/%lu",
+		        archetype->displayName[0] != '\0' ?
+		            archetype->displayName : archetype->id,
 		        (unsigned long)(selectedPlayerArchetypeNumber() + 1),
 		        (unsigned long)optionCount);
 	    tkDrawStr(strokeBase, optionLine);
@@ -1072,7 +1076,7 @@ void doOptions(struct monsterInfo monster, long xWin, int counter,
 	{
 	glPushMatrix();
 	    if (configuredPlayerEntityBounds(
-	            archetype, 1, 0, counter, 0.0f, 0.0f,
+		            archetype, 1, 0, 0, counter, 0.0f, 0.0f,
 	            previewMinimum, previewMaximum))
 		{
 		previewExtent = 0.0f;
@@ -1101,7 +1105,7 @@ void doOptions(struct monsterInfo monster, long xWin, int counter,
 		             preview->components[2]);
 		glScalef(0.7f, 0.7f, 0.7f);
 		}
-	    drawConfiguredPlayerEntity(archetype, 1, 0, counter, 0,
+	    drawConfiguredPlayerEntity(archetype, 1, 0, 0, counter, 0,
 	                               0.0f, 0.0f);
 	glPopMatrix();
 	}

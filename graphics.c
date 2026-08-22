@@ -2303,6 +2303,9 @@ static int externalEntityModelPose(
     if (tank->dataAgent.reaction == ENTITY_REACTION_ATTACK &&
         archetype->attackAnimation[0] != '\0')
         animation = archetype->attackAnimation;
+    else if (tank->walkingBackwards &&
+             archetype->backwardAnimation[0] != '\0')
+        animation = archetype->backwardAnimation;
     else if (tank->walking && archetype->moveAnimation[0] != '\0')
         animation = archetype->moveAnimation;
     if (animation[0] != '\0' &&
@@ -2434,6 +2437,43 @@ static void mergeEntityBounds(float minimum[3], float maximum[3],
         }
     }
 
+int assetModelUnscaledHeight(const struct EntityArchetype *archetype,
+                             float *height)
+    {
+    const struct AssetManifestModel *model;
+    float minimum[3];
+    float maximum[3];
+    float nodeMinimum[3];
+    float nodeMaximum[3];
+    size_t renderNode;
+    int node;
+    int valid;
+
+    if (archetype == NULL || height == NULL)
+        return 0;
+    model = assetManifestFindModel(&externalAssets, archetype->model);
+    if (model == NULL)
+        return 0;
+    valid = 0;
+    if (archetype->renderNodeCount == 0)
+        valid = assetModelPoseBounds(&model->model, NULL, minimum, maximum);
+    else
+        for (renderNode = 0; renderNode < archetype->renderNodeCount;
+             renderNode++)
+            {
+            node = assetModelFindNode(&model->model,
+                                      archetype->renderNodes[renderNode]);
+            if (node >= 0 && assetModelNodePoseBounds(
+                    &model->model, node, NULL, nodeMinimum, nodeMaximum))
+                mergeEntityBounds(minimum, maximum, nodeMinimum, nodeMaximum,
+                                  &valid);
+            }
+    if (!valid || maximum[1] <= minimum[1])
+        return 0;
+    *height = maximum[1] - minimum[1];
+    return 1;
+    }
+
 static void transformEntityBounds(const struct EntityArchetype *archetype,
                                   const float sourceMinimum[3],
                                   const float sourceMaximum[3],
@@ -2477,7 +2517,8 @@ static void transformEntityBounds(const struct EntityArchetype *archetype,
     }
 
 int configuredPlayerEntityBounds(const struct EntityArchetype *archetype,
-                                 int moving, int attacking, int counter,
+                                 int moving, int backwards, int attacking,
+                                 int counter,
                                  float aimYaw, float aimPitch,
                                  float minimum[3], float maximum[3])
     {
@@ -2499,6 +2540,7 @@ int configuredPlayerEntityBounds(const struct EntityArchetype *archetype,
     entity.dataAgent.reaction = attacking ? ENTITY_REACTION_ATTACK :
                                            ENTITY_REACTION_OBSERVE;
     entity.walking = moving;
+    entity.walkingBackwards = backwards;
     entity.aimYaw = aimYaw;
     entity.aimPitch = aimPitch;
     if (!externalEntityModelPose(&entity, counter, &model, &pose))
@@ -2526,7 +2568,8 @@ int configuredPlayerEntityBounds(const struct EntityArchetype *archetype,
     }
 
 void drawConfiguredPlayerEntity(const struct EntityArchetype *archetype,
-                                int moving, int attacking, int counter,
+                                int moving, int backwards, int attacking,
+                                int counter,
                                 int destroyed, float aimYaw, float aimPitch)
     {
     struct tank entity;
@@ -2538,6 +2581,7 @@ void drawConfiguredPlayerEntity(const struct EntityArchetype *archetype,
     entity.dataAgent.reaction = attacking ? ENTITY_REACTION_ATTACK :
                                            ENTITY_REACTION_OBSERVE;
     entity.walking = moving;
+    entity.walkingBackwards = backwards;
     entity.aimYaw = aimYaw;
     entity.aimPitch = aimPitch;
     glScalef(archetype->scale, archetype->scale, archetype->scale);
