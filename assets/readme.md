@@ -7,6 +7,7 @@ filesystems.
 ```text
 assets/
   manifest.txt       versioned runtime asset catalog
+  audio/             backend-neutral audio catalog
   config/            renderer-neutral runtime controller values
   fonts/             external stroke-font glyphs and metrics
   maps/              versioned JSON battlefield packages
@@ -47,7 +48,9 @@ texture coordinates, normals and lane markers are authored GLB assets rather
 than procedural geometry in `graphics.c`. The renderer palette lives in
 `config/palette.values`, HUD layout values live in `config/ui.values`, and the
 complete SGI stroke font lives in `fonts/stroke.font` rather than compiled C
-tables.
+tables. `audio/catalog.txt` maps semantic sound and music names to the files
+and mixer slots used by the historical SGI, Sun and OSS backends; audio file
+names and music sequence lengths are no longer compiled into `audio.c`.
 
 Verify the checked-in content with:
 

@@ -98,7 +98,8 @@ SOURCES := \
 	map_package.c
 
 SOURCES += asset.c asset_gltf.c asset_animation.c asset_render.c \
-	asset_manifest.c asset_tga.c asset_values.c stroke_font_asset.c
+	asset_manifest.c asset_tga.c asset_values.c stroke_font_asset.c \
+	audio_catalog.c
 
 PLATFORM_CPPFLAGS :=
 PLATFORM_LDFLAGS :=
@@ -271,6 +272,7 @@ ASSET_TEST := $(TEST_BUILD_DIR)/asset-gltf-test
 ASSET_CATALOG_TEST := $(TEST_BUILD_DIR)/asset-catalog-test
 ASSET_VALUES_TEST := $(TEST_BUILD_DIR)/asset-values-test
 STROKE_FONT_TEST := $(TEST_BUILD_DIR)/stroke-font-test
+AUDIO_CATALOG_TEST := $(TEST_BUILD_DIR)/audio-catalog-test
 
 $(MAP_TEST): tests/map_test.c map.c map.h map_package.c map_package.h Makefile | $(TEST_BUILD_DIR)
 	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< map.c map_package.c -o $@
@@ -287,15 +289,19 @@ $(ASSET_VALUES_TEST): tests/asset_values_test.c asset_values.c asset_values.h Ma
 $(STROKE_FONT_TEST): tests/stroke_font_test.c stroke_font_asset.c stroke_font_asset.h Makefile | $(TEST_BUILD_DIR)
 	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< stroke_font_asset.c -o $@
 
+$(AUDIO_CATALOG_TEST): tests/audio_catalog_test.c audio_catalog.c audio_catalog.h Makefile | $(TEST_BUILD_DIR)
+	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< audio_catalog.c -o $@
+
 $(TEST_BUILD_DIR):
 	mkdir -p $@
 
-test: $(MAP_TEST) $(ASSET_TEST) $(ASSET_CATALOG_TEST) $(ASSET_VALUES_TEST) $(STROKE_FONT_TEST)
+test: $(MAP_TEST) $(ASSET_TEST) $(ASSET_CATALOG_TEST) $(ASSET_VALUES_TEST) $(STROKE_FONT_TEST) $(AUDIO_CATALOG_TEST)
 	./$(MAP_TEST)
 	./$(ASSET_TEST)
 	./$(ASSET_CATALOG_TEST)
 	./$(ASSET_VALUES_TEST)
 	./$(STROKE_FONT_TEST)
+	./$(AUDIO_CATALOG_TEST)
 
 clean:
 	rm -rf build

@@ -560,7 +560,7 @@ void initSounds(void);
 void flushSounds(void);
 void soundKiller(int);
 void doSound(int);
-void InitAudio(char *,  char *, int);
+void InitAudio(const char *, const char *, int);
 void OutAudio(int);
 
 

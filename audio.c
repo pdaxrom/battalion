@@ -16,6 +16,7 @@
 /***********************************************************************/
 
 #include "battalion.h"
+#include "audio_catalog.h"
 #include <sys/stat.h>
 
 extern int noSound;
@@ -32,6 +33,74 @@ int playingTankFire, playingHeloRocket, playingTankMaser;
 int playingExplosion, playingSlag, playingTech;
 
 int musicCount, deadCount;
+static struct AudioCatalog externalAudioCatalog;
+static int musicSlots[MAXMUSIC];
+static int musicSlotCount;
+static int deathMusicSlots[MAXDEADMUSIC];
+static int deathMusicSlotCount;
+
+static const struct AudioCatalogEntry *requiredAudioEntry(
+    const char *key, const char *backend, int slot)
+    {
+    const struct AudioCatalogEntry *entry;
+
+    entry = audioCatalogFind(&externalAudioCatalog, key, backend);
+    if (entry == NULL || entry->slot != slot)
+        {
+        fprintf(stderr, "Required audio asset is missing: %s/%s\n",
+                backend, key);
+        showError("Required audio asset is missing from assets");
+        exit(1);
+        }
+    return entry;
+    }
+
+static void initCatalogAudio(const char *key, const char *backend,
+                             const char *dataPath, int slot)
+    {
+    const struct AudioCatalogEntry *entry;
+
+    entry = requiredAudioEntry(key, backend, slot);
+    InitAudio(entry->path, dataPath, slot);
+    }
+
+static int collectAudioSlots(const char *backend, const char *prefix,
+                             int *slots, int maximum)
+    {
+    const struct AudioCatalogEntry *entry;
+    size_t prefixLength;
+    size_t index;
+    int count;
+
+    prefixLength = strlen(prefix);
+    count = 0;
+    for (index = 0; index < externalAudioCatalog.count; index++)
+        {
+        entry = &externalAudioCatalog.entries[index];
+        if (strcmp(entry->backend, backend) == 0 &&
+            strncmp(entry->key, prefix, prefixLength) == 0)
+            {
+            if (count >= maximum)
+                return -1;
+            slots[count++] = entry->slot;
+            }
+        }
+    return count;
+    }
+
+static void selectMusicSlots(const char *backend)
+    {
+    musicSlotCount = collectAudioSlots(backend, "music-", musicSlots,
+                                       MAXMUSIC);
+    deathMusicSlotCount = collectAudioSlots(backend, "death-",
+                                            deathMusicSlots,
+                                            MAXDEADMUSIC);
+    if (musicSlotCount <= 0 || deathMusicSlotCount < 0)
+        {
+        showError("Audio catalog has an invalid music sequence");
+        exit(1);
+        }
+    }
 
 #ifdef SGIAUDIO
 
@@ -76,6 +145,22 @@ SndChannelPtr musicChan, monsterbeamChan, maserbeamChan;
     char	*audio_dev = "/dev/dsp";
     int		audiofd;
     int playingBeam, playingMusic;
+
+static void loadRawCatalogAudio(const char *key, const char *dataPath,
+                                int slot)
+    {
+    const struct AudioCatalogEntry *entry;
+    char path[MAXPATH];
+
+    entry = requiredAudioEntry(key, "oss", slot);
+    if (!audioCatalogBuildPath(dataPath, entry, path, sizeof(path)) ||
+        Snd_loadRawSample(path, &snd[slot]) != 0)
+        {
+        fprintf(stderr, "Could not load raw audio asset: %s\n", entry->path);
+        showError("Cannot load raw audio asset");
+        exit(1);
+        }
+    }
 
 #endif
 
@@ -143,6 +228,24 @@ int getMusicOn()
 void checkSound(char * dataPath)
     {
     char * garbage;
+    char catalogPath[MAXPATH];
+    char catalogError[160];
+
+    if (strlen(dataPath) + strlen("audio/catalog.txt") + 1 >
+        sizeof(catalogPath))
+        {
+        showError("Audio catalog path is too long");
+        exit(1);
+        }
+    strcpy(catalogPath, dataPath);
+    strcat(catalogPath, "audio/catalog.txt");
+    if (!audioCatalogLoad(dataPath, catalogPath, &externalAudioCatalog,
+                          catalogError, sizeof(catalogError)))
+        {
+        fprintf(stderr, "Could not load audio catalog: %s\n", catalogError);
+        showError("Cannot load audio catalog");
+        exit(1);
+        }
 
 #ifdef SGIAUDIO
     long pvbuf[4];
@@ -161,34 +264,34 @@ void checkSound(char * dataPath)
 	
     if (!noSound)
 	{  
+	selectMusicSlots("sgi");
 	/******************************************/
 	/* load all the sound effects into memory */
 	/******************************************/
 
-	InitAudio("sounds/beam.aiff",        dataPath,  0);
-	InitAudio("sounds/boom.aiff",        dataPath,  1);
-	InitAudio("sounds/crash.aiff",       dataPath,  2);
-	InitAudio("sounds/monsterbeam.aiff", dataPath,  3);
-	InitAudio("sounds/rocket.aiff",      dataPath,  4);
-	InitAudio("sounds/slag.aiff",        dataPath,  5);
-	InitAudio("sounds/tank.aiff",        dataPath,  6);
-	InitAudio("sounds/tech.aiff",        dataPath,  7);
+	initCatalogAudio("beam",         "sgi", dataPath, 0);
+	initCatalogAudio("boom",         "sgi", dataPath, 1);
+	initCatalogAudio("crash",        "sgi", dataPath, 2);
+	initCatalogAudio("monster-beam", "sgi", dataPath, 3);
+	initCatalogAudio("rocket",       "sgi", dataPath, 4);
+	initCatalogAudio("slag",         "sgi", dataPath, 5);
+	initCatalogAudio("tank",         "sgi", dataPath, 6);
+	initCatalogAudio("tech",         "sgi", dataPath, 7);
 
 	/*********************************************/
 	/* load all the background music into memory */
 	/*********************************************/
 
-	InitAudio("music/1.aiff",        dataPath,  10);
-	InitAudio("music/2.aiff",        dataPath,  11);
-	InitAudio("music/3.aiff",        dataPath,  12);
-	InitAudio("music/4.aiff",        dataPath,  13);
-	InitAudio("music/5.aiff",        dataPath,  14);
-
-	InitAudio("music/d1.aiff",       dataPath,  15);
-	InitAudio("music/d2.aiff",       dataPath,  16);
-	InitAudio("music/d3.aiff",       dataPath,  17);
-	InitAudio("music/d4.aiff",       dataPath,  18);
-	InitAudio("music/d5.aiff",       dataPath,  19);
+	initCatalogAudio("music-1", "sgi", dataPath, 10);
+	initCatalogAudio("music-2", "sgi", dataPath, 11);
+	initCatalogAudio("music-3", "sgi", dataPath, 12);
+	initCatalogAudio("music-4", "sgi", dataPath, 13);
+	initCatalogAudio("music-5", "sgi", dataPath, 14);
+	initCatalogAudio("death-1", "sgi", dataPath, 15);
+	initCatalogAudio("death-2", "sgi", dataPath, 16);
+	initCatalogAudio("death-3", "sgi", dataPath, 17);
+	initCatalogAudio("death-4", "sgi", dataPath, 18);
+	initCatalogAudio("death-5", "sgi", dataPath, 19);
 
 	}
 #else
@@ -212,28 +315,28 @@ void checkSound(char * dataPath)
     }
 
     if (!noSound) {  
+	selectMusicSlots("sun");
 	/* Load all sound effects into memory */
-	InitAudio("sounds/beam.au",	    dataPath,  0);
-	InitAudio("sounds/boom.au",         dataPath,  1);
-	InitAudio("sounds/crash.au",        dataPath,  2);
-	InitAudio("sounds/monsterbeam.au",  dataPath,  3);
-	InitAudio("sounds/rocket.au",       dataPath,  4);
-	InitAudio("sounds/slag.au",         dataPath,  5);
-	InitAudio("sounds/tank.au",         dataPath,  6);
-	InitAudio("sounds/tech.au",         dataPath,  7);
+	initCatalogAudio("beam",         "sun", dataPath, 0);
+	initCatalogAudio("boom",         "sun", dataPath, 1);
+	initCatalogAudio("crash",        "sun", dataPath, 2);
+	initCatalogAudio("monster-beam", "sun", dataPath, 3);
+	initCatalogAudio("rocket",       "sun", dataPath, 4);
+	initCatalogAudio("slag",         "sun", dataPath, 5);
+	initCatalogAudio("tank",         "sun", dataPath, 6);
+	initCatalogAudio("tech",         "sun", dataPath, 7);
 
 	/* Load all background music into memory */
-	InitAudio("music/1.au",        	    dataPath,  10);
-	InitAudio("music/2.au",		    dataPath,  11);
-	InitAudio("music/3.au",		    dataPath,  12);
-	InitAudio("music/4.au",		    dataPath,  13);
-	InitAudio("music/5.au",		    dataPath,  14);
-
-	InitAudio("music/d1.au",	    dataPath,  15);
-	InitAudio("music/d2.au",	    dataPath,  16);
-	InitAudio("music/d3.au",	    dataPath,  17);
-	InitAudio("music/d4.au",	    dataPath,  18);
-	InitAudio("music/d5.au",	    dataPath,  19);
+	initCatalogAudio("music-1", "sun", dataPath, 10);
+	initCatalogAudio("music-2", "sun", dataPath, 11);
+	initCatalogAudio("music-3", "sun", dataPath, 12);
+	initCatalogAudio("music-4", "sun", dataPath, 13);
+	initCatalogAudio("music-5", "sun", dataPath, 14);
+	initCatalogAudio("death-1", "sun", dataPath, 15);
+	initCatalogAudio("death-2", "sun", dataPath, 16);
+	initCatalogAudio("death-3", "sun", dataPath, 17);
+	initCatalogAudio("death-4", "sun", dataPath, 18);
+	initCatalogAudio("death-5", "sun", dataPath, 19);
     }
 #else
 #ifdef MACVERSION
@@ -287,30 +390,21 @@ SHPlayPause(monsterbeamRefNum);
     }
 
     if (!noSound) {  
+	selectMusicSlots("oss");
 	/* Load all sound effects into memory */
-	Snd_loadRawSample("sounds/beam.raw", &snd[0]);
-	Snd_loadRawSample("sounds/boom.raw", &snd[1]);
-	Snd_loadRawSample("sounds/crash.raw",&snd[2]);
-	Snd_loadRawSample("sounds/monsterbeam.raw",&snd[3]);
-	Snd_loadRawSample("sounds/rocket.raw",&snd[4]);
-	Snd_loadRawSample("sounds/slag.raw",&snd[5]);
-	Snd_loadRawSample("sounds/tank.raw",&snd[6]);
-	Snd_loadRawSample("sounds/tech.raw",&snd[7]);
+	loadRawCatalogAudio("beam", dataPath, 0);
+	loadRawCatalogAudio("boom", dataPath, 1);
+	loadRawCatalogAudio("crash", dataPath, 2);
+	loadRawCatalogAudio("monster-beam", dataPath, 3);
+	loadRawCatalogAudio("rocket", dataPath, 4);
+	loadRawCatalogAudio("slag", dataPath, 5);
+	loadRawCatalogAudio("tank", dataPath, 6);
+	loadRawCatalogAudio("tech", dataPath, 7);
 
 	/* Load all background music into memory */
 
-	Snd_loadRawSample("music/1.raw",&snd[10]);
-	Snd_loadRawSample("music/2.raw",&snd[11]);
-/*	Snd_loadRawSample("music/3.au",&snd[12]);
-	Snd_loadRawSample("music/4.au",&snd[13]);
-	Snd_loadRawSample("music/5.au",&snd[14]);
-
-	Snd_loadRawSample("music/d1.au",&snd[15]);
-	Snd_loadRawSample("music/d2.au",&snd[16]);
-	Snd_loadRawSample("music/d3.au",&snd[17]);
-	Snd_loadRawSample("music/d4.au",&snd[18]);
-	Snd_loadRawSample("music/d5.au",&snd[19]);
-*/
+	loadRawCatalogAudio("music-1", dataPath, 10);
+	loadRawCatalogAudio("music-2", dataPath, 11);
         if (Snd_init( NUM_SAMPLES, snd, SAMPLE_RATE, NUM_CHANNELS, audio_dev )==EXIT_FAILURE){
    	    printf("Can't init soundIt library. yech..\n");
    	    exit(0);
@@ -621,12 +715,6 @@ void doSound(int theSound)
     int garbage;
 
 #ifdef SGIAUDIO
-
-static int deadMusic[MAXDEADMUSIC] = {15, 16, 17, 18, 19};
-
-static int theMusic[MAXMUSIC] = {10, 11, 12, 13, 14};
-
-
     struct sound * s, *t;
     int soundDelay;
 
@@ -655,19 +743,23 @@ static int theMusic[MAXMUSIC] = {10, 11, 12, 13, 14};
 				if (Googelon.monsterIsDead)
 				    {
 				    musicCount = 0;
-				    if ((t != NULL) && (deadCount < MAXDEADMUSIC))
+				    if ((t != NULL) &&
+					(deadCount < deathMusicSlotCount))
 					{
-					if ((ALgetfilled(t->audio_port)+oneSound[deadMusic[deadCount]].numberSamples < 2*oneSound[10].samplesPerBuffer) && (deadCount < 3))
+					if ((ALgetfilled(t->audio_port) +
+					     oneSound[deathMusicSlots[deadCount]].numberSamples <
+					     2 * oneSound[musicSlots[0]].samplesPerBuffer) &&
+					    (deadCount < 3))
 					    {
 					    ALwritesamps(t->audio_port,
-							oneSound[deadMusic[deadCount]].sampleBuffer,
-							oneSound[deadMusic[deadCount]].numberSamples);
+						oneSound[deathMusicSlots[deadCount]].sampleBuffer,
+						oneSound[deathMusicSlots[deadCount]].numberSamples);
 					    deadCount = deadCount+1;
 					    }
 					}
-				    else if (deadCount < MAXDEADMUSIC)
+				    else if (deadCount < deathMusicSlotCount)
 					{
-					OutAudio(deadMusic[deadCount]);
+					OutAudio(deathMusicSlots[deadCount]);
 					deadCount = deadCount+1;
 					}
 				    }
@@ -676,18 +768,20 @@ static int theMusic[MAXMUSIC] = {10, 11, 12, 13, 14};
 				    deadCount = 0;
 				    if (t != NULL)
 					{
-					if(ALgetfilled(t->audio_port)+oneSound[theMusic[musicCount]].numberSamples < 2*oneSound[10].samplesPerBuffer)
+					if (ALgetfilled(t->audio_port) +
+					    oneSound[musicSlots[musicCount]].numberSamples <
+					    2 * oneSound[musicSlots[0]].samplesPerBuffer)
 					    {
 					    ALwritesamps(t->audio_port,
-							oneSound[theMusic[musicCount]].sampleBuffer,
-							oneSound[theMusic[musicCount]].numberSamples);
-					    musicCount = (musicCount+1) % MAXMUSIC;
+						oneSound[musicSlots[musicCount]].sampleBuffer,
+						oneSound[musicSlots[musicCount]].numberSamples);
+					    musicCount = (musicCount+1) % musicSlotCount;
 					    }
 					}
 				    else
 					{
-					OutAudio(theMusic[musicCount]);
-					musicCount = (musicCount+1) % MAXMUSIC;
+					OutAudio(musicSlots[musicCount]);
+					musicCount = (musicCount+1) % musicSlotCount;
 					}
 					
 				    }
@@ -774,11 +868,6 @@ static int theMusic[MAXMUSIC] = {10, 11, 12, 13, 14};
 
 #endif
 # ifdef SUNAUDIO
-
-static int deadMusic[MAXDEADMUSIC] = {15, 16, 17, 18, 19};
-
-static int theMusic[MAXMUSIC] = {10, 11, 12, 13, 14};
-
     int soundDelay;
 
     if (!noSound) {
@@ -796,8 +885,8 @@ static int theMusic[MAXMUSIC] = {10, 11, 12, 13, 14};
 	    switch (theSound) {
 	    case MUSIC:
 		if (!playingMusic) {
-		    OutAudio(theMusic[musicCount]);
-		    musicCount = (musicCount+1) % MAXMUSIC;
+		    OutAudio(musicSlots[musicCount]);
+		    musicCount = (musicCount+1) % musicSlotCount;
 
 		    /* each music sample is 5 secs long */
 		    playingMusic =  soundDelay * 5; ;
@@ -863,11 +952,6 @@ static int theMusic[MAXMUSIC] = {10, 11, 12, 13, 14};
 
 #endif
 #ifdef LINUXAUDIO
-
-static int deadMusic[MAXDEADMUSIC] = {15, 16};
-
-static int theMusic[MAXMUSIC] = {10, 11};
-
     int soundDelay;
     
 /*  printf("doSound -> %d\n", theSound); */
@@ -887,8 +971,8 @@ static int theMusic[MAXMUSIC] = {10, 11};
 	    switch (theSound) {
 	    case MUSIC:
 		if (!playingMusic) {
-		    OutAudio(theMusic[musicCount]);
-		    musicCount = (musicCount+1) % MAXMUSIC;
+		    OutAudio(musicSlots[musicCount]);
+		    musicCount = (musicCount+1) % musicSlotCount;
 /* printf("Music start\n"); */
 		    /* each music sample is 5 secs long */
 		    playingMusic =  soundDelay * 20; ;
@@ -1203,9 +1287,9 @@ void OutAudio(int sCounter)
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
 
-void InitAudio(char * fileName,  char * dataPath, int sCounter)
+void InitAudio(const char *fileName, const char *dataPath, int sCounter)
     {
-    char * garbName,  * garbPath;
+    const char *garbName, *garbPath;
     int garbCount;
     
 #ifdef SGIAUDIO

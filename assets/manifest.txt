@@ -13,6 +13,7 @@ file effect-values config/effects.values
 file palette-values config/palette.values
 file ui-values config/ui.values
 file stroke-font fonts/stroke.font
+file audio-catalog audio/catalog.txt
 
 model tank models/vehicles/tank.glb
 model tank-slag models/vehicles/tank-slag.glb
