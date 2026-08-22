@@ -35,7 +35,7 @@
  * OpenGL(TM) is a trademark of Silicon Graphics, Inc.
  */
 #ifdef MACOSVERSION
-# include "renderer/legacy_gl.h"
+# include "renderer/fixed_gl.h"
 #else
 # include <X11/Xlib.h>
 # include <X11/Xutil.h>

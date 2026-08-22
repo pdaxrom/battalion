@@ -1,5 +1,11 @@
 # Battalion assets
 
+The complete content-creation workflow and format reference is in
+[`../docs/content-authoring.md`](../docs/content-authoring.md). It documents
+static and animated GLB authoring, every `.entity` directive, creatures, NPCs,
+vehicles, objects, devices, structures, effects, map actors, perception zones,
+reactions, and triggers.
+
 All runtime content lives below this directory. Directory and file names use
 lowercase so the same package works on case-sensitive and case-insensitive
 filesystems.
@@ -79,9 +85,8 @@ perception sensors, reactions, trigger events, and optional player-control
 parameters. Vehicles, NPCs, creatures, devices, structures, and ordinary
 objects all use the same catalog and runtime representation.
 
-Sensor reactions support `on-enter`, `on-stay`, and `on-exit` transitions;
-the older `on-sensor` spelling remains available for continuous enter/stay
-behavior. Maps route emitted events to an actor id or group, including inactive
+Sensor reactions support `on-enter`, `on-stay`, and `on-exit` transitions.
+Maps route emitted events to an actor id or group, including inactive
 actors that an `activate` trigger rule can wake.
 
 An archetype with `controllable yes` can be used as the local player without a

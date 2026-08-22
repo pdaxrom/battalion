@@ -22,6 +22,7 @@
 #define ENTITY_MAX_HOSTILE_FACTIONS 8
 #define ENTITY_MAX_SENSORS 8
 #define ENTITY_MAX_REACTION_RULES 32
+#define ENTITY_MAX_RENDER_NODES 32
 
 #define ENTITY_KIND_VEHICLE 1
 #define ENTITY_KIND_NPC 2
@@ -101,6 +102,9 @@ struct EntityArchetype
     char attackAnimation[ENTITY_NAME_SIZE];
     char aimYawNode[ENTITY_NAME_SIZE];
     char aimPitchNode[ENTITY_NAME_SIZE];
+    char weaponColor[ENTITY_NAME_SIZE];
+    char renderNodes[ENTITY_MAX_RENDER_NODES][ENTITY_NAME_SIZE];
+    size_t renderNodeCount;
     char faction[ENTITY_NAME_SIZE];
     char hostileFactions[ENTITY_MAX_HOSTILE_FACTIONS][ENTITY_NAME_SIZE];
     size_t hostileFactionCount;
@@ -125,7 +129,7 @@ struct EntityArchetype
     int controllable;
     int firstPersonVisible;
     int shortcut;
-    int legacyMonster;
+    int networkCode;
     float scale;
     float verticalOffset;
     float speed;
@@ -171,8 +175,8 @@ const struct EntityArchetype *entityCatalogFind(
     const struct EntityCatalog *catalog, const char *id);
 const struct EntityArchetype *entityCatalogFindShortcut(
     const struct EntityCatalog *catalog, int shortcut);
-const struct EntityArchetype *entityCatalogFindLegacyMonster(
-    const struct EntityCatalog *catalog, int legacyMonster);
+const struct EntityArchetype *entityCatalogFindNetworkCode(
+    const struct EntityCatalog *catalog, int networkCode);
 size_t entityCatalogControllableCount(const struct EntityCatalog *catalog);
 const struct EntityArchetype *entityCatalogControllableAt(
     const struct EntityCatalog *catalog, size_t ordinal);

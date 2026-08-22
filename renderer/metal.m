@@ -6,8 +6,8 @@
 #include <stdio.h>
 #include <string.h>
 
-#define LEGACY_DEPTH_BUFFER_BIT 0x00000100u
-#define LEGACY_COLOR_BUFFER_BIT 0x00004000u
+#define FRONTEND_DEPTH_BUFFER_BIT 0x00000100u
+#define FRONTEND_COLOR_BUFFER_BIT 0x00004000u
 #define MAX_TEXTURES 256
 
 typedef struct MetalUniforms {
@@ -117,12 +117,12 @@ static int beginFrame(unsigned int buffers, const float color[4], float depth)
         return 0;
 
     commandBuffer = [commandQueue commandBuffer];
-    pass.colorAttachments[0].loadAction = (buffers & LEGACY_COLOR_BUFFER_BIT)
+    pass.colorAttachments[0].loadAction = (buffers & FRONTEND_COLOR_BUFFER_BIT)
         ? MTLLoadActionClear : MTLLoadActionDontCare;
     pass.colorAttachments[0].storeAction = MTLStoreActionStore;
     pass.colorAttachments[0].clearColor = MTLClearColorMake(color[0], color[1], color[2], color[3]);
     if (pass.depthAttachment) {
-        pass.depthAttachment.loadAction = (buffers & LEGACY_DEPTH_BUFFER_BIT)
+        pass.depthAttachment.loadAction = (buffers & FRONTEND_DEPTH_BUFFER_BIT)
             ? MTLLoadActionClear : MTLLoadActionDontCare;
         pass.depthAttachment.storeAction = MTLStoreActionDontCare;
         pass.depthAttachment.clearDepth = depth;
@@ -204,7 +204,7 @@ void rendererBackendDraw(enum RendererPrimitive primitive,
     unsigned int texture;
     int samplerIndex;
 
-    if (!vertexCount || !beginFrame(LEGACY_COLOR_BUFFER_BIT | LEGACY_DEPTH_BUFFER_BIT,
+    if (!vertexCount || !beginFrame(FRONTEND_COLOR_BUFFER_BIT | FRONTEND_DEPTH_BUFFER_BIT,
                                     defaultClearColor, 1.0f))
         return;
 

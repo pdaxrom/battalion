@@ -1,4 +1,4 @@
-#include "legacy_gl.h"
+#include "fixed_gl.h"
 #include "backend.h"
 
 #include <math.h>
@@ -18,7 +18,7 @@ typedef struct MatrixStack {
     int top;
 } MatrixStack;
 
-typedef struct LegacyState {
+typedef struct FixedState {
     float color[4];
     float texcoord[2];
     float clearColor[4];
@@ -40,7 +40,7 @@ typedef struct LegacyState {
     int fog;
     int lighting;
     int alphaTest;
-} LegacyState;
+} FixedState;
 
 enum CommandOp {
     CMD_BEGIN, CMD_END, CMD_VERTEX2, CMD_VERTEX3, CMD_COLOR3, CMD_COLOR4,
@@ -75,8 +75,8 @@ struct GLUquadric {
 };
 
 static int initialized;
-static LegacyState state;
-static LegacyState attribStack[ATTRIB_STACK_SIZE];
+static FixedState state;
+static FixedState attribStack[ATTRIB_STACK_SIZE];
 static int attribTop;
 static MatrixStack modelview;
 static MatrixStack projection;

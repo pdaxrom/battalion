@@ -18,5 +18,9 @@ value monster-beam-jitter 0.04
 value monster-beam-green 0.5 0.5
 value monster-beam-primary 0.95
 
+value projectile-standard-scale 1.5
+value projectile-plasma-scale 2.5
+value projectile-hero-scale 2.0
+
 value beam-scar-line-width 2.01
 value beam-scar-link-distance 0.3

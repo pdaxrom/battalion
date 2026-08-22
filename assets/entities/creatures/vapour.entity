@@ -4,7 +4,7 @@ kind creature
 controllable yes
 control-mode free
 shortcut 8
-legacy-monster 1
+network-code 1
 model vapour
 idle-animation vapour-cloud
 move-animation vapour-cloud
@@ -23,6 +23,7 @@ vertical-offset 0
 collision-radius 0.3
 collision-height 1.3
 weapon fire
+weapon-color orange
 weapon-range 1
 weapon-min-range 0
 projectile-speed 0.0005
@@ -34,9 +35,19 @@ forget-range 12
 lost-frames 180
 target-mode nearest
 max-targets 1
-spawn-weight 0
-spawn-after 0
-max-active 0
+sensor nearby proximity 1.5 360 hostile
+sensor sight vision 7 120 hostile
+sensor noise hearing 10 360 hostile
+sensor damaged damage 0 360 hostile
+on-enter nearby attack monster-alert
+on-enter sight pursue monster-alert
+on-enter noise investigate monster-alert
+on-enter damaged attack monster-alert
+on-trigger monster-alert activate none
+on-trigger monster-alert attack none
+spawn-weight 2
+spawn-after 500
+max-active 1
 player-energy 50
 player-height 1.3
 player-width 0.3

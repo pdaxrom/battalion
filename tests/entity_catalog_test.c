@@ -68,6 +68,7 @@ int main(void)
     const struct EntityArchetype *helicopter;
     const struct EntityArchetype *soldier;
     const struct EntityArchetype *monster;
+    const struct EntityArchetype *flutter;
     const struct EntityArchetype *vapour;
     const struct EntityArchetype *techs;
     char error[256];
@@ -124,25 +125,36 @@ int main(void)
     helicopter = entityCatalogFind(&catalog, "helo-standard");
     soldier = entityCatalogFind(&catalog, "beam-soldier");
     monster = entityCatalogFind(&catalog, "googelon");
+    flutter = entityCatalogFind(&catalog, "flutter");
     vapour = entityCatalogFind(&catalog, "vapour");
     techs = entityCatalogFind(&catalog, "techs");
     if (helicopter == NULL || soldier == NULL || monster == NULL ||
+        flutter == NULL ||
         vapour == NULL || techs == NULL ||
         !helicopter->controllable || !soldier->controllable ||
         !monster->controllable || !vapour->controllable ||
         helicopter->movement != ENTITY_MOVEMENT_AIR ||
         soldier->kind != ENTITY_KIND_NPC ||
         monster->kind != ENTITY_KIND_CREATURE ||
+        monster->renderNodeCount != 5 ||
+        monster->animationSpeed != 1.0f ||
+        monster->muzzleHeight != 0.2f ||
+        flutter->animationSpeed != 1.0f ||
+        flutter->muzzleHeight != 0.2f ||
+        strcmp(monster->renderNodes[0], "body") != 0 ||
         vapour->weapon != ENTITY_WEAPON_FIRE ||
         vapour->collisionMode != ENTITY_COLLISION_PHASE ||
         strcmp(vapour->idleAnimation, "vapour-cloud") != 0 ||
         vapour->shortcut != '8' ||
-        vapour->legacyMonster != 1 ||
+        vapour->networkCode != 1 ||
+        vapour->sensorCount != 4 ||
         techs->weapon != ENTITY_WEAPON_PLASMA ||
+        strcmp(monster->weaponColor, "blue") != 0 ||
         entityCatalogFindShortcut(&catalog, '6') != monster ||
-        entityCatalogFindLegacyMonster(&catalog, 1) != vapour ||
+        entityCatalogFindNetworkCode(&catalog, 1) != vapour ||
+        strcmp(catalog.fallback, "googelon") != 0 ||
         entityCatalogControllableCount(&catalog) != 7 ||
-        entityCatalogControllableAt(&catalog, 0) != tank)
+        entityCatalogControllableAt(&catalog, 0) != monster)
         {
         entityCatalogDestroy(&catalog);
         return 1;

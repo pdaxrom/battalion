@@ -398,6 +398,20 @@ static void copyPaletteColor(const char *key, float color[4])
     memcpy(color, value->components, 4 * sizeof(float));
     }
 
+static const float *paletteColor(const char *key)
+    {
+    const struct AssetValue *value;
+
+    value = assetValuesFind(&externalPaletteValues, key);
+    if (value == NULL || value->componentCount != 4)
+        {
+        fprintf(stderr, "Required palette colour is missing: %s\n", key);
+        showError("Required palette colour is missing from assets");
+        exit(1);
+        }
+    return value->components;
+    }
+
 static void applyExternalPalette(void)
     {
     copyPaletteColor("olive", colorolive);
@@ -2247,6 +2261,27 @@ static void applyExternalEntityAim(const struct AssetModel *model,
         }
     }
 
+static void drawExternalEntityModel(
+    const struct AssetManifestModel *model,
+    const struct EntityArchetype *archetype,
+    const struct AssetPose *pose)
+    {
+    size_t renderNode;
+
+    if (archetype->renderNodeCount == 0)
+        {
+        assetModelDraw(&model->model, pose);
+        return;
+        }
+    for (renderNode = 0; renderNode < archetype->renderNodeCount;
+         renderNode++)
+        assetModelDrawNode(
+            &model->model,
+            assetModelFindNode(&model->model,
+                               archetype->renderNodes[renderNode]),
+            pose);
+    }
+
 static void drawExternalEntity(const struct tank *tank, int counter,
                                int destroyed)
     {
@@ -2282,7 +2317,7 @@ static void drawExternalEntity(const struct tank *tank, int counter,
         {
         applyExternalEntityAim(&model->model, archetype, tank,
                                &externalEntityPose);
-        assetModelDraw(&model->model, &externalEntityPose);
+        drawExternalEntityModel(model, archetype, &externalEntityPose);
         return;
         }
     model = assetManifestFindModel(&externalAssets, archetype->model);
@@ -2291,7 +2326,7 @@ static void drawExternalEntity(const struct tank *tank, int counter,
         {
         applyExternalEntityAim(&model->model, archetype, tank,
                                &externalEntityPose);
-        assetModelDraw(&model->model, &externalEntityPose);
+        drawExternalEntityModel(model, archetype, &externalEntityPose);
         }
     }
 
@@ -2456,7 +2491,8 @@ void drawSlagTanks(struct tank * allSlags, int counter, int detail)
 
 void drawMaser(float sourceX, float sourceY, float sourceZ,
 		int shooter, float mX, float mZ, float mHeight, float mBottom, 
-		float r1, float r2, float r3, int width, int view, int detail)
+		float r1, float r2, float r3, int width, int view, int detail,
+		const float *configuredColor)
 
     {
     float beamLoc1[3],  beamLoc2[3];
@@ -2498,7 +2534,8 @@ void drawMaser(float sourceX, float sourceY, float sourceZ,
 	case MECHAG:	    beamColor = colorred;
 			    break;
 
-	case DATAENTITY: beamColor = colorred;
+	case DATAENTITY: beamColor = configuredColor == NULL ? colorred :
+				 (float *)configuredColor;
 			    break;
 			    
 	default:	    showError("Invalid Vehicle Type (drawMaser)");
@@ -2737,7 +2774,8 @@ void drawTanks(struct tank * allTanks,  int counter, struct monsterInfo G,
 
 		if (cTank.type == MECHAG)
 		    drawMaser(cTank.x, cTank.y + 0.8, cTank.z, cTank.type, xloc, zloc, height,
-			    bottom, cTank.rand1, cTank.rand2, cTank.rand3, wid, view, detail);
+			    bottom, cTank.rand1, cTank.rand2, cTank.rand3, wid, view,
+			    detail, NULL);
   
 		/**********************************/
 		/* 009CHH firing maser            */
@@ -2745,7 +2783,8 @@ void drawTanks(struct tank * allTanks,  int counter, struct monsterInfo G,
 	
 		if (cTank.type == CHH)
 		    drawMaser(cTank.x, cTank.y, cTank.z, cTank.type, xloc, zloc, height,
-			    bottom, cTank.rand1, cTank.rand2, cTank.rand3, wid, view, detail);
+			    bottom, cTank.rand1, cTank.rand2, cTank.rand3, wid, view,
+			    detail, NULL);
   		
 		/**********************************/
 		/* tank firing maser              */
@@ -2753,7 +2792,8 @@ void drawTanks(struct tank * allTanks,  int counter, struct monsterInfo G,
 
 		if (cTank.type == MASERTANK)
 		    drawMaser(cTank.x, cTank.y + 0.375, cTank.z, cTank.type, xloc, zloc, height,
-			    bottom, cTank.rand1, cTank.rand2, cTank.rand3, wid, view, detail);
+			    bottom, cTank.rand1, cTank.rand2, cTank.rand3, wid, view,
+			    detail, NULL);
   
 		/**********************************/
 		/* hero firing its weapon         */
@@ -2765,11 +2805,14 @@ void drawTanks(struct tank * allTanks,  int counter, struct monsterInfo G,
 		    else
     			drawHeroWeapon(0, 0, cTank.x, cTank.y + 0.275, cTank.z, colormaserblue, height, bottom);
 
-		if (cTank.type == DATAENTITY && cTank.dataAgent.hasTarget)
-		    drawMaser(cTank.x, cTank.y + cTank.dataArchetype->collisionHeight,
+		if (cTank.type == DATAENTITY && cTank.maserCount > 0 &&
+		    cTank.dataArchetype->weapon == ENTITY_WEAPON_BEAM &&
+		    cTank.dataAgent.hasTarget)
+		    drawMaser(cTank.x, cTank.y + cTank.dataArchetype->muzzleHeight,
 		              cTank.z, DATAENTITY,
 		              cTank.dataAgent.targetX, cTank.dataAgent.targetZ,
-		              PLANEY + 1.2, PLANEY, 0, 0, 0, wid, view, detail);
+		              PLANEY + 1.2, PLANEY, 0, 0, 0, wid, view, detail,
+		              paletteColor(cTank.dataArchetype->weaponColor));
 
   		} 
 	    }  
@@ -2926,15 +2969,18 @@ void drawBooms(struct boom * boomers, int detail)
 /* draw googelon/Flutter's energy beam                           */
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
-void drawBeam(float x, float z, int horz, int vert, int monsterName,
-	int detail)
+void drawBeam(float x, float z, int horz, int vert,
+	const struct EntityArchetype *archetype, int detail)
     {
     float loc1[3],  loc2[3],  loc3[3];
     float c[4] = {0, 0, 0, 0};
-    float * col;
+    const float *col;
     float R;
     float beamRange;
     float beamHeight;
+    float beamForward;
+    float directionX;
+    float directionZ;
     float jitter;
     const struct AssetValue *beamLines;
     const struct AssetValue *beamGreen;
@@ -2948,14 +2994,19 @@ void drawBeam(float x, float z, int horz, int vert, int monsterName,
     glGetFloatv(GL_LINE_WIDTH, &lineWidthNow);
     beamRange = effectScalar("monster-beam-range");
     beamHeight = effectScalar("monster-beam-height");
+    beamForward = 0.0f;
+    if (archetype != NULL)
+	{
+	beamRange = archetype->weaponRange;
+	beamHeight = archetype->verticalOffset + archetype->muzzleHeight;
+	beamForward = archetype->muzzleForward;
+	}
     jitter = effectScalar("monster-beam-jitter");
     beamLines = requiredEffectValue("monster-beam-lines", 3);
     beamGreen = requiredEffectValue("monster-beam-green", 2);
     
-    if (monsterName == FLUTTER)
-	col = colororange;
-    else
-	col = colorblue;
+    col = paletteColor(archetype == NULL ? "blue" :
+	               archetype->weaponColor);
 
 	    
     /**********************************/
@@ -2982,24 +3033,26 @@ void drawBeam(float x, float z, int horz, int vert, int monsterName,
 	loc3[1] = PLANEY + beamHeight -
 	    R * sin(fabs(vert * BIG_DEG_TO_RAD));
 
-    loc1[0] = x;
-    loc1[2] = z;
+    directionX = -cos((900 + horz) * BIG_DEG_TO_RAD);
+    directionZ = sin((900 + horz) * BIG_DEG_TO_RAD);
+    loc1[0] = x + beamForward * directionX;
+    loc1[2] = z + beamForward * directionZ;
     loc1[1] = PLANEY + beamHeight;
 
 /* this doesnt really work ... beam has xz value of 4 no matter what y is (> plane)
  * so beam will be longer than 4 as it gets higher up in the sky
  */
  
-    loc3[0] = x+R * -cos((900 + horz) * BIG_DEG_TO_RAD);
-    loc3[2] = z+R * sin((900 + horz) * BIG_DEG_TO_RAD);
+    loc3[0] = loc1[0] + R * directionX;
+    loc3[2] = loc1[2] + R * directionZ;
 
     if (loc3[1] < PLANEY)
 	loc3[1] = PLANEY;
 
-    if (monsterName == FLUTTER)
-	c[0] = effectScalar("monster-beam-primary");
-    else
-	c[2] = effectScalar("monster-beam-primary");
+    c[0] = col[0] * effectScalar("monster-beam-primary");
+    c[1] = col[1] * effectScalar("monster-beam-primary");
+    c[2] = col[2] * effectScalar("monster-beam-primary");
+    c[3] = col[3];
 
     switch (detail)
 	{
@@ -3026,9 +3079,10 @@ void drawBeam(float x, float z, int horz, int vert, int monsterName,
 	loc2[1] = loc3[1] + randy(jitter);
 	loc2[2] = loc3[2] + randy(jitter);
 
-	c[1] = beamGreen->components[0] + randy(beamGreen->components[1]);
+	c[1] = col[1] * effectScalar("monster-beam-primary") +
+	       beamGreen->components[0] + randy(beamGreen->components[1]);
 	
-	dynamicDrawLine3(loc2, loc1, c, col);
+	dynamicDrawLine3(loc2, loc1, c, (float *)col);
 	}
 	
     glShadeModel(shadeNow);
@@ -3230,6 +3284,9 @@ void drawProjectiles(struct projectile * allProjs, int counter,
     int projectileVariant;
     int special;
     float scarDistance;
+    float heroScale;
+    float plasmaScale;
+    float standardScale;
 
     static float beamhitx[MAXBEAMS], beamhitz[MAXBEAMS];
 
@@ -3237,6 +3294,9 @@ void drawProjectiles(struct projectile * allProjs, int counter,
     glGetFloatv(GL_LINE_WIDTH, &lineWidthNow);
 
     projectileVariant = (detail > 0 ? 1 : 0) + (itsChristmas ? 2 : 0);
+    standardScale = effectScalar("projectile-standard-scale");
+    plasmaScale = effectScalar("projectile-plasma-scale");
+    heroScale = effectScalar("projectile-hero-scale");
     if (!assetPoseSample(&externalProjectileModels[projectileVariant]->model,
 			externalProjectileClips[projectileVariant],
 			(float)counter,
@@ -3272,6 +3332,8 @@ void drawProjectiles(struct projectile * allProjs, int counter,
 		case PROJTANK:
 		case PROJROCKET:glPushMatrix();		/* white cube shells */
 				    glTranslatef(x,  y,  z);
+				    glScalef(standardScale, standardScale,
+				             standardScale);
 				    assetModelDraw(
 					&externalProjectileModels[projectileVariant]->model,
 					&externalProjectilePoses[projectileVariant]);
@@ -3285,6 +3347,8 @@ void drawProjectiles(struct projectile * allProjs, int counter,
 				
 		case PROJTECHS: glPushMatrix();		/* techs shell */
 				    glTranslatef(x,  y,  z);
+				    glScalef(plasmaScale, plasmaScale,
+				             plasmaScale);
 				    assetModelDraw(
 				        &externalSpecialProjectileModels[0]->model,
 				        &externalSpecialProjectilePoses[0]);
@@ -3313,6 +3377,7 @@ void drawProjectiles(struct projectile * allProjs, int counter,
 
 		case PROJHERO:  glPushMatrix();
 				    glTranslatef(x,  y,  z);
+				    glScalef(heroScale, heroScale, heroScale);
 				    assetModelDraw(
 				        &externalSpecialProjectileModels[1]->model,
 				        &externalSpecialProjectilePoses[1]);

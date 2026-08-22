@@ -113,6 +113,7 @@ struct boom * projectboom;
 struct tank * tanklist;
 struct tank * slaglist;
 struct tree * treelist;
+struct monsterInfo Googelon;
 
 static struct BattalionMapPackage battlefieldMap;
 static struct EntityCatalog gameEntities;
@@ -126,9 +127,9 @@ const struct EntityArchetype *selectedPlayerArchetype(void)
     return playerEntityArchetype;
     }
 
-const struct EntityArchetype *legacyMonsterArchetype(int legacyMonster)
+const struct EntityArchetype *networkEntityArchetype(int networkCode)
     {
-    return entityCatalogFindLegacyMonster(&gameEntities, legacyMonster);
+    return entityCatalogFindNetworkCode(&gameEntities, networkCode);
     }
 
 size_t playerEntityOptionCount(void)
@@ -158,6 +159,7 @@ static int setPlayerEntityArchetype(
             {
             playerEntityArchetype = candidate;
             playerEntitySelection = ordinal;
+            Googelon.dataArchetype = candidate;
             return 1;
             }
         }
@@ -178,18 +180,26 @@ static void stepPlayerEntitySelection(int direction)
         playerEntitySelection = (playerEntitySelection + 1) % count;
     playerEntityArchetype = entityCatalogControllableAt(
         &gameEntities, playerEntitySelection);
+    Googelon.dataArchetype = playerEntityArchetype;
+    }
+
+static const struct EntityArchetype *monsterArchetype(
+    const struct monsterInfo *monster)
+    {
+    if (monster == NULL)
+        return NULL;
+    if (monster->dataArchetype != NULL)
+        return monster->dataArchetype;
+    if (monster->monster == DATAENTITY)
+        return playerEntityArchetype;
+    return networkEntityArchetype(monster->monster);
     }
 
 static int monsterHasSolidCollision(const struct monsterInfo *monster)
     {
     const struct EntityArchetype *archetype;
 
-    if (monster == NULL)
-        return 1;
-    if (monster->monster == DATAENTITY)
-        archetype = playerEntityArchetype;
-    else
-        archetype = legacyMonsterArchetype(monster->monster);
+    archetype = monsterArchetype(monster);
     return archetype == NULL ||
            archetype->collisionMode == ENTITY_COLLISION_SOLID;
     }
@@ -233,6 +243,8 @@ static int selectAssetRoot(const char *root)
 
 static int entityAssetsAvailable(const struct EntityArchetype *archetype)
     {
+    size_t node;
+
     if (assetModelDisplayList(archetype->model) == 0)
         return 0;
     if (archetype->destroyedModel[0] != '\0' &&
@@ -244,6 +256,10 @@ static int entityAssetsAvailable(const struct EntityArchetype *archetype)
     if (!assetModelHasNode(archetype->model, archetype->aimYawNode) ||
         !assetModelHasNode(archetype->model, archetype->aimPitchNode))
         return 0;
+    for (node = 0; node < archetype->renderNodeCount; node++)
+        if (!assetModelHasNode(archetype->model,
+                               archetype->renderNodes[node]))
+            return 0;
     return assetAnimationAvailable(archetype->idleAnimation) &&
            assetAnimationAvailable(archetype->moveAnimation) &&
            assetAnimationAvailable(archetype->attackAnimation);
@@ -305,7 +321,6 @@ static int loadGameEntityCatalog(char *error, size_t errorSize)
 /* monster stuff */
 /*****************/
 
-struct monsterInfo Googelon;
 float offsetX; /* needed global to bank flutter */
 struct targetInfo * targets;
 
@@ -1007,7 +1022,7 @@ static int dataEntityLineOfSight(const struct tank *source,
 	 structure = structure->next)
 	{
 	/* A structure containing either endpoint is not an intervening
-	   occluder.  The existing projectile footprint is also the legacy
+	   occluder.  The existing projectile footprint is also the established
 	   structure footprint used by perception. */
 	if ((fabs(structure->x - source->x) < TREEBLASTR &&
 	     fabs(structure->z - source->z) < TREEBLASTR) ||
@@ -1506,7 +1521,9 @@ static void notifyDataEntityDamageFromMonster(struct tank *tank,
 
     if (owner == &Googelon)
 	{
-	notifyDataEntityDamage(tank, "player", "monster", x, z);
+	notifyDataEntityDamage(tank, "player",
+	    playerEntityArchetype == NULL ? "neutral" :
+	    playerEntityArchetype->faction, x, z);
 	return;
 	}
     number = 0;
@@ -1605,7 +1622,9 @@ static size_t buildDataEntityContacts(struct tank *source,
 	targetY = (player->height + player->bottom) * 0.5f;
 	visible = dataEntityLineOfSight(source, 0, targetY, 0);
 	audible = player->monsterMoving || player->beamOn || playerFired;
-	initializeContact(&contacts[count++], "player", "monster", 0, 0,
+	initializeContact(&contacts[count++], "player",
+		  playerEntityArchetype == NULL ? "neutral" :
+		  playerEntityArchetype->faction, 0, 0,
 			  player->monsterIsDead != 1, visible, audible);
 	}
     targetNumber = 0;
@@ -1787,7 +1806,10 @@ static void updateConfiguredPlayerWeapon(void)
         return;
         }
     if (archetype->weapon == ENTITY_WEAPON_FIRE)
-        addProjectile(0, PLANEY + 0.12f, 0, PROJFIRE,
+        addProjectile(0,
+                      PLANEY + archetype->verticalOffset +
+                          archetype->muzzleHeight,
+                      0, PROJFIRE,
                       0, -archetype->projectileSpeed, 0,
                       archetype->accuracy, &Googelon);
     else
@@ -1806,7 +1828,9 @@ static void updateConfiguredPlayerWeapon(void)
             projectileType = PROJTECHS;
         else
             projectileType = PROJTANK;
-        addProjectile(muzzleX, PLANEY + archetype->muzzleHeight + muzzleY,
+        addProjectile(muzzleX,
+                      PLANEY + archetype->verticalOffset +
+                          archetype->muzzleHeight + muzzleY,
                       muzzleZ, projectileType,
                       xVelocity, yVelocity, zVelocity,
                       0, &Googelon);
@@ -3365,75 +3389,9 @@ void setPlayConditions()
 
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
-void addRandomTarget()
+void addRandomCatalogEntity()
     {
-    struct monsterInfo newMonster;
-    struct targetInfo * nother,  * temp;
-    int i, j, k;
-    float Vplane;
-
-    /**************************************/
-    /* is there room for another monster? */
-    /**************************************/
-
-    for (i=0, temp=targets->next; temp != NULL; i++,temp=temp->next);
-
-    if (i < MAXTARGETS)
-	{
-	moreThanOne = 1;
-
-	/******************************/
-	/* generate a random monster  */
-	/******************************/
-
-	newMonster.monster = rand() % 4;
-
-	/************************************/
-	/* reset general monster parmeters  */
-	/************************************/
-
-	newMonster = resetMonsterParameters(newMonster);
-
-	newMonster.energyRemaining = MAXLIFE / 2;
-
-	nother = (struct targetInfo *) amalloc(sizeof(struct targetInfo), arena);
-
-	if (nother != NULL)
-	    {
-	    nother->monster = newMonster;
-
-	    /********************************************/
-	    /* declare this is not a networked monster  */
-	    /********************************************/
-
-	    nother->net_clientFrom = COMPUTER_MONSTER;
-
-	    do
-		nother->x = rand() % (PLANESIZE-1);
-	    while (fabs(nother->x) < 2);
-
-	    do
-		nother->z = rand() % (PLANESIZE-1);
-	    while (fabs(nother->z) < 2);
-
-	    nother->next    = targets->next;
-	    targets->next   = nother;
-
-	    Vplane = sqrt(GRAVITY * 1.5) * 0.7071;
-
-	    for (i=-1;i<2;i++)
-		for (j=0;j<3;j++)
-		    for (k=-1;k<2;k++)
-			    if ((rand() % 100) < 75)
-				{
-				addProjectile( nother->x+i*.35, (newMonster.height * 0.5 + newMonster.bottom * 0.5)+(j*.35), nother->z+k*.35, 2,
-				    sin(randy(PI)) * Vplane, Vplane, cos(randy(PI)) * Vplane, 75, &(nother->monster));
-				addProjectile( nother->x+i*.35, (newMonster.height * 0.5 + newMonster.bottom * 0.5)+(j*.35), nother->z+k*.35, 2,
-				    sin(randy(PI)) * Vplane, Vplane, cos(randy(PI)) * Vplane, 75, &(nother->monster));
-				}
-	    }
-	}
-
+    addRandomConfiguredEntity(targets, tanklist, mainCounter);
     }
 
 
@@ -3893,11 +3851,8 @@ void initialization()
 	}
 
 
-    /************************************/
-    /* pick a random monster to start   */
-    /************************************/
-
-    Googelon.monster = rand() % 4;
+    Googelon.monster = DATAENTITY;
+    Googelon.dataArchetype = playerEntityArchetype;
 
     }
 
@@ -4943,11 +4898,11 @@ void doUpdate()
 	if (mode == DEMOMODE)
 	    {
 	    if ((mainCounter > 500) && ((mainCounter % 4000) ==  1500))
-		addRandomTarget();
+		addRandomCatalogEntity();
 	    }
 	else
 	    if ((mainCounter > 1000) && ((mainCounter % 9000) ==  8000))
-		addRandomTarget();
+		addRandomCatalogEntity();
 	}
 
     /*********************/
@@ -5318,7 +5273,8 @@ void doUpdate()
 
    if ((mode == DEMOMODE) && (Googelon.timeDead > 400))
 	{
-	Googelon.monster = (Googelon.monster + 1) % 4;
+	stepPlayerEntitySelection(1);
+	Googelon.monster = DATAENTITY;
 	setPlayConditions();
 	}
 
@@ -5574,7 +5530,7 @@ void goToOverView(int eyeball)
 void drawAMonster(float x, struct monsterInfo monster, float z,
 			int isTarget, int view)
     {
-    const struct EntityArchetype *legacyArchetype;
+    const struct EntityArchetype *networkArchetype;
     float aimPitch;
     float aimYaw;
     float bodyHeading;
@@ -5596,9 +5552,9 @@ void drawAMonster(float x, struct monsterInfo monster, float z,
 				    drawMonster(monster, mainCounter, itsChristmas, lod);
 				break;
 
-		case VAPOUR:    legacyArchetype =
-				    legacyMonsterArchetype(VAPOUR);
-				if (legacyArchetype != NULL)
+		case VAPOUR:    networkArchetype =
+				    networkEntityArchetype(VAPOUR);
+				if (networkArchetype != NULL)
 				    {
 				    if (monster.energyRemaining <= 0)
 					{
@@ -5608,11 +5564,11 @@ void drawAMonster(float x, struct monsterInfo monster, float z,
 					          1, 0, 0);
 					}
 				    glTranslatef(0, PLANEY +
-				        legacyArchetype->verticalOffset, 0);
+				        networkArchetype->verticalOffset, 0);
 				    glRotatef(monster.headHorzRotate * 0.1f,
 				              0, 1, 0);
 				    drawConfiguredPlayerEntity(
-				        legacyArchetype, monster.monsterMoving,
+				        networkArchetype, monster.monsterMoving,
 				        monster.beamOn, mainCounter,
 				        monster.energyRemaining <= 0, 0.0f, 0.0f);
 				    }
@@ -5643,9 +5599,13 @@ void drawAMonster(float x, struct monsterInfo monster, float z,
 
 				break;
 
-		case DATAENTITY: if ((!isTarget) &&
+		case DATAENTITY: networkArchetype =
+				     monsterArchetype(&monster);
+				if (networkArchetype == NULL)
+				    break;
+				if ((!isTarget) &&
 				     (view == FIRSTPERSONVIEW) &&
-				     !playerEntityArchetype->firstPersonVisible)
+				     !networkArchetype->firstPersonVisible)
 				    break;
 				if (monster.energyRemaining <= 0)
 				    {
@@ -5653,13 +5613,13 @@ void drawAMonster(float x, struct monsterInfo monster, float z,
 				    glRotatef(-monster.deadCount * 2.0f, 1, 0, 0);
 				    }
 				glTranslatef(0,
-				             PLANEY + playerEntityArchetype->verticalOffset,
+				             PLANEY + networkArchetype->verticalOffset,
 				             0);
 				bodyHeading = monster.headHorzRotate * 0.1f;
 				aimYaw = 0.0f;
 				aimPitch = 0.0f;
 				if ((!isTarget) &&
-				    playerEntityArchetype->controlMode ==
+				    networkArchetype->controlMode ==
 				        ENTITY_CONTROL_STEERED)
 				    {
 				    bodyHeading = playerBodyHeading * 0.1f;
@@ -5670,7 +5630,7 @@ void drawAMonster(float x, struct monsterInfo monster, float z,
 				glRotatef(bodyHeading,
 				          0, 1, 0);
 				drawConfiguredPlayerEntity(
-				    playerEntityArchetype, monster.monsterMoving,
+				    networkArchetype, monster.monsterMoving,
 				    monster.beamOn, mainCounter,
 				    monster.energyRemaining <= 0,
 				    aimYaw, aimPitch);
@@ -5687,6 +5647,7 @@ void drawAMonster(float x, struct monsterInfo monster, float z,
 
 void doDrawing (int eyeball)
     {
+    const struct EntityArchetype *beamArchetype;
     GLenum glErrorVal;
     GLint tmp[4];
     struct targetInfo * temptarget;
@@ -5799,19 +5760,22 @@ void doDrawing (int eyeball)
     /* draw monsterBeam               */
     /**********************************/
 
-    if ((Googelon.beamOn) && ((Googelon.monster == GOOGELON) ||
-			      (Googelon.monster == FLUTTER)))
+    beamArchetype = monsterArchetype(&Googelon);
+    if (Googelon.beamOn && beamArchetype != NULL &&
+	beamArchetype->weapon == ENTITY_WEAPON_BEAM)
 	drawBeam(0, 0, Googelon.headHorzRotate, Googelon.headVertRotate,
-			Googelon.monster, lod);
+		 beamArchetype, lod);
 
     for (temptarget = targets->next;temptarget != NULL;temptarget = temptarget->next)
-	if ((temptarget->monster.beamOn) &&
-			((temptarget->monster.monster == GOOGELON) ||
-			 (temptarget->monster.monster == FLUTTER)))
+	{
+	beamArchetype = monsterArchetype(&temptarget->monster);
+	if (temptarget->monster.beamOn && beamArchetype != NULL &&
+	    beamArchetype->weapon == ENTITY_WEAPON_BEAM)
 	    drawBeam(temptarget->x, temptarget->z,
 			temptarget->monster.headHorzRotate,
 			temptarget->monster.headVertRotate,
-			temptarget->monster.monster, lod);
+			beamArchetype, lod);
+	}
 
 
 
@@ -6862,9 +6826,11 @@ main (int argc, char*argv[])
 	    }
 	}
 
-    if (Googelon.monster == DATAENTITY && (netUp || client))
+    if ((netUp || client) &&
+	(playerEntityArchetype == NULL ||
+	 playerEntityArchetype->networkCode < 0))
 	{
-	showError("Configured player entities are not supported in legacy network games");
+	showError("Selected player entity has no network-code");
 	exit(1);
 	}
 

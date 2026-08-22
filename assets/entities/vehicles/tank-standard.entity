@@ -23,6 +23,7 @@ vertical-offset 0
 collision-radius 0.25
 collision-height 0.3
 weapon shell
+weapon-color white
 weapon-range 6
 weapon-min-range 0.5
 projectile-speed 0.3

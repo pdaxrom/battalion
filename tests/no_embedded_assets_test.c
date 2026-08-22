@@ -55,19 +55,19 @@ static int auditSources(void)
     return 1;
     }
 
-static int legacyFilesAreAbsent(void)
+static int retiredFilesAreAbsent(void)
     {
-    static const char *legacy[] = {
+    static const char *retired[] = {
         "objects.c", "gprim.c", "tk.c", "battalion.data"
     };
     struct stat status;
     size_t index;
 
-    for (index = 0; index < sizeof(legacy) / sizeof(legacy[0]); index++)
-        if (stat(legacy[index], &status) == 0)
+    for (index = 0; index < sizeof(retired) / sizeof(retired[0]); index++)
+        if (stat(retired[index], &status) == 0)
             {
-            fprintf(stderr, "legacy embedded asset source returned: %s\n",
-                    legacy[index]);
+            fprintf(stderr, "retired embedded asset source returned: %s\n",
+                    retired[index]);
             return 0;
             }
     return 1;
@@ -75,5 +75,5 @@ static int legacyFilesAreAbsent(void)
 
 int main(void)
     {
-    return auditSources() && legacyFilesAreAbsent() ? 0 : 1;
+    return auditSources() && retiredFilesAreAbsent() ? 0 : 1;
     }

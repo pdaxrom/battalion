@@ -80,7 +80,7 @@
 
 
 #ifdef MACOSVERSION
-# include "renderer/legacy_gl.h"
+# include "renderer/fixed_gl.h"
 #else
 # include <GL/gl.h>
 # include <GL/glu.h>
@@ -431,7 +431,8 @@ struct road
 
 struct monsterInfo
 	{
-	float a[MAXTRIBUTES][5];    /* reserved by the legacy network record */
+	const struct EntityArchetype *dataArchetype;
+	float a[MAXTRIBUTES][5];    /* reserved by the fixed network record */
 	float energyRemaining;	    /* amount of energy remaining */
 	float rot1,rot2;
 	float speed;		    /* movement speed */
@@ -711,7 +712,7 @@ void drawConfiguredPlayerEntity(const struct EntityArchetype *, int, int,
 const struct EntityArchetype *selectedPlayerArchetype(void);
 int playerWeaponUsesReload(void);
 float playerWeaponReadiness(void);
-const struct EntityArchetype *legacyMonsterArchetype(int);
+const struct EntityArchetype *networkEntityArchetype(int);
 size_t playerEntityOptionCount(void);
 size_t selectedPlayerArchetypeNumber(void);
 
@@ -761,11 +762,13 @@ void drawtrees(struct tree *, int, int, int, int,int);
 void drawSlagTanks(struct tank *, int, int);
 void drawTanks(struct tank *, int, struct monsterInfo, struct targetInfo *, int, int,int);
 
-void drawMaser(float, float, float, int, float, float, float, float, float, float, float, int, int, int);
+void drawMaser(float, float, float, int, float, float, float, float,
+               float, float, float, int, int, int, const float *);
 void drawHeroWeapon(float, float, float, float, float, float *, float, float);
 
 void drawBooms(struct boom *, int);
-void drawBeam(float, float, int,  int, int, int);
+void drawBeam(float, float, int, int,
+              const struct EntityArchetype *, int);
 
 void drawRoads(struct road *,  float,  float, int, int, int);
 void drawProjectiles(struct projectile *, int, struct fireType*, int, int, int,

@@ -11,7 +11,9 @@ all packages from the repository root:
 make test
 ```
 
-The schema is documented in `docs/assets-and-maps.md`.
+The package overview is documented in `docs/assets-and-maps.md`. The complete
+version 2 actor schema, patrol, perception, reaction, and trigger-routing
+workflow is documented in `docs/content-authoring.md`.
 
 Version 2 packages may also contain `actors`. An actor references an archetype
 from `assets/entities/catalog.txt`, supplies an instance id/group, initial

@@ -56,6 +56,20 @@ extern float globalzshift;
 
 extern struct targetInfo * targets;
 
+static int monsterNetworkCode(struct monsterInfo monster)
+    {
+    const struct EntityArchetype *archetype;
+
+    if (monster.dataArchetype != NULL)
+        return monster.dataArchetype->networkCode;
+    if (monster.monster != DATAENTITY)
+        return monster.monster;
+    archetype = selectedPlayerArchetype();
+    if (archetype == NULL)
+        return -1;
+    return archetype->networkCode;
+    }
+
 
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
@@ -431,7 +445,7 @@ void updateNetworkMonsters(char * recvline, long clientFrom, void * arena)
 	    }
 	}
 
-    if (exists && (thaOne->monster.monster == n_monsterType))
+    if (exists && (monsterNetworkCode(thaOne->monster) == n_monsterType))
 	{	
 	/*****************************************************************/
 	/* update the values in the currently existing networked monster */
@@ -478,6 +492,7 @@ void addNetworkTarget(long fromNum, int monsterType, float horz, float vert,
 	    
 	    newMonster.monster	= monsterType;
 	    newMonster		= resetMonsterParameters(newMonster);
+	    newMonster.monster = DATAENTITY;
 	    
 	    temp->monster		= newMonster;
 
@@ -506,6 +521,7 @@ void addNetworkTarget(long fromNum, int monsterType, float horz, float vert,
 	{
 	newMonster.monster  = monsterType;
 	newMonster	    = resetMonsterParameters(newMonster);
+	newMonster.monster = DATAENTITY;
     
 	nother = (struct targetInfo *) amalloc(sizeof(struct targetInfo), arena);
 	
@@ -572,7 +588,7 @@ void updateClientMonster(char * recvline, void * arena)
 	    }
 	}
 
-    if (exists && (thaOne->monster.monster == n_monsterType))
+    if (exists && (monsterNetworkCode(thaOne->monster) == n_monsterType))
 	{	
 	/*****************************************************************/
 	/* update the values in the currently existing networked monster */
@@ -674,7 +690,7 @@ void processClient(time_t now, int mainCounter, int totalCounter,
 	    sprintf(mesg, "%s %1d %1d %1.0f %1d %1d %1d %1.1f %1.1f %1d %1d#",
 			    MESG_UPDATE, 
 			    totalCounter, 
-			    Googelon.monster, 
+			    monsterNetworkCode(Googelon),
 			    Googelon.energyRemaining, 
 			    Googelon.headHorzRotate,
 			    Googelon.headVertRotate,
@@ -978,7 +994,7 @@ void processNetwork(time_t now, int mainCounter, int totalCounter,
 	    sprintf(mesg, "%s %1d %1d %1.0f %1d %1d %1d %1.1f %1.1f %1d %1d#",
 			    MESG_UPDATE, 
 			    totalCounter, 
-			    Googelon.monster, 
+			    monsterNetworkCode(Googelon),
 			    Googelon.energyRemaining, 
 			    Googelon.headHorzRotate,
 			    Googelon.headVertRotate,

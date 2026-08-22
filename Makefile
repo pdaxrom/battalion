@@ -130,7 +130,7 @@ endif
 # compatibility frontend is shared with the planned GLES backend.
 ifeq ($(PLATFORM),macos)
 SOURCES := $(filter-out tk_x11.c,$(SOURCES))
-SOURCES += tk_macos.m renderer/legacy_gl.c renderer/metal.m
+SOURCES += tk_macos.m renderer/fixed_gl.c renderer/metal.m
 PLATFORM_CPPFLAGS += -DMACOSVERSION -DRENDERER_METAL
 PLATFORM_LDLIBS += -framework AppKit -framework Metal -framework MetalKit \
 	-framework QuartzCore -framework CoreGraphics -lm

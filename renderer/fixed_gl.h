@@ -1,5 +1,5 @@
-#ifndef BATTALION_LEGACY_GL_H
-#define BATTALION_LEGACY_GL_H
+#ifndef BATTALION_FIXED_GL_H
+#define BATTALION_FIXED_GL_H
 
 #include <stddef.h>
 

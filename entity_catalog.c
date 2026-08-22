@@ -217,7 +217,8 @@ static void initializeArchetype(struct EntityArchetype *entry)
     entry->collisionMode = ENTITY_COLLISION_SOLID;
     entry->controlMode = ENTITY_CONTROL_FREE;
     entry->weapon = ENTITY_WEAPON_NONE;
-    entry->legacyMonster = -1;
+    entry->networkCode = -1;
+    strcpy(entry->weaponColor, "blue");
     entry->targetMode = ENTITY_TARGET_NEAREST;
     entry->maxTargets = 1;
     entry->health = 1;
@@ -297,15 +298,15 @@ const struct EntityArchetype *entityCatalogFindShortcut(
     return NULL;
     }
 
-const struct EntityArchetype *entityCatalogFindLegacyMonster(
-    const struct EntityCatalog *catalog, int legacyMonster)
+const struct EntityArchetype *entityCatalogFindNetworkCode(
+    const struct EntityCatalog *catalog, int networkCode)
     {
     size_t index;
 
-    if (catalog == NULL || legacyMonster < 0)
+    if (catalog == NULL || networkCode < 0)
         return NULL;
     for (index = 0; index < catalog->count; index++)
-        if (catalog->entries[index].legacyMonster == legacyMonster)
+        if (catalog->entries[index].networkCode == networkCode)
             return &catalog->entries[index];
     return NULL;
     }
@@ -405,6 +406,14 @@ static int assignDirective(struct EntityArchetype *entry,
     if (strcmp(directive, "aim-pitch-node") == 0)
         return entry->aimPitchNode[0] == '\0' &&
                copyName(entry->aimPitchNode, value);
+    if (strcmp(directive, "render-node") == 0)
+        {
+        if (entry->renderNodeCount >= ENTITY_MAX_RENDER_NODES ||
+            !copyName(entry->renderNodes[entry->renderNodeCount], value))
+            return 0;
+        entry->renderNodeCount++;
+        return 1;
+        }
     if (strcmp(directive, "faction") == 0)
         {
         if (*hasFaction || !copyName(entry->faction, value))
@@ -453,6 +462,8 @@ static int assignDirective(struct EntityArchetype *entry,
         entry->weapon = parsed;
         return 1;
         }
+    if (strcmp(directive, "weapon-color") == 0)
+        return copyName(entry->weaponColor, value);
     if (strcmp(directive, "target-mode") == 0)
         {
         parsed = targetModeValue(value);
@@ -488,10 +499,10 @@ static int assignDirective(struct EntityArchetype *entry,
         entry->shortcut = (unsigned char)value[0];
         return 1;
         }
-    if (strcmp(directive, "legacy-monster") == 0)
-        return entry->legacyMonster == -1 &&
-               parseInteger(value, &entry->legacyMonster) &&
-               entry->legacyMonster >= 0;
+    if (strcmp(directive, "network-code") == 0)
+        return entry->networkCode == -1 &&
+               parseInteger(value, &entry->networkCode) &&
+               entry->networkCode >= 0;
     if (strcmp(directive, "scale") == 0)
         return parseFloat(value, &entry->scale);
     if (strcmp(directive, "vertical-offset") == 0)
@@ -717,8 +728,7 @@ static int loadArchetype(const char *path, struct EntityArchetype *entry,
                            argument5))
                 goto invalid;
             }
-        else if (strcmp(directive, "on-sensor") == 0 ||
-                 strcmp(directive, "on-enter") == 0 ||
+        else if (strcmp(directive, "on-enter") == 0 ||
                  strcmp(directive, "on-stay") == 0 ||
                  strcmp(directive, "on-exit") == 0 ||
                  strcmp(directive, "on-trigger") == 0)
@@ -781,12 +791,12 @@ static int appendArchetype(struct EntityCatalog *catalog,
                                "Duplicate entity selection shortcut");
                 return 0;
                 }
-    if (entry->legacyMonster >= 0)
+    if (entry->networkCode >= 0)
         for (index = 0; index < catalog->count; index++)
-            if (catalog->entries[index].legacyMonster == entry->legacyMonster)
+            if (catalog->entries[index].networkCode == entry->networkCode)
                 {
                 setEntityError(error, errorSize,
-                               "Duplicate legacy monster binding");
+                               "Duplicate entity network code");
                 return 0;
                 }
     expanded = (struct EntityArchetype *)realloc(

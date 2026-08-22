@@ -7,7 +7,7 @@ OpenGL renderer directly. macOS uses a compatibility frontend instead:
 game gl*/glu* calls
         |
         v
-legacy_gl.c (state, matrices, display lists, primitive conversion)
+fixed_gl.c (state, matrices, display lists, primitive conversion)
         |
         v
 backend.h (vertex batches, textures, clear/present)
@@ -19,7 +19,7 @@ backend.h (vertex batches, textures, clear/present)
 
 `backend.h` is deliberately API-neutral. A backend receives triangles, lines,
 or points with an MVP matrix and the small state set used by Battalion. It does
-not need to implement legacy OpenGL or display lists.
+not need to implement the fixed-function API or display lists.
 
 ## GLES plan
 
@@ -28,11 +28,11 @@ not need to implement legacy OpenGL or display lists.
    wireframe emulation for triangle batches.
 2. Add an EGL window/input backend (or a platform-specific native surface)
    beside `tk_x11.c` and `tk_macos.m`.
-3. Wire `PLATFORM=<platform> GRAPHICS=gles` to `legacy_gl.c`, the GLES driver,
+3. Wire `PLATFORM=<platform> GRAPHICS=gles` to `fixed_gl.c`, the GLES driver,
    and the matching window backend. The Makefile already reserves and validates
    the `gles` graphics value so it cannot silently fall back to desktop OpenGL.
 4. Run the same renderer smoke scene through Metal and GLES and compare the
    resulting frame captures, then exercise the full demo loop and input path.
 
-Keeping primitive conversion and display-list playback in `legacy_gl.c` means
+Keeping primitive conversion and display-list playback in `fixed_gl.c` means
 the GLES work is a driver implementation, not a second port of the game.

@@ -404,7 +404,7 @@ glPushAttrib(GL_DEPTH_BUFFER_BIT);
     glPushMatrix();
 	glTranslatef(-0.8,  -0.23,  7.2);
 	glScalef(.2,  .2,  .2);
-	drawConfiguredPlayerEntity(legacyMonsterArchetype(VAPOUR),
+	drawConfiguredPlayerEntity(networkEntityArchetype(VAPOUR),
 	                           1, 0, counter, 0, 0.0f, 0.0f);
     glPopMatrix();
 	

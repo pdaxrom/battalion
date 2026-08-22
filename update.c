@@ -136,17 +136,20 @@ struct monsterInfo resetMonsterParameters(struct monsterInfo Googelon)
     if (Googelon.monster == DATAENTITY)
 	{
 	playerEntity = selectedPlayerArchetype();
+	if (playerEntity == NULL)
+	    playerEntity = Googelon.dataArchetype;
 	if (playerEntity != NULL)
 	    Googelon.headVertRotate =
 		(int)(playerEntity->aimPitchDefault * 10.0f);
 	}
     else
-	playerEntity = legacyMonsterArchetype(Googelon.monster);
+	playerEntity = networkEntityArchetype(Googelon.monster);
     if (playerEntity == NULL)
 	{
 	showError("No entity archetype for player type");
 	return Googelon;
 	}
+    Googelon.dataArchetype = playerEntity;
     Googelon.energyRemaining = playerEntity->playerEnergy;
     Googelon.speed = playerEntity->speed;
     Googelon.xspeed = playerEntity->playerTurnRate;
@@ -230,6 +233,7 @@ static void beamDamageSource(struct EntityContact *contact,
 void updateBeam(struct monsterInfo * g,  struct targetInfo * t, float x, float z, struct tank * allTanks,  
 		struct tree ** allTreePtrs, int numTrees, struct monsterInfo * m)
     {
+    const struct EntityArchetype *archetype;
     struct targetInfo * temptarget;
     struct tank * ttank, * temptank;
     struct tree * ttree;
@@ -242,6 +246,11 @@ void updateBeam(struct monsterInfo * g,  struct targetInfo * t, float x, float z
     float tankx,  tanky,  tankz;
     float beamx,  beamy,  beamz;
     float height;
+    float beamHeight;
+    float beamForward;
+    float beamRange;
+    float directionX;
+    float directionZ;
     float R;
     struct EntityContact damageSource;
     int itsDead;
@@ -252,27 +261,46 @@ void updateBeam(struct monsterInfo * g,  struct targetInfo * t, float x, float z
     horz = m->headHorzRotate;
     vert = m->headVertRotate;
 
+    beamRange = 4.0f;
+    beamHeight = 1.2f;
+    beamForward = 0.0f;
+    if (m->monster == DATAENTITY)
+	{
+	archetype = m->dataArchetype;
+	if (archetype == NULL)
+	    archetype = selectedPlayerArchetype();
+	if (archetype != NULL)
+	    {
+	    beamRange = archetype->weaponRange;
+	    beamHeight = archetype->verticalOffset + archetype->muzzleHeight;
+	    beamForward = archetype->muzzleForward;
+	    }
+	}
+
 
     doSound(MONSTERBEAM);
         
     if (vert < 175)
-	R = 4;
+	R = beamRange;
     else
-	R = 1.2 / (cos((900 - vert) * BIG_DEG_TO_RAD));
+	R = beamHeight / (cos((900 - vert) * BIG_DEG_TO_RAD));
 	
-    loc3[0] = x + R * -cos((900 + horz) * BIG_DEG_TO_RAD);
-    loc3[2] = z + R * sin((900 + horz) * BIG_DEG_TO_RAD);
+    directionX = -cos((900 + horz) * BIG_DEG_TO_RAD);
+    directionZ = sin((900 + horz) * BIG_DEG_TO_RAD);
+
+    loc1[0] = x + beamForward * directionX;
+    loc1[1] = PLANEY + beamHeight;
+    loc1[2] = z + beamForward * directionZ;
+
+    loc3[0] = loc1[0] + R * directionX;
+    loc3[2] = loc1[2] + R * directionZ;
 
     if (vert < 0)
-	loc3[1] = PLANEY+1.2 + R * sin(fabs(vert* BIG_DEG_TO_RAD));
+	loc3[1] = PLANEY + beamHeight +
+	    R * sin(fabs(vert * BIG_DEG_TO_RAD));
     else
-	loc3[1] = PLANEY+1.2 - R * sin(fabs(vert* BIG_DEG_TO_RAD));
-
-
-    loc1[0] = x;
-    loc1[1] = PLANEY + 1.2;
-    loc1[2] = z;
-
+	loc3[1] = PLANEY + beamHeight -
+	    R * sin(fabs(vert * BIG_DEG_TO_RAD));
 
     /**********************************/
     /* does beam touch ground         */

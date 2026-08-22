@@ -4,12 +4,16 @@ kind creature
 controllable yes
 control-mode free
 shortcut 9
-legacy-monster 3
+network-code 3
 model flutter
+render-node body
+render-node head
+render-node wing-left
+render-node wing-right
 idle-animation flutter-wing-flap
 move-animation flutter-wing-flap
 attack-animation flutter-wing-flap
-animation-speed 0.05
+animation-speed 1
 faction monster
 hostile-faction army
 movement air
@@ -22,20 +26,31 @@ vertical-offset 1
 collision-radius 0.5
 collision-height 0.5
 weapon beam
+weapon-color orange
 weapon-range 4
 weapon-min-range 0
 projectile-speed 0.1
 muzzle-forward 0
-muzzle-height 0.4
+muzzle-height 0.2
 fire-interval 1
 accuracy 1000
 forget-range 12
 lost-frames 180
 target-mode nearest
 max-targets 1
-spawn-weight 0
-spawn-after 0
-max-active 0
+sensor nearby proximity 2 360 hostile
+sensor sight vision 10 120 hostile
+sensor noise hearing 12 360 hostile
+sensor damaged damage 0 360 hostile
+on-enter nearby attack monster-alert
+on-enter sight attack monster-alert
+on-enter noise investigate monster-alert
+on-enter damaged attack monster-alert
+on-trigger monster-alert activate none
+on-trigger monster-alert attack none
+spawn-weight 2
+spawn-after 500
+max-active 1
 player-energy 50
 player-height 1.4
 player-width 0.5

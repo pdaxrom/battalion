@@ -21,6 +21,7 @@ vertical-offset 1
 collision-radius 0.2
 collision-height 0.9
 weapon beam
+weapon-color red
 weapon-range 5
 weapon-min-range 0.25
 projectile-speed 0.1

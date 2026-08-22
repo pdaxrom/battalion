@@ -15,7 +15,7 @@
 #include "dynamic_primitives.h"
 
 #ifdef MACOSVERSION
-#include "renderer/legacy_gl.h"
+#include "renderer/fixed_gl.h"
 #else
 #include <GL/gl.h>
 #endif

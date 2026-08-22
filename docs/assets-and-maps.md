@@ -1,5 +1,10 @@
 # External assets and battlefield maps
 
+For the complete author workflow and directive reference, including static and
+animated objects, creatures, NPCs, vehicles, structures, devices, effects,
+sensors, reactions, trigger routing, and validation, see
+[`content-authoring.md`](content-authoring.md).
+
 Battalion keeps runtime content in the required lowercase `assets/` tree. The
 asset loader and animation sampler are renderer-neutral and are shared by the
 Metal, desktop OpenGL, and planned GLES backends.
@@ -45,7 +50,7 @@ renderer output rather than authored content. Beams, impact scars, particles,
 and HUD rectangles therefore remain runtime primitives; their reusable widths,
 radii, colours, density, and layout values are external configuration assets.
 
-The checked-in GLB files are the canonical source assets. The one-time legacy
+The checked-in GLB files are the canonical source assets. The one-time
 converter and the old C model factories have been removed, so geometry is not
 duplicated between code and assets.
 
@@ -95,8 +100,8 @@ uses named fields:
 }
 ```
 
-Map and model data remain separate: map records identify the legacy gameplay
-type/shape, while migrated geometry and animation live in renderer-neutral GLB
+Map and model data remain separate: map records identify authored gameplay
+type/shape data, while geometry and animation live in renderer-neutral GLB
 files under `assets/models`. Runtime expansion of compound hills, initial occupants,
 destruction state, and enemy spawning is intentionally still gameplay logic.
 
@@ -153,7 +158,7 @@ close third-person camera, while view 5 is first-person. First-person eye height
 player-model visibility are also authored per entity.
 
 `collision-mode` is either `solid` (the default) or `phase`. A phased player or
-legacy-compatible actor passes through structures, vehicles, and other actors;
+phased actor passes through structures, vehicles, and other actors;
 Vapour uses this capability. Future smoke, ghosts, or similar entities can opt
 in through their descriptor without an engine id check.
 
@@ -166,8 +171,7 @@ not blocked by those structures.
 Sensor rules can distinguish zone lifecycle transitions. `on-enter` fires once
 when a contact enters a zone, `on-stay` fires on later simulation steps while
 it remains selected by the zone, and `on-exit` fires once when it leaves.
-`on-sensor` remains a backwards-compatible rule that fires for both enter and
-stay. Each rule maps the transition to a local reaction such as observe, alert,
+Each rule maps the transition to a local reaction such as observe, alert,
 investigate, pursue, attack, flee, activate, or deactivate, and may emit a
 named event:
 
