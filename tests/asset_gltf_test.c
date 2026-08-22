@@ -645,6 +645,8 @@ int main(void)
     struct AssetModel model;
     struct AssetPose pose;
     char error[160];
+    float minimum[3];
+    float maximum[3];
     int result;
 
     path = "/tmp/battalion-asset-gltf-test.glb";
@@ -678,6 +680,28 @@ int main(void)
         assetModelDestroy(&model);
         return 1;
         }
+    if (!assetModelPoseBounds(&model, NULL, minimum, maximum) ||
+        !nearValue(minimum[0], 2.0f) ||
+        !nearValue(minimum[1], 3.0f) ||
+        !nearValue(minimum[2], 0.0f) ||
+        !nearValue(maximum[0], 3.0f) ||
+        !nearValue(maximum[1], 4.0f) ||
+        !nearValue(maximum[2], 0.0f))
+        {
+        fprintf(stderr, "unexpected rest-pose bounds\n");
+        assetModelDestroy(&model);
+        return 1;
+        }
+    if (!assetModelNodePoseBounds(&model, 1, NULL, minimum, maximum) ||
+        !nearValue(minimum[0], 0.0f) ||
+        !nearValue(minimum[1], 3.0f) ||
+        !nearValue(maximum[0], 1.0f) ||
+        !nearValue(maximum[1], 4.0f))
+        {
+        fprintf(stderr, "unexpected selected-node bounds\n");
+        assetModelDestroy(&model);
+        return 1;
+        }
     if (model.animationCount != 1 || model.animations[0].trackCount != 1 ||
         strcmp(model.animations[0].name, "move") != 0 ||
         !nearValue(model.animations[0].duration, 2.0f) ||
@@ -707,7 +731,12 @@ int main(void)
     if (!assetPoseSample(&model, 0, 1.0f, 0, &pose) ||
         pose.nodeCount != 2 ||
         !nearValue(pose.nodes[1].translation[0], 2.0f) ||
-        !nearValue(pose.nodes[1].translation[1], 3.0f))
+        !nearValue(pose.nodes[1].translation[1], 3.0f) ||
+        !assetModelPoseBounds(&model, &pose, minimum, maximum) ||
+        !nearValue(minimum[0], 4.0f) ||
+        !nearValue(minimum[1], 3.0f) ||
+        !nearValue(maximum[0], 5.0f) ||
+        !nearValue(maximum[1], 4.0f))
         {
         fprintf(stderr, "unexpected sampled pose\n");
         assetPoseDestroy(&pose);

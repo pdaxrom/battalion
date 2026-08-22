@@ -4910,10 +4910,8 @@ void doUpdate()
 	{
 	if (((mainCounter % arrivalTime) == 0) && !Googelon.monsterIsDead)
 	    {
-		    if (!addRandomConfiguredEntity(targets, tanklist,
-		                                   mainCounter))
-			addNewTank(targets, 0, 0, -1, tanklist, treelist,
-			           mainCounter, firingDelay, &Googelon);
+		    addNewTank(targets, 0, 0, -1, tanklist, treelist,
+		               mainCounter, firingDelay, &Googelon);
 
 	    if ((mode == DEMOMODE) && !(rand() % 4) && (Googelon.moveCount >= 150))
 		view = (view + 1) % 3;

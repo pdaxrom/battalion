@@ -89,9 +89,17 @@ struct AssetModel
     size_t animationCount;
     };
 
+struct AssetPose;
+
 void assetModelInitialize(struct AssetModel *model);
 void assetModelDestroy(struct AssetModel *model);
 int assetModelFindNode(const struct AssetModel *model, const char *name);
+int assetModelPoseBounds(const struct AssetModel *model,
+                         const struct AssetPose *pose,
+                         float minimum[3], float maximum[3]);
+int assetModelNodePoseBounds(const struct AssetModel *model, int node,
+                             const struct AssetPose *pose,
+                             float minimum[3], float maximum[3]);
 int assetModelLoadGLB(const char *path, struct AssetModel *model,
                       char *error, size_t errorSize);
 

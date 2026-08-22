@@ -5,5 +5,7 @@ value energy-bar -4 4.39 -1 4.81 0
 value weapon-bar -0.75 3.82 0.75 4.14 0
 value score-box -1 -0.6 1 0.42 7.1
 value options-box -0.85 -1 0.85 0.5 7.1
+# Preview center x/y/z and maximum model span at that depth.
+value options-preview 0 -0.24 7.2 0.45
 value summary-box -0.97 -1.05 0.97 0.25 7
 value overlay-model-line-width 2.01

@@ -103,7 +103,13 @@ build/macos-metal-none/battalion --player vapour
 In the running game Space opens the player selection screen. The arrow keys
 select any controllable catalog entry and Enter starts it. A descriptor may
 also assign a unique one-character `shortcut`; the historical `6` through `9`
-choices are now ordinary data in the creature descriptors.
+choices are now ordinary data in the creature descriptors. Preview placement
+and scale are calculated from the current animated GLB pose and its configured
+render nodes, rather than from a model-specific offset.
+
+`spawn-weight 0` disables random runtime instances. This is the default for the
+checked-in controllable creatures; place them as version 2 map actors or opt in
+to spawning explicitly in custom content.
 
 Weapons use reusable capabilities (`none`, `shell`, `rocket`, `beam`, `fire`,
 or `plasma`) rather than entity ids. `player-fire-cost` controls the energy

@@ -2285,8 +2285,10 @@ static void drawExternalEntityModel(
             pose);
     }
 
-static void drawExternalEntity(const struct tank *tank, int counter,
-                               int destroyed)
+static int externalEntityModelPose(
+    const struct tank *tank, int counter,
+    const struct AssetManifestModel **selectedModel,
+    const struct AssetPose **selectedPose)
     {
     const struct EntityArchetype *archetype;
     const struct AssetManifestModel *model;
@@ -2296,16 +2298,7 @@ static void drawExternalEntity(const struct tank *tank, int counter,
 
     archetype = tank->dataArchetype;
     if (archetype == NULL)
-        return;
-    glRotatef(archetype->modelYawOffset, 0, 1, 0);
-    if (destroyed && archetype->destroyedModel[0] != '\0')
-        {
-        model = assetManifestFindModel(&externalAssets,
-                                       archetype->destroyedModel);
-        if (model != NULL)
-            assetModelDraw(&model->model, NULL);
-        return;
-        }
+        return 0;
     animation = archetype->idleAnimation;
     if (tank->dataAgent.reaction == ENTITY_REACTION_ATTACK &&
         archetype->attackAnimation[0] != '\0')
@@ -2321,17 +2314,154 @@ static void drawExternalEntity(const struct tank *tank, int counter,
         {
         applyExternalEntityAim(&model->model, archetype, tank,
                                &externalEntityPose);
-        drawExternalEntityModel(model, archetype, &externalEntityPose);
-        return;
+        *selectedModel = model;
+        *selectedPose = &externalEntityPose;
+        return 1;
         }
     model = assetManifestFindModel(&externalAssets, archetype->model);
-    if (model != NULL &&
-        assetPoseReset(&model->model, &externalEntityPose))
+    if (model == NULL || !assetPoseReset(&model->model, &externalEntityPose))
+        return 0;
+    applyExternalEntityAim(&model->model, archetype, tank,
+                           &externalEntityPose);
+    *selectedModel = model;
+    *selectedPose = &externalEntityPose;
+    return 1;
+    }
+
+static void drawExternalEntity(const struct tank *tank, int counter,
+                               int destroyed)
+    {
+    const struct EntityArchetype *archetype;
+    const struct AssetManifestModel *model;
+    const struct AssetPose *pose;
+
+    archetype = tank->dataArchetype;
+    if (archetype == NULL)
+        return;
+    glRotatef(archetype->modelYawOffset, 0, 1, 0);
+    if (destroyed && archetype->destroyedModel[0] != '\0')
         {
-        applyExternalEntityAim(&model->model, archetype, tank,
-                               &externalEntityPose);
-        drawExternalEntityModel(model, archetype, &externalEntityPose);
+        model = assetManifestFindModel(&externalAssets,
+                                       archetype->destroyedModel);
+        if (model != NULL)
+            assetModelDraw(&model->model, NULL);
+        return;
         }
+    if (externalEntityModelPose(tank, counter, &model, &pose))
+        drawExternalEntityModel(model, archetype, pose);
+    }
+
+static void mergeEntityBounds(float minimum[3], float maximum[3],
+                              const float nodeMinimum[3],
+                              const float nodeMaximum[3], int *valid)
+    {
+    int component;
+
+    if (!*valid)
+        {
+        memcpy(minimum, nodeMinimum, 3 * sizeof(*minimum));
+        memcpy(maximum, nodeMaximum, 3 * sizeof(*maximum));
+        *valid = 1;
+        return;
+        }
+    for (component = 0; component < 3; component++)
+        {
+        if (nodeMinimum[component] < minimum[component])
+            minimum[component] = nodeMinimum[component];
+        if (nodeMaximum[component] > maximum[component])
+            maximum[component] = nodeMaximum[component];
+        }
+    }
+
+static void transformEntityBounds(const struct EntityArchetype *archetype,
+                                  const float sourceMinimum[3],
+                                  const float sourceMaximum[3],
+                                  float minimum[3], float maximum[3])
+    {
+    float radians;
+    float sine;
+    float cosine;
+    float source[3];
+    float transformed[3];
+    int corner;
+    int component;
+
+    radians = archetype->modelYawOffset * DEG_TO_RAD;
+    sine = (float)sin((double)radians);
+    cosine = (float)cos((double)radians);
+    for (corner = 0; corner < 8; corner++)
+        {
+        for (component = 0; component < 3; component++)
+            source[component] = corner & (1 << component) ?
+                sourceMaximum[component] : sourceMinimum[component];
+        transformed[0] = archetype->scale *
+            (cosine * source[0] + sine * source[2]);
+        transformed[1] = archetype->scale * source[1];
+        transformed[2] = archetype->scale *
+            (-sine * source[0] + cosine * source[2]);
+        if (corner == 0)
+            {
+            memcpy(minimum, transformed, 3 * sizeof(*minimum));
+            memcpy(maximum, transformed, 3 * sizeof(*maximum));
+            }
+        else
+            for (component = 0; component < 3; component++)
+                {
+                if (transformed[component] < minimum[component])
+                    minimum[component] = transformed[component];
+                if (transformed[component] > maximum[component])
+                    maximum[component] = transformed[component];
+                }
+        }
+    }
+
+int configuredPlayerEntityBounds(const struct EntityArchetype *archetype,
+                                 int moving, int attacking, int counter,
+                                 float aimYaw, float aimPitch,
+                                 float minimum[3], float maximum[3])
+    {
+    struct tank entity;
+    const struct AssetManifestModel *model;
+    const struct AssetPose *pose;
+    float modelMinimum[3];
+    float modelMaximum[3];
+    float nodeMinimum[3];
+    float nodeMaximum[3];
+    size_t renderNode;
+    int node;
+    int valid;
+
+    if (archetype == NULL || minimum == NULL || maximum == NULL)
+        return 0;
+    memset(&entity, 0, sizeof(entity));
+    entity.dataArchetype = archetype;
+    entity.dataAgent.reaction = attacking ? ENTITY_REACTION_ATTACK :
+                                           ENTITY_REACTION_OBSERVE;
+    entity.walking = moving;
+    entity.aimYaw = aimYaw;
+    entity.aimPitch = aimPitch;
+    if (!externalEntityModelPose(&entity, counter, &model, &pose))
+        return 0;
+    valid = 0;
+    if (archetype->renderNodeCount == 0)
+        valid = assetModelPoseBounds(&model->model, pose,
+                                     modelMinimum, modelMaximum);
+    else
+        for (renderNode = 0; renderNode < archetype->renderNodeCount;
+             renderNode++)
+            {
+            node = assetModelFindNode(&model->model,
+                                      archetype->renderNodes[renderNode]);
+            if (assetModelNodePoseBounds(&model->model, node, pose,
+                                         nodeMinimum, nodeMaximum))
+                mergeEntityBounds(modelMinimum, modelMaximum,
+                                  nodeMinimum, nodeMaximum, &valid);
+            }
+    if (!valid)
+        return 0;
+    transformEntityBounds(archetype, modelMinimum, modelMaximum,
+                          minimum, maximum);
+    return 1;
     }
 
 void drawConfiguredPlayerEntity(const struct EntityArchetype *archetype,

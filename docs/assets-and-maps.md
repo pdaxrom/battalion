@@ -77,10 +77,12 @@ build/macos-metal-none/battalion --map 1
 build/macos-metal-none/battalion --map Andyville
 ```
 
-The runtime still dynamically spawns enemies, applies destruction, and expands
-some compact map markers. The map and every live object keep stable map-world
-coordinates. Player movement changes the player's coordinates; a camera-only
-transform centres the rendered view without moving gameplay state.
+The runtime applies destruction and expands some compact map markers. Random
+catalog spawning is opt-in through a nonzero archetype `spawn-weight`; the
+checked-in playable creatures do not enable it. The map and every live object
+keep stable map-world coordinates. Player movement changes the player's
+coordinates; a camera-only transform centres the rendered view without moving
+gameplay state.
 
 ## Unified map package
 
@@ -135,7 +137,9 @@ Space opens the in-game catalog selector, the arrow keys cycle all descriptors
 marked `controllable yes`, and Enter starts the selected entry. A controllable
 descriptor may declare a unique single-character `shortcut`; this is how the
 historical `6`, `7`, `8`, and `9` selections are retained without hardcoded
-entity-id branches.
+entity-id branches. The selector frames the current animated GLB from the
+bounds of the nodes it actually renders, so differently sized or offset models
+remain centred at a consistent visual size.
 
 The reusable weapon capabilities are `none`, `shell`, `rocket`, `beam`, `fire`,
 and `plasma`. Projectile choice and player firing are based on that capability,
@@ -228,7 +232,9 @@ A minimal actor looks like this:
 
 To add a new playable or autonomous kind, add its GLB/animation entries to the
 manifest, add one descriptor and catalog line, then place it in a v2 map or set
-its spawn weight. The main game source does not need to know its id.
+its spawn weight. A nonzero spawn weight is an explicit request for random
+runtime instances and is independent of `controllable`. The main game source
+does not need to know its id.
 
 ## Layout and compatibility
 

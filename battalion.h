@@ -712,6 +712,8 @@ int assetModelHasNode(const char *, const char *);
 int assetAnimationAvailable(const char *);
 void drawConfiguredPlayerEntity(const struct EntityArchetype *, int, int,
 				int, int, float, float);
+int configuredPlayerEntityBounds(const struct EntityArchetype *, int, int,
+				 int, float, float, float [3], float [3]);
 const struct EntityArchetype *selectedPlayerArchetype(void);
 int playerWeaponUsesReload(void);
 float playerWeaponReadiness(void);

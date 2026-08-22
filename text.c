@@ -976,8 +976,15 @@ void doOptions(struct monsterInfo monster, long xWin, int counter,
 		int itsChristmas, float offsetX, int detail)
     {
     const struct EntityArchetype *archetype;
+    const struct AssetValue *preview;
     GLfloat lineWidthNow;
+    float previewMinimum[3];
+    float previewMaximum[3];
+    float previewCenter[3];
+    float previewExtent;
+    float previewScale;
     float optionsBox[4][3];
+    int component;
     size_t optionCount;
     char optionLine[ENTITY_NAME_SIZE + 48];
 
@@ -987,6 +994,7 @@ void doOptions(struct monsterInfo monster, long xWin, int counter,
     (void)offsetX;
 
     uiRectangle("options-box", optionsBox);
+    preview = requiredUiValue("options-preview", 4);
     archetype = selectedPlayerArchetype();
     optionCount = playerEntityOptionCount();
 
@@ -1063,9 +1071,36 @@ void doOptions(struct monsterInfo monster, long xWin, int counter,
     if (archetype != NULL)
 	{
 	glPushMatrix();
-	    glTranslatef(0, -0.35f, 7.2f);
-	    glRotatef((float)(counter % 360), 0, 1, 0);
-	    glScalef(0.7f, 0.7f, 0.7f);
+	    if (configuredPlayerEntityBounds(
+	            archetype, 1, 0, counter, 0.0f, 0.0f,
+	            previewMinimum, previewMaximum))
+		{
+		previewExtent = 0.0f;
+		for (component = 0; component < 3; component++)
+		    {
+		    previewCenter[component] =
+		        (previewMinimum[component] +
+		         previewMaximum[component]) * 0.5f;
+		    if (previewMaximum[component] - previewMinimum[component] >
+		        previewExtent)
+		        previewExtent = previewMaximum[component] -
+		                        previewMinimum[component];
+		    }
+		previewScale = previewExtent > 0.0f ?
+		    preview->components[3] / previewExtent : 1.0f;
+		glTranslatef(preview->components[0], preview->components[1],
+		             preview->components[2]);
+		glRotatef((float)(counter % 360), 0, 1, 0);
+		glScalef(previewScale, previewScale, previewScale);
+		glTranslatef(-previewCenter[0], -previewCenter[1],
+		             -previewCenter[2]);
+		}
+	    else
+		{
+		glTranslatef(preview->components[0], preview->components[1],
+		             preview->components[2]);
+		glScalef(0.7f, 0.7f, 0.7f);
+		}
 	    drawConfiguredPlayerEntity(archetype, 1, 0, counter, 0,
 	                               0.0f, 0.0f);
 	glPopMatrix();

@@ -152,18 +152,22 @@ int main(void)
         soldier->kind != ENTITY_KIND_NPC ||
         monster->kind != ENTITY_KIND_CREATURE ||
         monster->renderNodeCount != 5 ||
+        monster->health != 8 || monster->spawnWeight != 0 ||
         monster->animationSpeed != 1.0f ||
         monster->muzzleHeight != 0.2f ||
         flutter->animationSpeed != 1.0f ||
+        flutter->health != 8 || flutter->spawnWeight != 0 ||
         flutter->muzzleHeight != 0.2f ||
         strcmp(monster->renderNodes[0], "body") != 0 ||
         vapour->weapon != ENTITY_WEAPON_FIRE ||
+        vapour->health != 8 || vapour->spawnWeight != 0 ||
         vapour->collisionMode != ENTITY_COLLISION_PHASE ||
         strcmp(vapour->idleAnimation, "vapour-cloud") != 0 ||
         vapour->shortcut != '8' ||
         vapour->networkCode != 1 ||
         vapour->sensorCount != 4 ||
         techs->weapon != ENTITY_WEAPON_PLASMA ||
+        techs->health != 8 || techs->spawnWeight != 0 ||
         strcmp(monster->weaponColor, "blue") != 0 ||
         entityCatalogFindShortcut(&catalog, '6') != monster ||
         entityCatalogFindNetworkCode(&catalog, 1) != vapour ||

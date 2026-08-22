@@ -495,7 +495,11 @@ non-solid actor. It is not tied to a particular entity id.
 
 Random spawn weights are relative to other eligible descriptors and to the
 runtime's no-spawn chance. Do not treat the number as a percentage. Explicit
-map actors are the preferred method when placement and behavior matter.
+map actors are the preferred method when placement and behavior matter. The
+checked-in playable creatures use `spawn-weight 0`: choosing one for the player
+does not inject any of the other playable creatures into the battlefield.
+Enable random spawning only as an explicit rule of a custom archetype or
+scenario.
 
 ### Weapon and target directives
 
