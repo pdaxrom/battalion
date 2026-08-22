@@ -2624,7 +2624,7 @@ void initialization()
 
     strcpy(playerName, "Anonymous");
 
-    //    playerPointer = cuserid(NULL); not safe anymore
+    /* playerPointer = cuserid(NULL); not safe anymore */
     playerPointer = getlogin();
 
     if (playerPointer == NULL)

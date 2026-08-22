@@ -8,6 +8,8 @@ texture tree-wood textures/treewood.tga linear clamp
 texture road textures/road.tga linear repeat
 texture office-logo textures/logo.tga nearest clamp
 
+file animation-values config/animation.values
+
 model tank models/vehicles/tank.glb
 model tank-slag models/vehicles/tank-slag.glb
 model tank-maser models/vehicles/tank-maser.glb
@@ -39,6 +41,7 @@ model flutter models/monsters/flutter.glb
 animation flutter-wing-flap flutter wing-flap loop
 
 model techs models/monsters/techs.glb
+animation techs-death techs death once
 
 model hero-typhoon models/monsters/hero-typhoon.glb
 animation hero-typhoon-walk hero-typhoon walk loop
@@ -51,6 +54,8 @@ animation mecha-eye-scan mecha eye-scan loop
 
 model projectile-techs models/effects/projectile-techs.glb
 model projectile-hero models/effects/projectile-hero.glb
+animation projectile-techs-spin projectile-techs spin loop
+animation projectile-hero-spin projectile-hero spin loop
 model projectile-water models/effects/projectile-water.glb
 model projectile-standard-low models/effects/projectile-standard-low.glb
 model projectile-standard-high models/effects/projectile-standard-high.glb
@@ -153,6 +158,8 @@ model hill-inside-1-xmas models/terrain/hill-inside-1-xmas.glb
 
 model boom-high models/effects/boom-high.glb
 model boom-low models/effects/boom-low.glb
+animation boom-high-explode boom-high explode once
+animation boom-low-explode boom-low explode once
 model sphere-low models/effects/sphere-low.glb
 model sphere-high models/effects/sphere-high.glb
 model fire models/effects/fire.glb

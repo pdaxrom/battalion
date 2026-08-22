@@ -293,7 +293,7 @@ int Snd_init_dev()
 					}
 				    } 
 
-//				Chan_assign( &(chan[ch]), &(S_sounds[sound_num]), 0 );
+/*				Chan_assign( &(chan[ch]), &(S_sounds[sound_num]), 0 ); */
 				}
 			
 			Chan_mixAll(&mix,chan);
@@ -383,7 +383,7 @@ int Chan_mixIn( Channel *chan, Mix *mix )
 
 /*========================================================================*/
 /* clip an int to a value between 0 and 255 */
-static inline 
+static
 unsigned char clip(int i)
     {
     return (i<0) ? 0 : ( (i>255) ? 255 : i );
@@ -449,13 +449,13 @@ int Chan_mixAll( Mix *mix, Channel *chan )
     int result  = 0,i=0;
     
     result  = Chan_copyIn( chan,  mix);
-//printf("***************************\n");
+/* printf("***************************\n"); */
     /* we want to loop for S_num_channels-2 */
     for(i=2;i<S_num_channels;i++){
-//printf("Vlen = %d , Vleft = %d\n",chan->Vlen, chan->Vleft);
+/* printf("Vlen = %d , Vleft = %d\n",chan->Vlen, chan->Vleft); */
     	result += Chan_mixIn( ++chan, mix);
     }
-//printf("Vlen = %d , Vleft = %d\n",chan->Vlen, chan->Vleft);
+/* printf("Vlen = %d , Vleft = %d\n",chan->Vlen, chan->Vleft); */
     result += Chan_finalMixIn( ++chan, mix);
     
     return result;

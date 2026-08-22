@@ -7,6 +7,7 @@ filesystems.
 ```text
 assets/
   manifest.txt       versioned runtime asset catalog
+  config/            renderer-neutral runtime controller values
   maps/              versioned JSON battlefield packages
   models/            Khronos glTF 2.0 binary models and animation clips
     vehicles/        tanks, aircraft, and vehicle shadows
@@ -34,8 +35,10 @@ clips with `LINEAR` or `STEP` interpolation. `helo.glb`, `airplane.glb`,
 `googelon.glb`, `flutter.glb`, `techs.glb`, both Hero files, and `mecha.glb`
 are compound assets. Their
 moving parts and reusable variants are nodes in the same file; periodic motion
-is stored in named animation clips. Standard projectile models likewise carry
-their `spin` animation inside their GLB files.
+is stored in named animation clips. Projectile rotation, Techs' death motion,
+and explosion frames are likewise stored as clips in their GLB files.
+Gameplay-driven controller values, such as live aiming scales and damage-part
+thresholds, live in `config/animation.values` instead of C source.
 
 Verify the checked-in content with:
 

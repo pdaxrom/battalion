@@ -1287,7 +1287,7 @@ static    float summaryBox[4][3] = {
 	    glTranslatef(.65,  0,  7.1);
 	    glRotatef(.1*angle + 180, 0, 1, 0);
 	    glScalef(.3,  .3,  .3);
-	    drawHelo((counter*9) % 360,  0);
+	    drawHelo((float)counter,  0);
 	glPopMatrix();
 	}
 
@@ -1297,7 +1297,7 @@ static    float summaryBox[4][3] = {
 	    glTranslatef(0,  0,  7.1);
 	    glRotatef(.1*angle, 0, 1, 0);
 	    glScalef(.75,  .75,  .75);
-	    drawAirplane((counter*2) % 360);
+	    drawAirplane(counter);
 	glPopMatrix();
 	}
 

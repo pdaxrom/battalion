@@ -19,6 +19,7 @@
 #include "asset_animation.h"
 #include "asset_manifest.h"
 #include "asset_render.h"
+#include "asset_values.h"
 
     /*************/
     /* colours   */
@@ -82,14 +83,12 @@
 
 	fighterBody,
 	
-	watershellObj, heroshellObj,  
+	watershellObj,
 
 	tankShadow, planeShadow, fighterShadow, 
 
 	planeDotsObj, planeDotsObjD0,
     
-	shell2Obj, 
- 
 	titleObj, titleObjOO, titleObjOOO, 
 	lowDPlane, highDPlane, bigPlane, 
 		
@@ -125,6 +124,7 @@
     GLuint treeWood, roadtex, officeLogo;
 
     static struct AssetManifest externalAssets;
+    static struct AssetValues externalAnimationValues;
     static const struct AssetManifestModel *externalHeloModels[2];
     static size_t externalHeloClips[2];
     static int externalHeloLoops[2];
@@ -133,6 +133,10 @@
     static size_t externalProjectileClips[4];
     static int externalProjectileLoops[4];
     static struct AssetPose externalProjectilePoses[4];
+    static const struct AssetManifestModel *externalSpecialProjectileModels[2];
+    static size_t externalSpecialProjectileClips[2];
+    static int externalSpecialProjectileLoops[2];
+    static struct AssetPose externalSpecialProjectilePoses[2];
     static const struct AssetManifestModel *externalAirplaneModel;
     static size_t externalAirplaneClip;
     static int externalAirplaneLoop;
@@ -146,6 +150,8 @@
     static int externalFlutterLoop;
     static struct AssetPose externalFlutterPose;
     static const struct AssetManifestModel *externalTechsModel;
+    static size_t externalTechsDeathClip;
+    static int externalTechsDeathLoop;
     static struct AssetPose externalTechsPose;
     static const struct AssetManifestModel *externalHeroModels[2];
     static size_t externalHeroWalkClips[2];
@@ -158,6 +164,8 @@
     static int externalMechaLoop;
     static struct AssetPose externalMechaPose;
     static const struct AssetManifestModel *externalBoomModels[2];
+    static size_t externalBoomClips[2];
+    static int externalBoomLoops[2];
     static struct AssetPose externalBoomPoses[2];
     static const struct AssetManifestModel *externalHunterModel;
     static struct AssetPose externalHunterPose;
@@ -247,17 +255,48 @@ static int requiredNode(const struct AssetManifestModel *entry,
     return node;
     }
 
+static const struct AssetValue *requiredAnimationValue(const char *key,
+                                                       size_t components)
+    {
+    const struct AssetValue *value;
+
+    value = assetValuesFind(&externalAnimationValues, key);
+    if (value == NULL || value->componentCount != components)
+        {
+        fprintf(stderr, "Required animation value is missing or invalid: %s\n",
+                key);
+        showError("Required animation value is missing from assets");
+        exit(1);
+        }
+    return value;
+    }
+
+static float animationScalar(const char *key)
+    {
+    return requiredAnimationValue(key, 1)->components[0];
+    }
+
+static int hasPrefix(const char *text, const char *prefix)
+    {
+    return strncmp(text, prefix, strlen(prefix)) == 0;
+    }
+
 void makeObjects(char * dataPath)
     {
     char assetError[256];
+    char valuesPath[MAXPATH];
+    const struct AssetManifestFile *valuesFile;
 
     assetManifestInitialize(&externalAssets);
+    assetValuesInitialize(&externalAnimationValues);
     assetPoseInitialize(&externalHeloPoses[0]);
     assetPoseInitialize(&externalHeloPoses[1]);
     assetPoseInitialize(&externalProjectilePoses[0]);
     assetPoseInitialize(&externalProjectilePoses[1]);
     assetPoseInitialize(&externalProjectilePoses[2]);
     assetPoseInitialize(&externalProjectilePoses[3]);
+    assetPoseInitialize(&externalSpecialProjectilePoses[0]);
+    assetPoseInitialize(&externalSpecialProjectilePoses[1]);
     assetPoseInitialize(&externalAirplanePose);
     assetPoseInitialize(&externalGoogelonPose);
     assetPoseInitialize(&externalFlutterPose);
@@ -284,6 +323,23 @@ void makeObjects(char * dataPath)
 	exit(1);
 	}
 
+    valuesFile = assetManifestFindFile(&externalAssets, "animation-values");
+    if (valuesFile == NULL ||
+        strlen(dataPath) + strlen(valuesFile->path) + 1 > sizeof(valuesPath))
+        {
+        showError("Animation value asset path is missing or too long");
+        exit(1);
+        }
+    strcpy(valuesPath, dataPath);
+    strcat(valuesPath, valuesFile->path);
+    if (!assetValuesLoad(valuesPath, &externalAnimationValues,
+                         assetError, sizeof(assetError)))
+        {
+        fprintf(stderr, "Could not load animation values: %s\n", assetError);
+        showError("Cannot load animation values");
+        exit(1);
+        }
+
     leftScreen = requiredTexture("screen-left");
     rightScreen = requiredTexture("screen-right");
     treeWood = requiredTexture("tree-wood");
@@ -298,8 +354,6 @@ void makeObjects(char * dataPath)
     LOAD_MODEL(launchertank, "tank-launcher");
     LOAD_MODEL(slaglaunchertank, "tank-launcher-slag");
     LOAD_MODEL(fighterBody, "fighter-body");
-    LOAD_MODEL(shell2Obj, "projectile-techs");
-    LOAD_MODEL(heroshellObj, "projectile-hero");
     LOAD_MODEL(watershellObj, "projectile-water");
     LOAD_MODEL(tankShadow, "tank-shadow");
     LOAD_MODEL(planeShadow, "plane-shadow");
@@ -413,9 +467,19 @@ void makeObjects(char * dataPath)
         showError("Required compound model animation is missing");
         exit(1);
         }
-    externalTechsModel = requiredModelEntry("techs");
-    externalBoomModels[0] = requiredModelEntry("boom-high");
-    externalBoomModels[1] = requiredModelEntry("boom-low");
+    if (!assetManifestFindAnimation(
+            &externalAssets, "techs-death", &externalTechsModel,
+            &externalTechsDeathClip, &externalTechsDeathLoop) ||
+        !assetManifestFindAnimation(
+            &externalAssets, "boom-high-explode", &externalBoomModels[0],
+            &externalBoomClips[0], &externalBoomLoops[0]) ||
+        !assetManifestFindAnimation(
+            &externalAssets, "boom-low-explode", &externalBoomModels[1],
+            &externalBoomClips[1], &externalBoomLoops[1]))
+        {
+        showError("Required death animation is missing");
+        exit(1);
+        }
     externalHunterModel = requiredModelEntry("hunter");
     externalPineTreeModel = requiredModelEntry("pine-tree");
     externalRoundTreeModel = requiredModelEntry("round-tree");
@@ -456,8 +520,6 @@ void makeObjects(char * dataPath)
     requiredNode(externalTechsModel, "head-simple");
     requiredNode(externalTechsModel, "hand-right");
     requiredNode(externalTechsModel, "hand-left");
-    requiredNode(externalBoomModels[0], "frame-10");
-    requiredNode(externalBoomModels[1], "frame-10");
     requiredNode(externalHunterModel, "damage-00");
     requiredNode(externalPineTreeModel, "pine-trunk");
     requiredNode(externalPineTreeModel, "pine-crown");
@@ -504,7 +566,17 @@ void makeObjects(char * dataPath)
 	!assetManifestFindAnimation(
 	&externalAssets, "projectile-standard-high-xmas-spin",
 	&externalProjectileModels[3], &externalProjectileClips[3],
-	&externalProjectileLoops[3]))
+	&externalProjectileLoops[3]) ||
+	!assetManifestFindAnimation(
+	&externalAssets, "projectile-techs-spin",
+	&externalSpecialProjectileModels[0],
+	&externalSpecialProjectileClips[0],
+	&externalSpecialProjectileLoops[0]) ||
+	!assetManifestFindAnimation(
+	&externalAssets, "projectile-hero-spin",
+	&externalSpecialProjectileModels[1],
+	&externalSpecialProjectileClips[1],
+	&externalSpecialProjectileLoops[1]))
 	{
 	showError("Required projectile animation is missing from external assets");
 	exit(1);
@@ -564,7 +636,7 @@ void makeCHH(int dam)
 /* draw a helicopter                                             */
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
-void drawHelo(float percent,  int slag)
+void drawHelo(float counter,  int slag)
     {
     GLint shadeNow;
     int variant;
@@ -573,7 +645,8 @@ void drawHelo(float percent,  int slag)
 
     variant = slag ? 1 : 0;
     if (assetPoseSample(&externalHeloModels[variant]->model,
-			externalHeloClips[variant], percent / 360.0f,
+			externalHeloClips[variant],
+			counter * animationScalar("helo-rotor-time-scale"),
 			externalHeloLoops[variant],
 			&externalHeloPoses[variant]))
 	{
@@ -594,7 +667,9 @@ void drawHelo(float percent,  int slag)
 void drawAirplane(int counter)
     {
     if (assetPoseSample(&externalAirplaneModel->model,
-                        externalAirplaneClip, (float)counter,
+                        externalAirplaneClip,
+                        counter *
+                            animationScalar("airplane-propeller-time-scale"),
                         externalAirplaneLoop, &externalAirplanePose))
         assetModelDraw(&externalAirplaneModel->model, &externalAirplanePose);
     }
@@ -619,22 +694,29 @@ void drawFighter(void)
 void drawMonster(struct monsterInfo monster, int counter,
 		int itsChristmas, int detail)
     {
+    const struct AssetValue *leftLeg;
+    const struct AssetValue *rightLeg;
 
     if (!assetPoseSample(&externalGoogelonModel->model,
                          externalGoogelonClip, (float)counter,
                          externalGoogelonLoop, &externalGoogelonPose))
         return;
 
+    leftLeg = requiredAnimationValue("googelon-leg-left", 3);
+    rightLeg = requiredAnimationValue("googelon-leg-right", 3);
+
     glPushMatrix();
 
-	glRotatef(.1*monster.headHorzRotate, 0, 1, 0);
+	glRotatef(animationScalar("googelon-heading-scale") *
+	          monster.headHorzRotate, 0, 1, 0);
 
 	/********/
 	/* head */
 	/********/
 
 	glPushMatrix();
-	    glRotatef(.1*monster.headVertRotate, 1, 0, 0);
+	    glRotatef(animationScalar("googelon-head-pitch-scale") *
+	              monster.headVertRotate, 1, 0, 0);
 
 	    assetModelDrawNode(&externalGoogelonModel->model,
 	                       requiredNode(externalGoogelonModel, "head"),
@@ -661,11 +743,17 @@ void drawMonster(struct monsterInfo monster, int counter,
 	/***********************/
 
 	glPushMatrix();
-	    glTranslatef(0.2,  monster.rot1,  monster.rot2);
+	    glTranslatef(leftLeg->components[0],
+	                 leftLeg->components[1] * monster.rot1,
+	                 leftLeg->components[2] * monster.rot2);
 	    assetModelDrawNode(&externalGoogelonModel->model,
 	                       requiredNode(externalGoogelonModel, "leg-left"),
 	                       &externalGoogelonPose);
-	    glTranslatef(-0.4,   -2*monster.rot1,  -2*monster.rot2);
+	glPopMatrix();
+	glPushMatrix();
+	    glTranslatef(rightLeg->components[0],
+	                 rightLeg->components[1] * monster.rot1,
+	                 rightLeg->components[2] * monster.rot2);
 	    assetModelDrawNode(&externalGoogelonModel->model,
 	                       requiredNode(externalGoogelonModel, "leg-right"),
 	                       &externalGoogelonPose);
@@ -678,12 +766,16 @@ void drawMonster(struct monsterInfo monster, int counter,
 	                                      "shadow-body"),
 	                         &externalGoogelonPose);
 	      glPushMatrix();
-	      glTranslatef(0.2f, 0.0f, monster.rot2);
+	      glTranslatef(leftLeg->components[0], 0.0f,
+	                   leftLeg->components[2] * monster.rot2);
 	      assetModelDrawNode(&externalGoogelonModel->model,
 	                         requiredNode(externalGoogelonModel,
 	                                      "shadow-leg"),
 	                         &externalGoogelonPose);
-	      glTranslatef(-0.4f, 0.0f, -2.0f * monster.rot2);
+	      glTranslatef(rightLeg->components[0] - leftLeg->components[0],
+	                   0.0f,
+	                   (rightLeg->components[2] -
+	                    leftLeg->components[2]) * monster.rot2);
 	      assetModelDrawNode(&externalGoogelonModel->model,
 	                         requiredNode(externalGoogelonModel,
 	                                      "shadow-leg"),
@@ -724,11 +816,16 @@ void drawMonster(struct monsterInfo monster, int counter,
 void drawSimpleMonster(struct monsterInfo monster, int counter,
 		int itsChristmas, int detail)
     {
+    const struct AssetValue *leftLeg;
+    const struct AssetValue *rightLeg;
 
     if (!assetPoseSample(&externalGoogelonModel->model,
                          externalGoogelonClip, (float)counter,
                          externalGoogelonLoop, &externalGoogelonPose))
         return;
+
+    leftLeg = requiredAnimationValue("googelon-leg-left", 3);
+    rightLeg = requiredAnimationValue("googelon-leg-right", 3);
 
     /*********************/
     /* googelon's shadow */
@@ -736,14 +833,16 @@ void drawSimpleMonster(struct monsterInfo monster, int counter,
 
     glPushMatrix();
 
-	glRotatef(.1*monster.headHorzRotate, 0, 1, 0);
+	glRotatef(animationScalar("googelon-heading-scale") *
+	          monster.headHorzRotate, 0, 1, 0);
 
 	/********/
 	/* head */
 	/********/
 
 	glPushMatrix();
-	    glRotatef(.1*monster.headVertRotate, 1, 0, 0);
+	    glRotatef(animationScalar("googelon-head-pitch-scale") *
+	              monster.headVertRotate, 1, 0, 0);
 
 	    assetModelDrawNode(&externalGoogelonModel->model,
 	                       requiredNode(externalGoogelonModel, "head-simple"),
@@ -770,14 +869,19 @@ void drawSimpleMonster(struct monsterInfo monster, int counter,
 	/***********************/
 
 	glPushMatrix();
-	    glTranslatef(0.2,  monster.rot1,  monster.rot2);
+	    glTranslatef(leftLeg->components[0],
+	                 leftLeg->components[1] * monster.rot1,
+	                 leftLeg->components[2] * monster.rot2);
 
 	    assetModelDrawNode(&externalGoogelonModel->model,
 	                       requiredNode(externalGoogelonModel, "leg-left"),
 	                       &externalGoogelonPose);
 
-	    glTranslatef(-0.4,   -2*monster.rot1,  -2*monster.rot2);
-
+	glPopMatrix();
+	glPushMatrix();
+	    glTranslatef(rightLeg->components[0],
+	                 rightLeg->components[1] * monster.rot1,
+	                 rightLeg->components[2] * monster.rot2);
 	    assetModelDrawNode(&externalGoogelonModel->model,
 	                       requiredNode(externalGoogelonModel, "leg-right"),
 	                       &externalGoogelonPose);
@@ -791,12 +895,16 @@ void drawSimpleMonster(struct monsterInfo monster, int counter,
 	                                      "shadow-body"),
 	                         &externalGoogelonPose);
 	      glPushMatrix();
-	      glTranslatef(0.2f, 0.0f, monster.rot2);
+	      glTranslatef(leftLeg->components[0], 0.0f,
+	                   leftLeg->components[2] * monster.rot2);
 	      assetModelDrawNode(&externalGoogelonModel->model,
 	                         requiredNode(externalGoogelonModel,
 	                                      "shadow-leg"),
 	                         &externalGoogelonPose);
-	      glTranslatef(-0.4f, 0.0f, -2.0f * monster.rot2);
+	      glTranslatef(rightLeg->components[0] - leftLeg->components[0],
+	                   0.0f,
+	                   (rightLeg->components[2] -
+	                    leftLeg->components[2]) * monster.rot2);
 	      assetModelDrawNode(&externalGoogelonModel->model,
 	                         requiredNode(externalGoogelonModel,
 	                                      "shadow-leg"),
@@ -835,7 +943,8 @@ void drawVapour(struct monsterInfo monster, int itsChristmas, int detail)
     if (detail > 0)
 	glEnable(GL_BLEND);
 	
-    glRotatef(0.1 * monster.headHorzRotate, 0, 1, 0);
+    glRotatef(animationScalar("googelon-heading-scale") *
+              monster.headHorzRotate, 0, 1, 0);
 
     colorwhite2[0] = 1;
     colorwhite2[1] = 1;
@@ -845,12 +954,14 @@ void drawVapour(struct monsterInfo monster, int itsChristmas, int detail)
 	{
 	if (detail == -1)
 	    {
-	    colorwhite2[0] = 1 - monster.deadCount * 0.022;
-	    colorwhite2[1] = 1 - monster.deadCount * 0.022;
-	    colorwhite2[2] = 1 - monster.deadCount * 0.022;
+	    colorwhite2[0] = 1 - monster.deadCount *
+	        animationScalar("googelon-vapour-death-fade");
+	    colorwhite2[1] = colorwhite2[0];
+	    colorwhite2[2] = colorwhite2[0];
 	    }
 
-	colorwhite2[3] = 1 - monster.deadCount * 0.022;
+	colorwhite2[3] = 1 - monster.deadCount *
+	    animationScalar("googelon-vapour-death-fade");
 	glColor4fv(colorwhite2);
 	}
     else if (itsChristmas)
@@ -886,7 +997,8 @@ void drawFlutter(struct monsterInfo monster, int counter,
         return;
 
     glPushMatrix();
-	glRotatef(0.1 * monster.headHorzRotate, 0, 1, 0);
+	glRotatef(animationScalar("flutter-heading-scale") *
+	          monster.headHorzRotate, 0, 1, 0);
 
 	/* shadow */
 
@@ -913,7 +1025,7 @@ void drawFlutter(struct monsterInfo monster, int counter,
    
  
 	glPushMatrix();
-	    glRotatef(offsetX * 10, 0, 0, 1);
+	    glRotatef(offsetX * animationScalar("flutter-bank-scale"), 0, 0, 1);
 
 	    if (itsChristmas)
 		assetModelDrawNode(&externalFlutterModel->model,
@@ -921,7 +1033,8 @@ void drawFlutter(struct monsterInfo monster, int counter,
 	                           &externalFlutterPose);
 		
 	    glPushMatrix();
-		glRotatef(monster.headVertRotate * 0.05, 1, 0, 0);
+		glRotatef(monster.headVertRotate *
+		          animationScalar("flutter-head-pitch-scale"), 1, 0, 0);
 
 		assetModelDrawNode(&externalFlutterModel->model,
 	                           requiredNode(externalFlutterModel, "head"),
@@ -962,16 +1075,21 @@ void drawFlutter(struct monsterInfo monster, int counter,
 
 void drawTechs(struct monsterInfo monster, int detail)
     {
+    float deathStart;
+
     if (!assetPoseReset(&externalTechsModel->model, &externalTechsPose))
         return;
+    deathStart = animationScalar("techs-death-start");
     glPushMatrix();
 
-    glRotatef(0.1 * monster.headHorzRotate, 0, 1, 0);
+    glRotatef(animationScalar("techs-heading-scale") *
+              monster.headHorzRotate, 0, 1, 0);
  
-    if (monster.deadCount < 45)
+    if (monster.deadCount < deathStart)
 	{    
 	glPushMatrix();
-	    glRotatef(0.1 * monster.headVertRotate, 1, 0, 0);
+	    glRotatef(animationScalar("techs-head-pitch-scale") *
+	              monster.headVertRotate, 1, 0, 0);
 	    assetModelDrawNode(&externalTechsModel->model,
 	                       requiredNode(externalTechsModel, "head"),
 	                       &externalTechsPose);
@@ -991,25 +1109,19 @@ void drawTechs(struct monsterInfo monster, int detail)
 	
     glPopMatrix();
 		    
-    if (monster.deadCount >= 45)
+    if (monster.deadCount >= deathStart)
 	{
-	glPushMatrix();
-	    glTranslatef(monster.timeDead * 0.05 + 0.2,  -monster.timeDead * 0.05,   monster.timeDead * 0.05);
-	    glRotatef(monster.timeDead*10, 1, 0, 0);
-	    glRotatef(monster.timeDead*15, 0, 1, 0);
+	if (!assetPoseSample(&externalTechsModel->model,
+	                     externalTechsDeathClip,
+	                     (float)monster.timeDead,
+	                     externalTechsDeathLoop, &externalTechsPose))
+	    return;
 	    assetModelDrawNode(&externalTechsModel->model,
 	                       requiredNode(externalTechsModel, "hand-right"),
 	                       &externalTechsPose);
-	glPopMatrix();
-
-	glPushMatrix();
-	    glTranslatef(-monster.timeDead * 0.05 - 0.2,  monster.timeDead * 0.05,   monster.timeDead * 0.05);
-	    glRotatef(monster.timeDead*10, 1, 0, 0);
-	    glRotatef(monster.timeDead*15, 0, 1, 0);
 	    assetModelDrawNode(&externalTechsModel->model,
 	                       requiredNode(externalTechsModel, "hand-left"),
 	                       &externalTechsPose);
-	glPopMatrix();
 	}
     }
 
@@ -1021,16 +1133,21 @@ void drawTechs(struct monsterInfo monster, int detail)
 
 void drawSimpleTechs(struct monsterInfo monster, int detail)
     {
+    float deathStart;
+
     if (!assetPoseReset(&externalTechsModel->model, &externalTechsPose))
         return;
+    deathStart = animationScalar("techs-death-start");
     glPushMatrix();
 
-    glRotatef(0.1 * monster.headHorzRotate, 0, 1, 0);
+    glRotatef(animationScalar("techs-heading-scale") *
+              monster.headHorzRotate, 0, 1, 0);
  
-    if (monster.deadCount < 45)
+    if (monster.deadCount < deathStart)
 	{    
 	glPushMatrix();
-	    glRotatef(0.1 * monster.headVertRotate, 1, 0, 0);
+	    glRotatef(animationScalar("techs-head-pitch-scale") *
+	              monster.headVertRotate, 1, 0, 0);
 	    assetModelDrawNode(&externalTechsModel->model,
 	                       requiredNode(externalTechsModel, "head-simple"),
 	                       &externalTechsPose);
@@ -1074,25 +1191,39 @@ static void setDamagePart(const struct AssetManifestModel *model,
     pose->nodes[brokenNode].visible = !intact;
     }
 
-static void setHeroDamage(const struct AssetManifestModel *model,
-                          struct AssetPose *pose, int power)
+static void setConfiguredDamage(const struct AssetManifestModel *model,
+                                struct AssetPose *pose, int damage,
+                                const char *prefix)
     {
-    static const char *parts[] = {
-        "eye-right", "eye-left", "mouth", "neck", "body-upper",
-        "body-lower", "chest", "shoulder-right", "shoulder-left",
-        "arm-right-upper", "arm-right-lower", "hand-right",
-        "arm-left-upper", "arm-left-lower", "hand-left",
-        "leg-right-upper", "leg-right-lower", "foot-right",
-        "leg-left-upper", "leg-left-lower", "foot-left"
-        };
-    static const int thresholds[] = {
-        8, 5, 3, 10, 15, 20, 25, 30, 35, 40, 45, 50,
-        55, 60, 65, 70, 75, 80, 85, 90, 95
-        };
-    size_t part;
+    const struct AssetValue *value;
+    size_t index;
+    size_t prefixLength;
+    size_t matched;
 
-    for (part = 0; part < sizeof(parts) / sizeof(parts[0]); part++)
-        setDamagePart(model, pose, parts[part], power > thresholds[part]);
+    prefixLength = strlen(prefix);
+    matched = 0;
+    for (index = 0; index < externalAnimationValues.count; index++)
+        {
+        value = &externalAnimationValues.values[index];
+        if (!hasPrefix(value->key, prefix))
+            continue;
+        if (value->componentCount != 1 || value->key[prefixLength] == '\0')
+            {
+            fprintf(stderr, "Invalid damage animation value: %s\n",
+                    value->key);
+            showError("Damage animation value is invalid");
+            exit(1);
+            }
+        setDamagePart(model, pose, value->key + prefixLength,
+                      damage > value->components[0]);
+        matched++;
+        }
+    if (matched == 0)
+        {
+        fprintf(stderr, "No damage values use prefix: %s\n", prefix);
+        showError("Damage animation values are missing");
+        exit(1);
+        }
     }
 
 static void drawHeroModel(int subtype, int power, int counter,
@@ -1100,27 +1231,25 @@ static void drawHeroModel(int subtype, int power, int counter,
     {
     const struct AssetManifestModel *model;
     struct AssetPose *pose;
-    int walkFrame;
+    float fireFrame;
     float brightness;
 
     model = externalHeroModels[subtype];
     pose = &externalHeroPoses[subtype];
-    walkFrame = counter % 24;
-    if (walkFrame < 0)
-        walkFrame += 24;
+    fireFrame = (float)mcount;
     if (mcount < 0)
-        mcount = 0;
-    else if (mcount > 40)
-        mcount = 40;
+        fireFrame = 0.0f;
+    else if (mcount > animationScalar("hero-fire-limit"))
+        fireFrame = animationScalar("hero-fire-limit");
     if (!assetPoseSample(&model->model, externalHeroWalkClips[subtype],
-                         (float)walkFrame,
+                         (float)counter,
                          externalHeroWalkLoops[subtype], pose) ||
         !assetPoseApply(&model->model, externalHeroFireClips[subtype],
-                        (float)mcount,
+                        fireFrame,
                         externalHeroFireLoops[subtype], pose))
         return;
-    setHeroDamage(model, pose, power);
-    brightness = dCount * 0.075f;
+    setConfiguredDamage(model, pose, power, "hero-damage-");
+    brightness = dCount * animationScalar("hero-death-brightness");
     pose->colorOffset[0] = brightness;
     pose->colorOffset[1] = brightness;
     pose->colorOffset[2] = brightness;
@@ -1153,35 +1282,18 @@ void drawHeroDude2(int power, int counter,
 
 void drawMechaMonster(int dam, int counter, int detail)
     {
-    static const char *parts[] = {
-        "arm-right", "arm-left", "leg-right", "foot-right",
-        "leg-left", "foot-left", "tail-front", "tail-back", "head",
-        "head-back", "eye-bar", "eye", "body-upper", "body-front",
-        "body"
-        };
-    static const int thresholds[] = {
-        48, 45, 43, 40, 38, 35, 30, 30, 26, 22, 18, 14, 10, 5, 0
-        };
-    static const char *shadows[] = {
-        "shadow-body", "shadow-tail-front", "shadow-tail-back"
-        };
-    size_t part;
-    int frame;
+    size_t node;
 
-    frame = counter % 20;
-    if (frame < 0)
-        frame += 20;
     if (!assetPoseSample(&externalMechaModel->model, externalMechaClip,
-                         (float)frame, externalMechaLoop,
+                         (float)counter, externalMechaLoop,
                          &externalMechaPose))
         return;
-    for (part = 0; part < sizeof(parts) / sizeof(parts[0]); part++)
-        setDamagePart(externalMechaModel, &externalMechaPose, parts[part],
-                      dam > thresholds[part]);
-    for (part = 0; part < sizeof(shadows) / sizeof(shadows[0]); part++)
-        externalMechaPose.nodes[
-            requiredNode(externalMechaModel, shadows[part])].visible =
-                detail > 0;
+    setConfiguredDamage(externalMechaModel, &externalMechaPose, dam,
+                        "mecha-damage-");
+    for (node = 0; node < externalMechaModel->model.nodeCount; node++)
+        if (externalMechaModel->model.nodes[node].name != NULL &&
+            hasPrefix(externalMechaModel->model.nodes[node].name, "shadow-"))
+            externalMechaPose.nodes[node].visible = detail > 0;
     assetModelDraw(&externalMechaModel->model, &externalMechaPose);
     }
 
@@ -1220,7 +1332,7 @@ void drawBuilding6(int counter, float * c1,  float * c2, int detail)
     pose = alternate ? &externalBuilding28Pose : &externalBuilding6Pose;
     clip = alternate ? externalBuilding28Clip : externalBuilding6Clip;
     loop = alternate ? externalBuilding28Loop : externalBuilding6Loop;
-    if (assetPoseSample(&model->model, clip, (float)(counter % 24), loop,
+    if (assetPoseSample(&model->model, clip, (float)counter, loop,
                         pose))
         assetModelDraw(&model->model, pose);
     }
@@ -1893,9 +2005,20 @@ void drawtrees(struct tree * allTreesOnPlane, int numTreesOnPlane, int counter,
 
 void drawSlagTanks(struct tank * allSlags, int counter, int detail)
     {    
+    const struct AssetValue *groundScale;
+    const struct AssetValue *maserScale;
     int c;
     float angle2;
+    float airRoll;
+    float airPitch;
+    float airYaw;
     struct tank * ttank;
+
+    groundScale = requiredAnimationValue("slag-ground-scale", 3);
+    maserScale = requiredAnimationValue("slag-maser-scale", 3);
+    airRoll = animationScalar("slag-air-roll");
+    airPitch = animationScalar("slag-air-pitch");
+    airYaw = animationScalar("slag-air-yaw");
     
     for(ttank = allSlags->next;ttank != NULL;ttank = ttank->next)
 	{
@@ -1908,36 +2031,58 @@ void drawSlagTanks(struct tank * allSlags, int counter, int detail)
 	    glPushMatrix();
 	
 	    switch(ttank->type){
-		case TANK:	glTranslatef(ttank->x, ttank->y-0.015, ttank->z);
-				glScalef(1+0.015*c,  1-0.015*c,  1+0.015*c);
+		case TANK:	glTranslatef(ttank->x, ttank->y +
+				    animationScalar("slag-ground-position"), ttank->z);
+				glScalef(groundScale->components[0] +
+				             groundScale->components[1] * c,
+				         groundScale->components[0] +
+				             groundScale->components[2] * c,
+				         groundScale->components[0] +
+				             groundScale->components[1] * c);
 				glRotatef(angle2, 0, 1, 0);
 				glCallList(slagtank);
 				break;
 	
-		case LAUNCHER:	glTranslatef(ttank->x, ttank->y-0.015, ttank->z);
-				glScalef(1+0.015*c,  1-0.015*c,  1+0.015*c);
+		case LAUNCHER:	glTranslatef(ttank->x, ttank->y +
+				    animationScalar("slag-ground-position"), ttank->z);
+				glScalef(groundScale->components[0] +
+				             groundScale->components[1] * c,
+				         groundScale->components[0] +
+				             groundScale->components[2] * c,
+				         groundScale->components[0] +
+				             groundScale->components[1] * c);
 				glRotatef(angle2, 0, 1, 0);
 				glCallList(slaglaunchertank);
 				break;
 	
 		    	    
-		case MASERTANK:	glTranslatef(ttank->x, ttank->y-0.015, ttank->z);
-				glScalef(0.15+0.002*c,  0.15-0.004*c,  0.15+0.002*c);
+		case MASERTANK:	glTranslatef(ttank->x, ttank->y +
+				    animationScalar("slag-ground-position"), ttank->z);
+				glScalef(maserScale->components[0] +
+				             maserScale->components[1] * c,
+				         maserScale->components[0] +
+				             maserScale->components[2] * c,
+				         maserScale->components[0] +
+				             maserScale->components[1] * c);
 				glRotatef(angle2, 0, 1, 0);
 				glCallList(slagmasertank);
 				break;
   
 		case HELO:	glTranslatef(ttank->x, ttank->y, ttank->z);
-				glRotatef(c*4.0, 1, 0, 0);
-				glRotatef(c*1.5, 0, 0, 1);
-				glRotatef(angle2+180+(c*10), 0, 1, 0);
-				drawHelo((counter*9) % 360, 1);
+				glRotatef(c * airPitch, 1, 0, 0);
+				glRotatef(c * airRoll, 0, 0, 1);
+				glRotatef(angle2 +
+				    animationScalar("slag-air-facing") +
+				    c * airYaw, 0, 1, 0);
+				drawHelo((float)counter, 1);
 				break;
 
 		case CHH:	glTranslatef(ttank->x, ttank->y, ttank->z);
-				glRotatef(c*4.0, 1, 0, 0);
-				glRotatef(c*1.5, 0, 0, 1);
-				glRotatef(angle2+(c*10), 0, 1, 0);
+				glRotatef(c * airPitch, 1, 0, 0);
+				glRotatef(c * airRoll, 0, 0, 1);
+				glRotatef(angle2 +
+				    animationScalar("slag-chh-facing") +
+				    c * airYaw, 0, 1, 0);
 				makeCHH(0);
 				break;
 
@@ -1955,16 +2100,24 @@ void drawSlagTanks(struct tank * allSlags, int counter, int detail)
 				break;
 				
 		case AIRPLANE:	glTranslatef(ttank->x, ttank->y, ttank->z);
-				glRotatef(c*1.5, 0, 0, 1);
-				glRotatef(angle2+180+(c*10), 0, 1, 0);
-				glScalef(3,  3,  3);
-				drawAirplane((counter*2) % 360);
+				glRotatef(c * airRoll, 0, 0, 1);
+				glRotatef(angle2 +
+				    animationScalar("slag-air-facing") +
+				    c * airYaw, 0, 1, 0);
+				glScalef(animationScalar("airplane-world-scale"),
+				         animationScalar("airplane-world-scale"),
+				         animationScalar("airplane-world-scale"));
+				drawAirplane(counter);
 				break;
 
 		case FIGHTER:	glTranslatef(ttank->x, ttank->y, ttank->z);
-				glRotatef(c*1.5, 0, 0, 1);
-				glRotatef(angle2+180+(c*10), 0, 1, 0);
-				glScalef(2,  2,  2);
+				glRotatef(c * airRoll, 0, 0, 1);
+				glRotatef(angle2 +
+				    animationScalar("slag-air-facing") +
+				    c * airYaw, 0, 1, 0);
+				glScalef(animationScalar("fighter-world-scale"),
+				         animationScalar("fighter-world-scale"),
+				         animationScalar("fighter-world-scale"));
 				drawFighter();
 				break;
 				
@@ -2150,24 +2303,30 @@ void drawTanks(struct tank * allTanks,  int counter, struct monsterInfo G,
 			
 		case MASERTANK:	glTranslatef(cTank.x, cTank.y, cTank.z);
   				glRotatef(angle2, 0, 1, 0);
-				glScalef(0.15,  0.15,  0.15);
+				glScalef(animationScalar("masertank-world-scale"),
+				         animationScalar("masertank-world-scale"),
+				         animationScalar("masertank-world-scale"));
 				glCallList(masertank);
 				break;
 
 		case HELO:	glTranslatef(cTank.x, cTank.y, cTank.z);
   				glRotatef(angle2+180, 0, 1, 0);
-				drawHelo((counter*9) % 360,  0);
+				drawHelo((float)counter,  0);
 				break;
 
 		case AIRPLANE:	glTranslatef(cTank.x, cTank.y, cTank.z);
   				glRotatef(angle2+180, 0, 1, 0);
-				glScalef(3,  3,  3);
-				drawAirplane((counter*2) % 360);
+				glScalef(animationScalar("airplane-world-scale"),
+				         animationScalar("airplane-world-scale"),
+				         animationScalar("airplane-world-scale"));
+				drawAirplane(counter);
 				break;
 
 		case FIGHTER:	glTranslatef(cTank.x, cTank.y, cTank.z);
   				glRotatef(angle2+180, 0, 1, 0);
-				glScalef(2,  2,  2);
+				glScalef(animationScalar("fighter-world-scale"),
+				         animationScalar("fighter-world-scale"),
+				         animationScalar("fighter-world-scale"));
 				drawFighter();
 				break;
 
@@ -2380,22 +2539,25 @@ void drawHeroWeapon(float targetx, float targetz, float x, float y,
 
 static void drawBoomFrame(int lowDetail, int frame)
     {
-    char name[16];
     const struct AssetManifestModel *model;
     struct AssetPose *pose;
+    int variant;
 
-    model = externalBoomModels[lowDetail ? 1 : 0];
-    pose = &externalBoomPoses[lowDetail ? 1 : 0];
-    if (!assetPoseReset(&model->model, pose))
-        return;
-    sprintf(name, "frame-%02d", frame);
-    assetModelDrawNode(&model->model, requiredNode(model, name), pose);
+    variant = lowDetail ? 1 : 0;
+    model = externalBoomModels[variant];
+    pose = &externalBoomPoses[variant];
+    if (assetPoseSample(&model->model, externalBoomClips[variant],
+                        (float)frame, externalBoomLoops[variant], pose))
+        assetModelDraw(&model->model, pose);
     }
 
 void drawBooms(struct boom * boomers, int detail)
     {
+    const struct AssetValue *fade;
     struct boom  * tempboom;
     struct boom b;
+
+    fade = requiredAnimationValue("boom-fade", 2);
 
     if (detail >= 2)
 	glEnable(GL_BLEND);
@@ -2408,22 +2570,15 @@ void drawBooms(struct boom * boomers, int detail)
 		
 	if (detail >= 2)
 	    {
-	    coloryellow[3] = (11 - b.count) * 0.1;
+	    coloryellow[3] = (fade->components[0] - b.count) *
+	        fade->components[1];
 	    glColor4fv(coloryellow);
 	    }
 	
 	glPushMatrix();
 	    glTranslatef(b.x, b.y, b.z);
 
-	    if (detail == 0) {
-		/* Draw smaller 'flickering' explosions (Johan) */
-		if (b.count >= 1 && b.count <= 9 && (b.count & 1))
-		    drawBoomFrame(1, b.count);
-
-	    } else {
-		if (b.count >= 1 && b.count <= 10)
-		    drawBoomFrame(0, b.count);
-	    }
+	    drawBoomFrame(detail == 0, b.count);
 	glPopMatrix();
 	}
 	
@@ -2822,26 +2977,22 @@ void drawRoads(struct road * roads, float xshift, float zshift,
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
 void drawProjectiles(struct projectile * allProjs, int counter, 
-		    struct fireType * fires, int fireCounter,
+    struct fireType * fires, int fireCounter,
 		    int itsChristmas, int detail)
     {
     struct projectile *temp;
     float col[4] = {1.0, 0, 0, 0};
     float v[3], v2[3];
     float x, y, z;
-    float floatRatio;
     register int i;
-    register int rotRatio;
     int beamCounter;
     int projectileVariant;
+    int special;
 
     static float beamhitx[MAXBEAMS], beamhitz[MAXBEAMS];
 
     GLfloat lineWidthNow;
     glGetFloatv(GL_LINE_WIDTH, &lineWidthNow);
-
-    rotRatio = (counter*100) % 3600;
-    floatRatio = rotRatio * 0.1;
 
     projectileVariant = (detail > 0 ? 1 : 0) + (itsChristmas ? 2 : 0);
     if (!assetPoseSample(&externalProjectileModels[projectileVariant]->model,
@@ -2850,6 +3001,13 @@ void drawProjectiles(struct projectile * allProjs, int counter,
 			externalProjectileLoops[projectileVariant],
 			&externalProjectilePoses[projectileVariant]))
 	return;
+    for (special = 0; special < 2; special++)
+        if (!assetPoseSample(
+                &externalSpecialProjectileModels[special]->model,
+                externalSpecialProjectileClips[special], (float)counter,
+                externalSpecialProjectileLoops[special],
+                &externalSpecialProjectilePoses[special]))
+            return;
 
     beamCounter = 0;
     for (temp = allProjs->next;temp != NULL;temp = temp->next)
@@ -2880,9 +3038,9 @@ void drawProjectiles(struct projectile * allProjs, int counter,
 				
 		case PROJTECHS: glPushMatrix();		/* techs shell */
 				    glTranslatef(x,  y,  z);
-				    glRotatef(floatRatio, 1, 0, 0);
-				    glRotatef(floatRatio, 0, 1, 0);
-				    glCallList(shell2Obj);
+				    assetModelDraw(
+				        &externalSpecialProjectileModels[0]->model,
+				        &externalSpecialProjectilePoses[0]);
 				glPopMatrix();
 				if (detail > 0)
 				    {
@@ -2908,9 +3066,9 @@ void drawProjectiles(struct projectile * allProjs, int counter,
 
 		case PROJHERO:  glPushMatrix();
 				    glTranslatef(x,  y,  z);
-				    glRotatef(floatRatio, 1, 0, 0);
-				    glRotatef(floatRatio, 0, 1, 0);
-				    glCallList(heroshellObj);
+				    assetModelDraw(
+				        &externalSpecialProjectileModels[1]->model,
+				        &externalSpecialProjectilePoses[1]);
 				glPopMatrix();
 				if (detail > 0)
 				    {

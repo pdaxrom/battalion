@@ -97,7 +97,7 @@ SOURCES := \
 	map_package.c
 
 SOURCES += asset.c asset_gltf.c asset_animation.c asset_render.c \
-	asset_manifest.c asset_tga.c
+	asset_manifest.c asset_tga.c asset_values.c
 
 PLATFORM_CPPFLAGS :=
 PLATFORM_LDFLAGS :=
@@ -203,15 +203,17 @@ OBJECTS := $(OBJECTS:.c=.o)
 OBJECTS := $(OBJECTS:.m=.o)
 DEPS := $(OBJECTS:.o=.d)
 
-# The sources predate ISO C99 and define tentative globals in headers. These
-# switches are required by modern GCC/Clang, but historical vendor compilers
-# must not receive options they do not understand.
+# The C engine targets ISO C89 and defines tentative globals in headers.
+# Objective-C uses separate flags because current Apple framework headers use
+# newer language features. Historical vendor compilers receive neither set.
 CC_VERSION := $(shell $(CC) --version 2>/dev/null)
 ifneq ($(or $(findstring clang,$(CC_VERSION)),$(findstring GCC,$(CC_VERSION)),$(findstring gcc,$(CC_VERSION))),)
-COMPAT_CFLAGS ?= -std=gnu89 -fcommon
+COMPAT_CFLAGS ?= -std=c89 -fcommon
+COMPAT_OBJCFLAGS ?= -fcommon
 DEPFLAGS ?= -MMD -MP
 else
 COMPAT_CFLAGS ?=
+COMPAT_OBJCFLAGS ?=
 DEPFLAGS ?=
 endif
 CFLAGS ?= -O2
@@ -229,7 +231,7 @@ $(BUILD_DIR)/%.o: %.c Makefile | $(BUILD_DIR)
 
 $(BUILD_DIR)/%.o: %.m Makefile | $(BUILD_DIR)
 	@mkdir -p $(dir $@)
-	$(CC) $(CPPFLAGS) $(PLATFORM_CPPFLAGS) $(GRAPHICS_CPPFLAGS) $(AUDIO_CPPFLAGS) $(COMPAT_CFLAGS) $(CFLAGS) $(DEPFLAGS) -fobjc-arc -c $< -o $@
+	$(CC) $(CPPFLAGS) $(PLATFORM_CPPFLAGS) $(GRAPHICS_CPPFLAGS) $(AUDIO_CPPFLAGS) $(COMPAT_OBJCFLAGS) $(CFLAGS) $(DEPFLAGS) -fobjc-arc -c $< -o $@
 
 $(BUILD_DIR):
 	mkdir -p $@
@@ -266,23 +268,28 @@ TEST_BUILD_DIR := build/tests
 MAP_TEST := $(TEST_BUILD_DIR)/map-test
 ASSET_TEST := $(TEST_BUILD_DIR)/asset-gltf-test
 ASSET_CATALOG_TEST := $(TEST_BUILD_DIR)/asset-catalog-test
+ASSET_VALUES_TEST := $(TEST_BUILD_DIR)/asset-values-test
 
-$(MAP_TEST): tests/map_test.c map.c map.h map_package.c map_package.h | $(TEST_BUILD_DIR)
+$(MAP_TEST): tests/map_test.c map.c map.h map_package.c map_package.h Makefile | $(TEST_BUILD_DIR)
 	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< map.c map_package.c -o $@
 
-$(ASSET_TEST): tests/asset_gltf_test.c asset.c asset_gltf.c asset_animation.c asset_write.c asset_tga.c asset.h asset_animation.h asset_write.h asset_tga.h | $(TEST_BUILD_DIR)
+$(ASSET_TEST): tests/asset_gltf_test.c asset.c asset_gltf.c asset_animation.c asset_write.c asset_tga.c asset.h asset_animation.h asset_write.h asset_tga.h Makefile | $(TEST_BUILD_DIR)
 	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< asset.c asset_gltf.c asset_animation.c asset_write.c asset_tga.c -lm -o $@
 
-$(ASSET_CATALOG_TEST): tests/asset_catalog_test.c | $(TEST_BUILD_DIR)
+$(ASSET_CATALOG_TEST): tests/asset_catalog_test.c Makefile | $(TEST_BUILD_DIR)
 	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< -o $@
+
+$(ASSET_VALUES_TEST): tests/asset_values_test.c asset_values.c asset_values.h Makefile | $(TEST_BUILD_DIR)
+	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< asset_values.c -lm -o $@
 
 $(TEST_BUILD_DIR):
 	mkdir -p $@
 
-test: $(MAP_TEST) $(ASSET_TEST) $(ASSET_CATALOG_TEST)
+test: $(MAP_TEST) $(ASSET_TEST) $(ASSET_CATALOG_TEST) $(ASSET_VALUES_TEST)
 	./$(MAP_TEST)
 	./$(ASSET_TEST)
 	./$(ASSET_CATALOG_TEST)
+	./$(ASSET_VALUES_TEST)
 
 clean:
 	rm -rf build

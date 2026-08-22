@@ -418,8 +418,8 @@ void initSounds()
 
     /* Mark audio buffers as empty */
     
-//    for (n = 0; n < MAXSOUNDS; n++)
-//	audio_buffer[n] = NULL;
+/*  for (n = 0; n < MAXSOUNDS; n++)
+	audio_buffer[n] = NULL; */
 
 #endif
 
@@ -870,7 +870,7 @@ static int theMusic[MAXMUSIC] = {10, 11};
 
     int soundDelay;
     
-//    printf("doSound -> %d\n", theSound);
+/*  printf("doSound -> %d\n", theSound); */
 
     if (!noSound) {
 	soundDelay = showframes;
@@ -889,7 +889,7 @@ static int theMusic[MAXMUSIC] = {10, 11};
 		if (!playingMusic) {
 		    OutAudio(theMusic[musicCount]);
 		    musicCount = (musicCount+1) % MAXMUSIC;
-//printf("Music start\n");
+/* printf("Music start\n"); */
 		    /* each music sample is 5 secs long */
 		    playingMusic =  soundDelay * 20; ;
 		}
@@ -1185,7 +1185,7 @@ void OutAudio(int sCounter)
     
     /* Check if a valid buffer and buffer contains a sample */
     
-//    printf("Sound N --> %d \n", sCounter);
+/*  printf("Sound N --> %d \n", sCounter); */
     
     if (sCounter < 0 || sCounter >= NUM_SAMPLES) return;
 

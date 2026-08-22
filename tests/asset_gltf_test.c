@@ -365,7 +365,8 @@ static int testCompoundModels(void)
         "head-simple", "frame-10", "frame-10"
     };
     static const char *clips[6] = {
-        "propellers", "tail-sway", "wing-flap", NULL, NULL, NULL
+        "propellers", "tail-sway", "wing-flap", "death", "explode",
+        "explode"
     };
     struct AssetModel model;
     char error[160];
@@ -432,6 +433,42 @@ static int testCharacterModels(void)
             (index < 2 && !assetPoseApply(&model, 1, 1.0f, 0, &pose)))
             {
             fprintf(stderr, "invalid character model %s: %s\n",
+                    paths[index], error);
+            assetPoseDestroy(&pose);
+            assetModelDestroy(&model);
+            return 0;
+            }
+        assetPoseDestroy(&pose);
+        assetModelDestroy(&model);
+        }
+    return 1;
+    }
+
+static int testProjectileAnimations(void)
+    {
+    static const char *paths[2] = {
+        "assets/models/effects/projectile-techs.glb",
+        "assets/models/effects/projectile-hero.glb"
+        };
+    struct AssetModel model;
+    struct AssetPose pose;
+    char error[160];
+    int index;
+
+    assetModelInitialize(&model);
+    assetPoseInitialize(&pose);
+    for (index = 0; index < 2; index++)
+        {
+        if (!assetModelLoadGLB(paths[index], &model, error, sizeof(error)) ||
+            model.animationCount != 1 ||
+            strcmp(model.animations[0].name, "spin") != 0 ||
+            model.animations[0].trackCount != 1 ||
+            model.animations[0].tracks[0].path !=
+                ASSET_ANIMATION_ROTATION ||
+            !assetPoseSample(&model, 0, 9.0f, 1, &pose) ||
+            nearValue(pose.nodes[0].rotation[3], 1.0f))
+            {
+            fprintf(stderr, "invalid projectile animation %s: %s\n",
                     paths[index], error);
             assetPoseDestroy(&pose);
             assetModelDestroy(&model);
@@ -535,6 +572,8 @@ int main(void)
     if (!testCompoundModels())
 	return 1;
     if (!testCharacterModels())
+	return 1;
+    if (!testProjectileAnimations())
 	return 1;
     return 0;
     }
