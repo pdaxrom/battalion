@@ -445,7 +445,6 @@ struct projectile * tproj,  *deadproj;
 struct boom * tboom, *deadboom;
 
 void * arena;
-void * sharedmem;
 
 int sizeBoom;
 int sizeTank;
@@ -2048,8 +2047,12 @@ void updateTanks(struct tank * allTanks, float width, float height,
 	    continue;
 	    }
 
-	radToNearestTarget = 10000;
 	nearestTarget = NULL;
+	nearestMonster = m;
+	centerX = m->x;
+	centerZ = m->z;
+	radToNearestTarget = sqrt((tankx - m->x) * (tankx - m->x) +
+	                          (tankz - m->z) * (tankz - m->z));
 
 	/************************************************/
 	/* need to compute radius to the nearest target */
@@ -2067,23 +2070,6 @@ void updateTanks(struct tank * allTanks, float width, float height,
 		centerZ		    = nearestTarget->z;
 		}
 	    }
-
-	/**********************************************/
-	/* need to compute radius to player's monster */
-	/**********************************************/
-
-	    rad = sqrt((tankx - m->x) * (tankx - m->x) +
-	               (tankz - m->z) * (tankz - m->z));
-
-	if (rad < radToNearestTarget)
-	    {
-	    radToNearestTarget	= rad;
-	    nearestTarget	= NULL;
-	    nearestMonster	= m;
-	    centerX		= m->x;
-	    centerZ		= m->z;
-	    }
-
 
 	ttank->rad = radToNearestTarget;
 	ttank->goforit = nearestMonster;
@@ -2743,6 +2729,7 @@ if ((!netUp) || (newtype == MASERTANK))
 
     if (temptank != NULL)
 	{
+	memset(temptank, 0, sizeTank);
 	temptank->type = newtype;
 	temptank->speed = TANKV;
 	temptank->damage = 1;
@@ -2803,8 +2790,14 @@ if ((!netUp) || (newtype == MASERTANK))
 	    /* need to compute radius to the nearest target */
 	    /************************************************/
 
-	    radToNearestTarget = 10000;
 	    nearestTarget = NULL;
+	    nearestMonster = G;
+	    centerX = G->x;
+	    centerZ = G->z;
+	    rad = sqrt(
+		(ttankx - G->x) * (ttankx - G->x) +
+		(ttankz - G->z) * (ttankz - G->z));
+	    radToNearestTarget = rad;
 
 	    for(temptarget = targets->next; temptarget != NULL; temptarget = temptarget->next)
 		{
@@ -2818,23 +2811,6 @@ if ((!netUp) || (newtype == MASERTANK))
 		    centerZ		= nearestTarget->z;
 		    }
 		}
-
-	    /**********************************************/
-	    /* need to compute radius to player's monster */
-	    /**********************************************/
-
-	    rad = sqrt((ttankx - G->x) * (ttankx - G->x) +
-	               (ttankz - G->z) * (ttankz - G->z));
-
-	    if (rad < radToNearestTarget)
-		{
-		radToNearestTarget  = rad;
-		nearestTarget	    = NULL;
-		nearestMonster	    = G;
-		centerX		    = G->x;
-		centerZ		    = G->z;
-		}
-
 
 	    temptank->rad = radToNearestTarget;
 	    temptank->goforit = nearestMonster;
@@ -3349,23 +3325,19 @@ void setPlayConditions()
     /* set up the dummy head nodes*/
     /******************************/
 
-    projectFlight = (struct projectile *) amalloc(sizeProjectile, arena);
-    projectFlight->next = NULL;
-
-    projectboom = (struct boom *) amalloc(sizeBoom, arena);
-    projectboom->next = NULL;
-
-    tanklist = (struct tank *) amalloc(sizeTank, arena);
-    tanklist->next = NULL;
-
-    slaglist = (struct tank *) amalloc(sizeTank, arena);
-    slaglist->next = NULL;
-
-    treelist = (struct tree *) amalloc(sizeof(struct tree), arena);
-    treelist->next = NULL;
-
-    targets = (struct targetInfo *) amalloc(sizeof(struct targetInfo), arena);
-    targets->next = NULL;
+    projectFlight = (struct projectile *) acalloc(1, sizeProjectile, arena);
+    projectboom = (struct boom *) acalloc(1, sizeBoom, arena);
+    tanklist = (struct tank *) acalloc(1, sizeTank, arena);
+    slaglist = (struct tank *) acalloc(1, sizeTank, arena);
+    treelist = (struct tree *) acalloc(1, sizeof(struct tree), arena);
+    targets = (struct targetInfo *) acalloc(
+	1, sizeof(struct targetInfo), arena);
+    if (projectFlight == NULL || projectboom == NULL || tanklist == NULL ||
+	slaglist == NULL || treelist == NULL || targets == NULL)
+	{
+	showError("Out of memory initializing gameplay lists");
+	exit(1);
+	}
 
     /************************************************************/
     /* read in data file of structures (trees, buildings, etc.) */
@@ -3553,21 +3525,6 @@ void initialization()
     biggestTankNumberSent	    = 0;
 
     totalCounter		    = 0;
-
-    /************************************/
-    /* set up memory arena              */
-    /************************************/
-
-#ifdef SGIVERSION
-
-    sharedmem = calloc(1, ARENASIZE);
-    arena = acreate(sharedmem, ARENASIZE, 0, NULL, NULL);
-    amallopt(M_FREEHD, 1, arena);
-    amallopt(M_CLRONFREE, 0, arena);
-    amallopt(M_MXFAST, 16, arena);
-
-#endif
-
     sizeBoom	    = sizeof(struct boom);
     sizeTank	    = sizeof(struct tank);
     sizeProjectile  = sizeof(struct projectile);

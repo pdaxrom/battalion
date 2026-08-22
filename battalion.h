@@ -135,13 +135,11 @@
 #define atan fatan
 #define atan2 atan2f
 
-#else
+#endif
 
 #define amalloc(x,y)	malloc(x)
 #define afree(x,y)	free(x)
 #define acalloc(n,x,y)	calloc(n,x)
-
-#endif
 
 
 #define MONSTERFOGSTART		2.5
@@ -308,8 +306,6 @@
 #define MAXTREESONPLANE	    800
 #define MAXFIRESONPLANE	    150
 #define MAXTANKSONPLANE	    200
-
-#define ARENASIZE	    100000
 
 #define MAXPATH		    400
 #define MAXBEAMS	     50

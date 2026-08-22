@@ -281,6 +281,11 @@ static int appendTexture(struct AssetManifest *manifest, const char *dataPath,
     assetImageInitialize(&image);
     if (!assetImageLoadTGA(path, &image, error, errorSize))
         return 0;
+    if (!assetImageMakePowerOfTwo(&image, error, errorSize))
+        {
+        assetImageDestroy(&image);
+        return 0;
+        }
     count = manifest->textureCount + 1;
     expanded = (struct AssetManifestTexture *)realloc(
         manifest->textures, count * sizeof(*expanded));

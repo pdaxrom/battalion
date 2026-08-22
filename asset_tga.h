@@ -26,5 +26,7 @@ void assetImageInitialize(struct AssetImage *image);
 void assetImageDestroy(struct AssetImage *image);
 int assetImageLoadTGA(const char *path, struct AssetImage *image,
                       char *error, size_t errorSize);
+int assetImageMakePowerOfTwo(struct AssetImage *image,
+                             char *error, size_t errorSize);
 
 #endif

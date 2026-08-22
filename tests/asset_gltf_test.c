@@ -515,6 +515,8 @@ static int testExternalTextures(void)
     };
     static const int widths[5] = {128, 128, 96, 128, 95};
     static const int heights[5] = {128, 128, 96, 128, 64};
+    static const int uploadWidths[5] = {128, 128, 128, 128, 128};
+    static const int uploadHeights[5] = {128, 128, 128, 128, 64};
     struct AssetImage image;
     char error[160];
     int index;
@@ -527,6 +529,15 @@ static int testExternalTextures(void)
             image.pixels == NULL)
             {
             fprintf(stderr, "external TGA load failed for %s: %s\n",
+                    paths[index], error);
+            assetImageDestroy(&image);
+            return 0;
+            }
+        if (!assetImageMakePowerOfTwo(&image, error, sizeof(error)) ||
+            image.width != uploadWidths[index] ||
+            image.height != uploadHeights[index])
+            {
+            fprintf(stderr, "power-of-two conversion failed for %s: %s\n",
                     paths[index], error);
             assetImageDestroy(&image);
             return 0;

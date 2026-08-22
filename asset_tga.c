@@ -46,6 +46,71 @@ void assetImageDestroy(struct AssetImage *image)
     assetImageInitialize(image);
     }
 
+static int nextPowerOfTwo(int value)
+    {
+    int power;
+
+    power = 1;
+    while (power < value && power <= 32768)
+        power *= 2;
+    return power;
+    }
+
+int assetImageMakePowerOfTwo(struct AssetImage *image,
+                             char *error, size_t errorSize)
+    {
+    unsigned char *pixels;
+    size_t source;
+    size_t destination;
+    size_t x;
+    size_t y;
+    size_t sourceX;
+    size_t sourceY;
+    int width;
+    int height;
+
+    if (image == NULL || image->pixels == NULL ||
+        image->width <= 0 || image->height <= 0)
+        {
+        setError(error, errorSize, "Image data is required for scaling");
+        return 0;
+        }
+    width = nextPowerOfTwo(image->width);
+    height = nextPowerOfTwo(image->height);
+    if (width == image->width && height == image->height)
+        return 1;
+    if ((size_t)width > ((size_t)-1) / (size_t)height ||
+        (size_t)width * (size_t)height > ((size_t)-1) / 4)
+        {
+        setError(error, errorSize, "Power-of-two image is too large");
+        return 0;
+        }
+    pixels = (unsigned char *)malloc(
+        (size_t)width * (size_t)height * 4);
+    if (pixels == NULL)
+        {
+        setError(error, errorSize,
+                 "Out of memory scaling image to power-of-two dimensions");
+        return 0;
+        }
+    for (y = 0; y < (size_t)height; y++)
+        {
+        sourceY = y * (size_t)image->height / (size_t)height;
+        for (x = 0; x < (size_t)width; x++)
+            {
+            sourceX = x * (size_t)image->width / (size_t)width;
+            source = (sourceY * (size_t)image->width + sourceX) * 4;
+            destination = (y * (size_t)width + x) * 4;
+            memcpy(pixels + destination, image->pixels + source, 4);
+            }
+        }
+    free(image->pixels);
+    image->pixels = pixels;
+    image->width = width;
+    image->height = height;
+    return 1;
+    }
+
 static int readPixel(FILE *file, int components, unsigned char rgba[4])
     {
     unsigned char source[4];
