@@ -110,6 +110,7 @@ int main(void)
 
     entityAgentInitialize(&receiver, tank, 2.0f, 2.0f, 0.0f,
                           NULL, 0, ENTITY_PATROL_LOOP);
+    receiver.active = 0;
     if (!entityAgentQueueTrigger(&receiver, guard.events[0].name,
                                  &guard.events[0].contact))
         {
@@ -123,7 +124,7 @@ int main(void)
         return 1;
         }
     entityAgentStep(&receiver, NULL, 0);
-    if (receiver.reaction != ENTITY_REACTION_ATTACK ||
+    if (!receiver.active || receiver.reaction != ENTITY_REACTION_ATTACK ||
         !receiver.hasTarget ||
         strcmp(receiver.target.id, "intruder-a") != 0)
         {
@@ -140,7 +141,7 @@ int main(void)
     phaseArchetype.sensors[0].range = 3.0f;
     phaseArchetype.sensors[0].angle = 360.0f;
     phaseArchetype.targetMode = ENTITY_TARGET_NEAREST;
-    phaseArchetype.reactionRuleCount = 3;
+    phaseArchetype.reactionRuleCount = 4;
     strcpy(phaseArchetype.reactionRules[0].event, "test-zone");
     strcpy(phaseArchetype.reactionRules[0].emit, "zone-entered");
     phaseArchetype.reactionRules[0].source = ENTITY_RULE_SENSOR;
@@ -156,6 +157,11 @@ int main(void)
     phaseArchetype.reactionRules[2].source = ENTITY_RULE_SENSOR;
     phaseArchetype.reactionRules[2].phase = ENTITY_SENSOR_PHASE_EXIT;
     phaseArchetype.reactionRules[2].reaction = ENTITY_REACTION_OBSERVE;
+    strcpy(phaseArchetype.reactionRules[3].event, "shutdown");
+    strcpy(phaseArchetype.reactionRules[3].emit, "none");
+    phaseArchetype.reactionRules[3].source = ENTITY_RULE_TRIGGER;
+    phaseArchetype.reactionRules[3].phase = ENTITY_SENSOR_PHASE_ANY;
+    phaseArchetype.reactionRules[3].reaction = ENTITY_REACTION_DEACTIVATE;
     entityAgentInitialize(&phaseAgent, &phaseArchetype, 0.0f, 0.0f, 0.0f,
                           NULL, 0, ENTITY_PATROL_LOOP);
     contact(&contacts[0], "phase-contact", 0.0f, 1.0f, 1, 1);
@@ -179,6 +185,18 @@ int main(void)
         phaseAgent.events[0].contact.active)
         {
         fprintf(stderr, "sensor exit phase failed\n");
+        return 1;
+        }
+    if (!entityAgentQueueTrigger(&phaseAgent, "shutdown", &contacts[0]))
+        {
+        fprintf(stderr, "deactivation trigger queue failed\n");
+        return 1;
+        }
+    entityAgentStep(&phaseAgent, contacts, 1);
+    if (phaseAgent.active || phaseAgent.hasTarget ||
+        phaseAgent.reaction != ENTITY_REACTION_OBSERVE)
+        {
+        fprintf(stderr, "deactivation trigger failed\n");
         return 1;
         }
 

@@ -1107,7 +1107,7 @@
       "x": 8,
       "z": 7,
       "heading": 3.14159265,
-      "active": true,
+      "active": false,
       "patrol-mode": "pingpong",
       "path": [{"x": 8, "z": 7}, {"x": 5, "z": 7}],
       "triggers": [

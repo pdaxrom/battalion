@@ -109,7 +109,7 @@ int main(void)
         tank->projectileSpeed < 0.299f || tank->aimPitchDefault != 0.0f ||
         tank->firstPersonVisible ||
         tank->targetMode != ENTITY_TARGET_ALL ||
-        tank->sensorCount != 4 || tank->reactionRuleCount != 5 ||
+        tank->sensorCount != 4 || tank->reactionRuleCount != 6 ||
         tank->sensors[1].type != ENTITY_SENSOR_VISION ||
         tank->sensors[2].type != ENTITY_SENSOR_HEARING ||
         tank->reactionRules[0].reaction != ENTITY_REACTION_ATTACK ||

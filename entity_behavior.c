@@ -125,22 +125,30 @@ static void applyReaction(struct EntityAgent *agent,
     {
     int replaceReaction;
 
-    replaceReaction = rule->reaction >= agent->reaction;
-    if (rule->reaction == ENTITY_REACTION_ACTIVATE ||
-        rule->reaction == ENTITY_REACTION_DEACTIVATE)
-        replaceReaction = 1;
-    if (replaceReaction)
-        agent->reaction = rule->reaction;
     if (rule->reaction == ENTITY_REACTION_ACTIVATE)
         agent->active = 1;
     else if (rule->reaction == ENTITY_REACTION_DEACTIVATE)
+        {
         agent->active = 0;
+        agent->reaction = ENTITY_REACTION_OBSERVE;
+        agent->hasTarget = 0;
+        agent->lostCounter = 0;
+        }
+    else
+        {
+        replaceReaction = rule->reaction >= agent->reaction;
+        if (replaceReaction)
+            agent->reaction = rule->reaction;
+        }
     if (contact != NULL && contact->active)
         {
-        agent->target = *contact;
-        agent->targetX = contact->x;
-        agent->targetZ = contact->z;
-        agent->hasTarget = 1;
+        if (rule->reaction != ENTITY_REACTION_DEACTIVATE)
+            {
+            agent->target = *contact;
+            agent->targetX = contact->x;
+            agent->targetZ = contact->z;
+            agent->hasTarget = 1;
+            }
         }
     if (contact != NULL)
         addEvent(agent, rule->emit, contact);

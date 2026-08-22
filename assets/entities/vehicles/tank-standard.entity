@@ -42,6 +42,7 @@ on-enter nearby attack base-alarm
 on-enter sight attack base-alarm
 on-enter noise investigate base-alarm
 on-enter damaged attack base-alarm
+on-trigger base-alarm activate none
 on-trigger base-alarm attack none
 spawn-weight 0
 spawn-after 0
