@@ -122,21 +122,6 @@
 
 #define MAXTARGETS	    3
 
-/************************************/
-/* to try and speed up computations */
-/************************************/
-
-#ifdef SGIVERSION
-
-#define fabs fabsf
-#define sqrt fsqrt
-#define sin fsin
-#define cos fcos
-#define atan fatan
-#define atan2 atan2f
-
-#endif
-
 #define amalloc(x,y)	malloc(x)
 #define afree(x,y)	free(x)
 #define acalloc(n,x,y)	calloc(n,x)
