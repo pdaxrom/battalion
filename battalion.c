@@ -3190,6 +3190,8 @@ void checkMouse()
 
 	forward = playerInput.forward - playerInput.backward;
 	sideways = playerInput.right - playerInput.left;
+	if (view == MONSTERVIEW)
+	    sideways = -sideways;
 	if (forward || sideways)
 	    {
 	    playerMoveAngle = Googelon.headHorzRotate * BIG_DEG_TO_RAD +
