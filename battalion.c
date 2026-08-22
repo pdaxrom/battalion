@@ -2630,6 +2630,7 @@ void addNewTank(struct targetInfo * targets, float startx, float startz, int sta
     struct monsterInfo * nearestMonster;
     float centerX, centerZ;
     float rad;
+    float playerRad;
 
     struct tank * temptank,  *ttank;
     struct tree * temptree;
@@ -2794,10 +2795,10 @@ if ((!netUp) || (newtype == MASERTANK))
 	    nearestMonster = G;
 	    centerX = G->x;
 	    centerZ = G->z;
-	    rad = sqrt(
+	    playerRad = sqrt(
 		(ttankx - G->x) * (ttankx - G->x) +
 		(ttankz - G->z) * (ttankz - G->z));
-	    radToNearestTarget = rad;
+	    radToNearestTarget = playerRad;
 
 	    for(temptarget = targets->next; temptarget != NULL; temptarget = temptarget->next)
 		{
@@ -2819,7 +2820,7 @@ if ((!netUp) || (newtype == MASERTANK))
 
 	    blocked = checkForBlock(temptank, temptank->rad, temptank->theta, temptank->y);
 
-	    if (rad > 2 * PLANESIZE)
+	    if (playerRad > 2 * PLANESIZE)
 		blocked = 1;
 	}
 
