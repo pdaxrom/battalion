@@ -567,6 +567,7 @@ static int testCompoundModels(void)
         "propellers", "tail-sway", "wing-flap", "death", "explode",
         "explode"
     };
+    static const size_t animationCounts[6] = {1, 2, 1, 1, 1, 1};
     struct AssetModel model;
     char error[160];
     int index;
@@ -582,9 +583,14 @@ static int testCompoundModels(void)
                 model.sceneRootCount >= 1 &&
                 assetModelFindNode(&model, requiredNodes[index]) >= 0 &&
                 ((clips[index] == NULL && model.animationCount == 0) ||
-                 (clips[index] != NULL && model.animationCount == 1 &&
+                 (clips[index] != NULL &&
+                  model.animationCount == animationCounts[index] &&
                   model.animations[0].name != NULL &&
-                  strcmp(model.animations[0].name, clips[index]) == 0));
+                  strcmp(model.animations[0].name, clips[index]) == 0)) &&
+                (index != 1 ||
+                 (model.animations[1].name != NULL &&
+                  strcmp(model.animations[1].name, "walk") == 0 &&
+                  model.animations[1].trackCount >= 4));
         if (!valid)
             {
             fprintf(stderr, "invalid compound model %s: %s\n",
@@ -669,6 +675,43 @@ static int testCreatureAimNodes(void)
         assetModelDestroy(&model);
         }
     return 1;
+    }
+
+static int testGoogelonWalk(void)
+    {
+    struct AssetModel model;
+    struct AssetPose firstPose;
+    struct AssetPose secondPose;
+    char error[160];
+    int leftLeg;
+    int rightLeg;
+    int valid;
+
+    assetModelInitialize(&model);
+    assetPoseInitialize(&firstPose);
+    assetPoseInitialize(&secondPose);
+    error[0] = '\0';
+    valid = assetModelLoadGLB("assets/models/monsters/googelon.glb",
+                              &model, error, sizeof(error));
+    leftLeg = valid ? assetModelFindNode(&model, "leg-left") : -1;
+    rightLeg = valid ? assetModelFindNode(&model, "leg-right") : -1;
+    valid = valid && model.animationCount == 2 && leftLeg >= 0 &&
+            rightLeg >= 0 &&
+            strcmp(model.animations[1].name, "walk") == 0 &&
+            assetPoseSample(&model, 1, 0.0f, 1, &firstPose) &&
+            assetPoseSample(&model, 1, 1.0f, 1, &secondPose) &&
+            nearValue(firstPose.nodes[leftLeg].translation[0], 0.2f) &&
+            nearValue(firstPose.nodes[rightLeg].translation[0], -0.2f) &&
+            (!nearValue(firstPose.nodes[leftLeg].translation[1],
+                        secondPose.nodes[leftLeg].translation[1]) ||
+             !nearValue(firstPose.nodes[leftLeg].translation[2],
+                        secondPose.nodes[leftLeg].translation[2]));
+    if (!valid)
+        fprintf(stderr, "invalid Googelon walk animation: %s\n", error);
+    assetPoseDestroy(&firstPose);
+    assetPoseDestroy(&secondPose);
+    assetModelDestroy(&model);
+    return valid;
     }
 
 static int testProjectileAnimations(void)
@@ -834,6 +877,8 @@ int main(void)
     if (!testCharacterModels())
 	return 1;
     if (!testCreatureAimNodes())
+	return 1;
+    if (!testGoogelonWalk())
 	return 1;
     if (!testProjectileAnimations())
 	return 1;

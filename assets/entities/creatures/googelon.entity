@@ -15,8 +15,7 @@ aim-yaw-node head
 aim-pitch-node head
 muzzle-node muzzle
 idle-animation googelon-tail-sway
-move-animation googelon-tail-sway
-attack-animation googelon-tail-sway
+move-animation googelon-walk
 animation-speed 1
 faction monster
 hostile-faction army

@@ -49,6 +49,7 @@ model road-type-3 models/terrain/roads/road-type-3.glb
 
 model googelon models/monsters/googelon.glb
 animation googelon-tail-sway googelon tail-sway loop
+animation googelon-walk googelon walk loop
 
 model flutter models/monsters/flutter.glb
 animation flutter-wing-flap flutter wing-flap loop
