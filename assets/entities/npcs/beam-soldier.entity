@@ -1,0 +1,60 @@
+# An armed NPC that can be controlled or placed on a map patrol route.
+battalion-entity 1
+id beam-soldier
+kind npc
+controllable yes
+control-mode free
+model hero-beam
+idle-animation hero-beam-walk
+move-animation hero-beam-walk
+attack-animation hero-beam-fire
+animation-speed 0.05
+faction army
+hostile-faction monster
+movement ground
+speed 0.03
+turn-rate 0.2
+health 4
+score 15
+scale 1
+vertical-offset 1
+collision-radius 0.2
+collision-height 0.9
+weapon beam
+weapon-range 5
+weapon-min-range 0.25
+projectile-speed 0.1
+muzzle-forward 0
+muzzle-height 0.75
+fire-interval 1
+accuracy 20
+forget-range 12
+lost-frames 180
+target-mode nearest
+max-targets 1
+sensor nearby proximity 1.5 360 hostile
+sensor sight vision 8 100 hostile
+sensor noise hearing 10 360 hostile
+sensor damaged damage 0 360 hostile
+on-sensor nearby attack squad-alert
+on-sensor sight attack squad-alert
+on-sensor noise investigate squad-alert
+on-sensor damaged attack squad-alert
+on-trigger squad-alert attack none
+spawn-weight 0
+spawn-after 0
+max-active 0
+player-energy 50
+player-height 0.9
+player-width 0.2
+player-bottom 0
+player-regen 0.1
+player-move-cost 0.05
+player-fire-cost 0.05
+player-turn-rate 35
+player-steer-rate 18
+aim-pitch-default 0
+aim-pitch-min -40
+aim-pitch-max 40
+first-person-eye-height 1.75
+first-person-visible no

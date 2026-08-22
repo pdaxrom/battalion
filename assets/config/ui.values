@@ -2,6 +2,7 @@
 battalion-values 1
 
 value energy-bar -4 4.39 -1 4.81 0
+value weapon-bar -0.75 3.82 0.75 4.14 0
 value score-box -1 -0.6 1 0.42 7.1
 value options-box -0.85 -1 0.85 0.5 7.1
 value summary-box -0.97 -1.05 0.97 0.25 7

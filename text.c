@@ -56,8 +56,6 @@ extern float  colorbeige[4];
 extern float  colorblue[4];
 extern float  colorwater[4];
 
-extern float  colorsnowvapour[4];
-
 extern float  coloryellow[4];
 extern float  colormaseryellow[4];
 extern float  colororange[4];
@@ -158,7 +156,8 @@ void initFonts(const char *fontPath, const char *uiPath)
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
 void showText(struct targetInfo * targets, float energy, int score,
-	    long winX, int paused,  int grabbed)
+	    long winX, int paused, int grabbed, int weaponUsesReload,
+	    float weaponReadiness)
     {
     float pixtoSpace;
     struct targetInfo * temptarget;
@@ -167,10 +166,15 @@ void showText(struct targetInfo * targets, float energy, int score,
     float *energyColor;
     float energyLeft;
     float energyRight;
+    float weaponBar[4][3];
+    float weaponLeft;
+    float weaponRight;
 
 static    char energyEnglish[]		= "energy:";
 static    char pausedEnglish[]		= "<p>aused";
 static    char grabbedEnglish[]		= "<g>rabbed";
+static    char readyEnglish[]		= "ready";
+static    char reloadEnglish[]		= "reload";
 
     uiRectangle("energy-bar", energyBar);
     energyLeft = energyBar[0][0];
@@ -205,6 +209,26 @@ static    char grabbedEnglish[]		= "<g>rabbed";
 
 
     dynamicDrawLineLoop3(energyBar, colorwhite);
+
+    if (weaponUsesReload)
+	{
+	uiRectangle("weapon-bar", weaponBar);
+	weaponLeft = weaponBar[0][0];
+	weaponRight = weaponBar[2][0];
+	weaponBar[2][0] = weaponBar[3][0] = weaponLeft +
+	    weaponReadiness * (weaponRight - weaponLeft);
+	dynamicDrawSolidQuad3(weaponBar,
+	    weaponReadiness >= 1.0f ? healthGreen : colorbrown);
+	weaponBar[2][0] = weaponBar[3][0] = weaponRight;
+	dynamicDrawLineLoop3(weaponBar, colorwhite);
+	glPushMatrix();
+	    glTranslatef(weaponLeft + 0.18f,
+		weaponBar[1][1] + 0.04f, 0);
+	    glScalef(0.65f, 0.65f, 1.0f);
+	    tkDrawStr(strokeBase, weaponReadiness >= 1.0f ?
+		readyEnglish : reloadEnglish);
+	glPopMatrix();
+	}
 
     /************************************************/
     /* draw energy bar for any target on the screen */
@@ -253,6 +277,10 @@ static    char grabbedEnglish[]		= "<g>rabbed";
 		    case VAPOUR:    tkDrawStr(strokeBase,"Vapour");
 				    break;
 		    case FLUTTER:   tkDrawStr(strokeBase,"Flutter");
+				    break;
+		    case DATAENTITY: if (selectedPlayerArchetype() != NULL)
+					tkDrawStr(strokeBase,
+					          (char *)selectedPlayerArchetype()->id);
 				    break;
 		    }
 		glPopMatrix();
@@ -376,7 +404,8 @@ glPushAttrib(GL_DEPTH_BUFFER_BIT);
     glPushMatrix();
 	glTranslatef(-0.8,  -0.23,  7.2);
 	glScalef(.2,  .2,  .2);
-	drawVapour(tempMonster, itsChristmas, detail);
+	drawConfiguredPlayerEntity(legacyMonsterArchetype(VAPOUR),
+	                           1, 0, counter, 0, 0.0f, 0.0f);
     glPopMatrix();
 	
     glPushMatrix();
@@ -581,6 +610,8 @@ static    char viewsEnglish[]	= "Views:";
 static    char views1English[]	= "-Monster";
 static    char views2English[]	= "-Overview";
 static    char views3English[]	= "-Army";
+static    char views4English[]	= "-Map";
+static    char views5English[]	= "-First Person";
 
 static    char onstring[]		= " (ON)";
 static    char offstring[]		= " (OFF)";
@@ -652,6 +683,22 @@ static    char musicEnglish[]		= "-Music";
 	glTranslatef(0.5,  0,  0);
 	drawHelpString(views3English);
     glPopMatrix();    
+
+    glPushMatrix();
+	glTranslatef(-2.4,  0.2,  0);
+	drawHelpString("4");
+
+	glTranslatef(0.5,  0,  0);
+	drawHelpString(views4English);
+    glPopMatrix();
+
+    glPushMatrix();
+	glTranslatef(-2.4,  -0.3,  0);
+	drawHelpString("5");
+
+	glTranslatef(0.5,  0,  0);
+	drawHelpString(views5English);
+    glPopMatrix();
 
 
 
@@ -927,28 +974,22 @@ static    char spaceEnglish[]		= "Press the spacebar to begin";
 void doOptions(struct monsterInfo monster, long xWin, int counter,
 		int itsChristmas, float offsetX, int detail)
     {
-    float pixtoSpace;
-    struct monsterInfo tempMonster;
+    const struct EntityArchetype *archetype;
     GLfloat lineWidthNow;
     float optionsBox[4][3];
+    size_t optionCount;
+    char optionLine[ENTITY_NAME_SIZE + 48];
 
-static    char googelonEnglish[]	= "Googelon-6";    
-static    char techsEnglish[]		= "Techs-7";    
-static    char vapourEnglish[]		= "The Vapour-8";    
-static    char flutterEnglish[]		= "Flutter-9";
+    (void)monster;
+    (void)xWin;
+    (void)itsChristmas;
+    (void)offsetX;
 
     uiRectangle("options-box", optionsBox);
+    archetype = selectedPlayerArchetype();
+    optionCount = playerEntityOptionCount();
 
     glPushAttrib(GL_DEPTH_BUFFER_BIT);
- 
-    /***********************************/
-    /* these monsters are always alive */
-    /***********************************/
-   
-    tempMonster 		= monster;
-    tempMonster.energyRemaining = 100;
-    tempMonster.monsterIsDead 	= 0;
-    tempMonster.deadCount 	= 0;
         	
     /*************************************/
     /* draw transparent brown background */
@@ -973,33 +1014,38 @@ static    char flutterEnglish[]		= "Flutter-9";
     /* draw text */
     /*************/
 
-    pixtoSpace = 2.0 / xWin;
-
     glColor3fv(colorwhite); 
 
     glPushMatrix();
-	glTranslatef(-2.72,  1.75,  0);	
-	tkDrawStr(strokeBase, "Choose your monster:");
+	glTranslatef(-3.15,  1.75,  0);
+	tkDrawStr(strokeBase, "Choose player entity:");
     glPopMatrix();
 
     glPushMatrix();
-	glTranslatef(-3.72,  -.6,  0);
-	tkDrawStr(strokeBase, googelonEnglish);
+	glTranslatef(-3.4,  0.85,  0);
+	if (archetype != NULL)
+	    {
+	    if (archetype->shortcut != 0)
+		sprintf(optionLine, "%s [%c]  %lu/%lu", archetype->id,
+		        archetype->shortcut,
+		        (unsigned long)(selectedPlayerArchetypeNumber() + 1),
+		        (unsigned long)optionCount);
+	    else
+		sprintf(optionLine, "%s  %lu/%lu", archetype->id,
+		        (unsigned long)(selectedPlayerArchetypeNumber() + 1),
+		        (unsigned long)optionCount);
+	    tkDrawStr(strokeBase, optionLine);
+	    }
     glPopMatrix();
 
     glPushMatrix();
-	glTranslatef(1.2,  -.6,  0);
-	tkDrawStr(strokeBase, techsEnglish);
+	glTranslatef(-3.4,  -2.8,  0);
+	tkDrawStr(strokeBase, "arrows - select");
     glPopMatrix();
 
     glPushMatrix();
-	glTranslatef(-4,  -4,  0);
-	tkDrawStr(strokeBase, vapourEnglish);
-    glPopMatrix();
-
-    glPushMatrix();
-	glTranslatef(1.1,  -4,  0);
-	tkDrawStr(strokeBase, flutterEnglish);
+	glTranslatef(-3.4,  -3.45,  0);
+	tkDrawStr(strokeBase, "enter - start");
     glPopMatrix();
 
 
@@ -1013,29 +1059,16 @@ static    char flutterEnglish[]		= "Flutter-9";
     glGetFloatv(GL_LINE_WIDTH, &lineWidthNow);
     glLineWidth(uiScalar("overlay-model-line-width"));
 	    
-    glPushMatrix();
-	glTranslatef(-.5,  0.25,  7.2);
-	glScalef(.25,  .25,  .25);
-	drawMonster(tempMonster, counter, itsChristmas, detail);
-    glPopMatrix();
-	
-    glPushMatrix();
-	glTranslatef(+.5,  0.25,  7.2);
-	glScalef(.25,  .25,  .25);
-	drawTechs(tempMonster, detail);
-    glPopMatrix();
-
-    glPushMatrix();
-	glTranslatef(-.5,  -0.4,  7.2);
-	glScalef(.25,  .25,  .25);
-	drawVapour(tempMonster, itsChristmas, detail);
-    glPopMatrix();
-
-    glPushMatrix();
-	glTranslatef(+.5,  -0.4,  7.2);
-	glScalef(.25,  .25,  .25);
-	drawFlutter(tempMonster, counter, itsChristmas, offsetX, OMNISCIENTVIEW, detail);
-    glPopMatrix();
+    if (archetype != NULL)
+	{
+	glPushMatrix();
+	    glTranslatef(0, -0.35f, 7.2f);
+	    glRotatef((float)(counter % 360), 0, 1, 0);
+	    glScalef(0.7f, 0.7f, 0.7f);
+	    drawConfiguredPlayerEntity(archetype, 1, 0, counter, 0,
+	                               0.0f, 0.0f);
+	glPopMatrix();
+	}
 
     glPopAttrib();
 
@@ -1106,6 +1139,13 @@ void doSummary(int monster,  int deadTime, long winX, int killtanks,
 	    case TECHS:     sprintf(monsterString, "Techs destroyed %s", resultString);
 			    break;
 	    case FLUTTER:   sprintf(monsterString, "Flutter destroyed %s", resultString);
+			    break;
+	    case DATAENTITY: if (selectedPlayerArchetype() != NULL)
+				sprintf(monsterString, "%s destroyed %s",
+				        selectedPlayerArchetype()->id,
+				        resultString);
+			    else
+				strcpy(monsterString, "Entity destroyed nothing.");
 			    break;
 	    default:	    showError("Bogus Monster! (doSummary)");
 			    break;

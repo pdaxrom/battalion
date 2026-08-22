@@ -7,6 +7,7 @@ file config-palette palette-values
 file font-stroke stroke-font
 file ui-layout ui-values
 file help-sgi-showcase sgi-showcase
+file game-entities entity-catalog
 
 texture display-left screen-left
 texture display-right screen-right

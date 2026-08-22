@@ -413,7 +413,7 @@ static void appendMeshes(struct JsonBuilder *json,
         builderAppendFormat(json,
             "{\"name\":\"mesh%lu\",\"primitives\":[{\"attributes\":{" 
             "\"POSITION\":%lu,\"NORMAL\":%lu,\"TEXCOORD_0\":%lu,"
-            "\"COLOR_0\":%lu},\"mode\":%d,"
+            "\"COLOR_0\":%lu},\"mode\":%d,\"material\":%lu,"
             "\"extras\":{\"battalionLineWidth\":%.9g,"
             "\"battalionPointSize\":%.9g,"
             "\"battalionUseCurrentColor\":%s}}]}",
@@ -421,9 +421,29 @@ static void appendMeshes(struct JsonBuilder *json,
             (unsigned long)(meshIndex * 4 + 1),
             (unsigned long)(meshIndex * 4 + 2),
             (unsigned long)(meshIndex * 4 + 3), mode,
+            (unsigned long)meshIndex,
             model->meshes[meshIndex].lineWidth,
             model->meshes[meshIndex].pointSize,
             model->meshes[meshIndex].useCurrentColor ? "true" : "false");
+        }
+    builderAppend(json, "]");
+    }
+
+static void appendMaterials(struct JsonBuilder *json,
+                            const struct AssetModel *model)
+    {
+    size_t meshIndex;
+
+    builderAppend(json, ",\"materials\":[");
+    for (meshIndex = 0; meshIndex < model->meshCount; meshIndex++)
+        {
+        if (meshIndex)
+            builderAppend(json, ",");
+        builderAppendFormat(json,
+            "{\"name\":\"material%lu\",\"pbrMetallicRoughness\":{"
+            "\"baseColorFactor\":[1,1,1,1]},\"alphaMode\":\"%s\"}",
+            (unsigned long)meshIndex,
+            model->meshes[meshIndex].blend ? "BLEND" : "OPAQUE");
         }
     builderAppend(json, "]");
     }
@@ -746,6 +766,7 @@ int assetModelWriteGLB(const char *path, const struct AssetModel *model,
                         (unsigned long)binaryLength);
     appendBufferViews(&json, model, meshInfo, trackInfo);
     appendAccessors(&json, model, meshInfo);
+    appendMaterials(&json, model);
     appendMeshes(&json, model);
     appendNodesAndScene(&json, model);
     appendAnimations(&json, model);

@@ -16,8 +16,10 @@ file stroke-font fonts/stroke.font
 file audio-catalog audio/catalog.txt
 file render-bindings config/render.bindings
 file sgi-showcase battalion.sho
+file entity-catalog entities/catalog.txt
 
 model tank models/vehicles/tank.glb
+animation tank-tracks tank tracks loop
 model tank-slag models/vehicles/tank-slag.glb
 model tank-maser models/vehicles/tank-maser.glb
 model tank-maser-slag models/vehicles/tank-maser-slag.glb
@@ -53,6 +55,9 @@ animation flutter-wing-flap flutter wing-flap loop
 
 model techs models/monsters/techs.glb
 animation techs-death techs death once
+
+model vapour models/monsters/vapour.glb
+animation vapour-cloud vapour cloud loop
 
 model hero-typhoon models/monsters/hero-typhoon.glb
 animation hero-typhoon-walk hero-typhoon walk loop

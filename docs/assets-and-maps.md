@@ -14,8 +14,10 @@ the animation sampler depends on OpenGL, Metal, or the future GLES backend.
 The import profile supports triangle, line, and point primitives; indexed and non-indexed
 positions, vertex normals/UVs/colors, `baseColorFactor`, scene nodes with matrix
 or TRS transforms, and animation channels for node translation, rotation, and
-scale. `LINEAR` and `STEP` interpolation are supported. Textures, skins, morph
-targets, mesh compression, and cubic-spline playback remain later steps.
+scale. `LINEAR` and `STEP` interpolation are supported. GLB image textures,
+skins, morph targets, mesh compression, and cubic-spline playback remain later
+steps. External TGA textures used by the current assets are cataloged
+separately in the same manifest.
 
 `assets/manifest.txt` uses the `battalion-assets 2` catalog and declares every
 runtime model, texture, animation, and auxiliary authored file. Catalog keys
@@ -47,12 +49,17 @@ The checked-in GLB files are the canonical source assets. The one-time legacy
 converter and the old C model factories have been removed, so geometry is not
 duplicated between code and assets.
 
-The tank is a static one-node scene. Compound vehicles and monsters keep their
-parts as named nodes in one GLB. The helicopter carries its `rotors` clip, the
+The tank keeps `tracks` and `upper-hull` as fixed siblings of its articulated
+`turret`; only the turret's `barrel` child receives pitch. Compound vehicles
+and monsters keep their parts as named nodes in one GLB. The helicopter carries its `rotors` clip, the
 airplane its `propellers` clip, Googelon its `tail-sway` clip, Flutter its
 `wing-flap` clip, the two Hero variants their `walk` and `fire` clips, and Mecha
-its `eye-scan` clip. Projectile variants likewise keep their named `spin` clips
-inside their GLB files.
+its `eye-scan` clip. Vapour is a 45-node particle cloud whose translation and
+scale tracks are the named `cloud` clip inside `vapour.glb`; no runtime Vapour
+particle positions are compiled into the engine. Its particles use standard
+glTF `alphaMode: BLEND` and authored alpha `0.2`; the OpenGL, GLES, and Metal
+backends preserve that transparency. Projectile variants likewise
+keep their named `spin` clips inside their GLB files.
 
 ## Existing battlefield maps
 
@@ -95,6 +102,98 @@ destruction state, and enemy spawning is intentionally still gameplay logic.
 
 JSON packages are required on every platform. `make test` validates every
 package and performs JSON write/read round trips.
+
+## Extensible gameplay entities
+
+`assets/entities/catalog.txt` lists authored `.entity` archetypes. This is a
+gameplay catalog, not a tank table: `vehicle`, `npc`, `creature`, `object`,
+`device`, and `structure` all enter the same generic runtime. An archetype
+selects its normal, destroyed, and shadow models plus idle, move, and attack
+clips through manifest keys. It also declares faction relationships, movement,
+collision dimensions, health, score, weapon, random-spawn policy, and whether
+the player may control it.
+
+For example, the checked-in catalog contains a ground tank, helicopter, armed
+NPC, Googelon, Flutter, Techs, and Vapour. All controllable catalog entries use the
+same controls and can be selected without adding a C enum or switch branch:
+
+```sh
+build/macos-metal-none/battalion --map default --player tank-standard
+build/macos-metal-none/battalion --map default --player helo-standard
+build/macos-metal-none/battalion --map default --player beam-soldier
+build/macos-metal-none/battalion --map default --player flutter
+build/macos-metal-none/battalion --map default --player vapour
+```
+
+Space opens the in-game catalog selector, the arrow keys cycle all descriptors
+marked `controllable yes`, and Enter starts the selected entry. A controllable
+descriptor may declare a unique single-character `shortcut`; this is how the
+historical `6`, `7`, `8`, and `9` selections are retained without hardcoded
+entity-id branches.
+
+The reusable weapon capabilities are `none`, `shell`, `rocket`, `beam`, `fire`,
+and `plasma`. Projectile choice and player firing are based on that capability,
+not on an archetype id. `player-fire-cost` is the per-shot energy cost, separate
+from `player-move-cost`; `fire-interval` is the post-shot reload period rather
+than a global-frame alignment requirement.
+
+Player motion is selected with `control-mode`. `free` gives camera-relative
+WASD movement; `steered` gives vehicle-style W/S forward/reverse and A/D hull
+turning. `aim-yaw-node` and `aim-pitch-node` bind mouse/IJKL aim to named GLB
+parts, with descriptor-defined pitch limits and steering rate. The standard
+tank therefore turns its hull with A/D while the turret and barrel aim
+independently.
+
+The descriptor's `vertical-offset` is the model-origin height relative to
+`PLANEY`. `collision-height`, `player-height`, and `player-bottom` describe the
+physical/player envelope. Camera framing is derived from these authored values,
+so short ground vehicles, humanoids, tall monsters, and hovering aircraft do
+not require type-specific camera or placement code. View 1 remains the original
+close third-person camera, while view 5 is first-person. First-person eye height and
+player-model visibility are also authored per entity.
+
+`collision-mode` is either `solid` (the default) or `phase`. A phased player or
+legacy-compatible actor passes through structures, vehicles, and other actors;
+Vapour uses this capability. Future smoke, ghosts, or similar entities can opt
+in through their descriptor without an engine id check.
+
+An entity may declare multiple named perception sensors. The current sensor
+types are `proximity`, forward `vision`, `hearing`, and `damage`. Each sensor
+has its own range, cone angle, and faction filter. `on-sensor` rules map sensor
+hits to local reactions such as observe, alert, investigate, pursue, attack,
+flee, activate, or deactivate, and may emit a named event. `on-trigger` rules
+apply those same reactions when an event arrives from another actor.
+
+Map package version 2 adds generic `actors`. Every actor references an entity
+archetype and defines an instance id/group, position, heading, active state,
+optional patrol mode/waypoints, and zero or more trigger routes. A route sends
+an emitted event to a configured target actor id or group and carries the
+original perceived contact. Thus one guard can raise an alarm that activates or
+retargets any number of other configured actors.
+
+A minimal actor looks like this:
+
+```json
+{
+  "id": "guard-a",
+  "archetype": "tank-standard",
+  "group": "base-guards",
+  "x": 5,
+  "z": 5,
+  "heading": 0,
+  "active": true,
+  "patrol-mode": "loop",
+  "path": [{"x": 5, "z": 5}, {"x": 8, "z": 5}],
+  "triggers": [
+    {"event": "base-alarm", "target-group": "base-guards"}
+  ]
+}
+```
+
+To add a new playable or autonomous kind, add its GLB/animation entries to the
+manifest, add one descriptor and catalog line, then place it in a v2 map or set
+its spawn weight. The main game source does not need to know its id.
+
 ## Layout and compatibility
 
 The directory names are deliberately lowercase: `maps`, `models`, `textures`,

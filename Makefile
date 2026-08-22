@@ -99,7 +99,7 @@ SOURCES := \
 
 SOURCES += asset.c asset_gltf.c asset_animation.c asset_render.c \
 	asset_manifest.c asset_bindings.c asset_tga.c asset_values.c stroke_font_asset.c \
-	audio_catalog.c
+	audio_catalog.c entity_catalog.c entity_behavior.c
 
 PLATFORM_CPPFLAGS :=
 PLATFORM_LDFLAGS :=
@@ -286,10 +286,12 @@ ASSET_VALUES_TEST := $(TEST_BUILD_DIR)/asset-values-test
 STROKE_FONT_TEST := $(TEST_BUILD_DIR)/stroke-font-test
 AUDIO_CATALOG_TEST := $(TEST_BUILD_DIR)/audio-catalog-test
 ASSET_BINDINGS_TEST := $(TEST_BUILD_DIR)/asset-bindings-test
+ENTITY_CATALOG_TEST := $(TEST_BUILD_DIR)/entity-catalog-test
+ENTITY_BEHAVIOR_TEST := $(TEST_BUILD_DIR)/entity-behavior-test
 NO_EMBEDDED_ASSETS_TEST := $(TEST_BUILD_DIR)/no-embedded-assets-test
 
-$(MAP_TEST): tests/map_test.c map.c map.h map_package.c map_package.h Makefile | $(TEST_BUILD_DIR)
-	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< map.c map_package.c -o $@
+$(MAP_TEST): tests/map_test.c map.c map.h map_package.c map_package.h entity_behavior.c entity_behavior.h entity_catalog.c entity_catalog.h Makefile | $(TEST_BUILD_DIR)
+	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< map.c map_package.c entity_behavior.c entity_catalog.c -lm -o $@
 
 $(ASSET_TEST): tests/asset_gltf_test.c asset.c asset_gltf.c asset_animation.c asset_write.c asset_tga.c asset.h asset_animation.h asset_write.h asset_tga.h Makefile | $(TEST_BUILD_DIR)
 	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< asset.c asset_gltf.c asset_animation.c asset_write.c asset_tga.c -lm -o $@
@@ -309,13 +311,19 @@ $(AUDIO_CATALOG_TEST): tests/audio_catalog_test.c audio_catalog.c audio_catalog.
 $(ASSET_BINDINGS_TEST): tests/asset_bindings_test.c asset_bindings.c asset_bindings.h Makefile | $(TEST_BUILD_DIR)
 	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< asset_bindings.c -o $@
 
+$(ENTITY_CATALOG_TEST): tests/entity_catalog_test.c entity_catalog.c entity_catalog.h Makefile | $(TEST_BUILD_DIR)
+	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< entity_catalog.c -o $@
+
+$(ENTITY_BEHAVIOR_TEST): tests/entity_behavior_test.c entity_behavior.c entity_behavior.h entity_catalog.c entity_catalog.h Makefile | $(TEST_BUILD_DIR)
+	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< entity_behavior.c entity_catalog.c -lm -o $@
+
 $(NO_EMBEDDED_ASSETS_TEST): tests/no_embedded_assets_test.c Makefile | $(TEST_BUILD_DIR)
 	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< -o $@
 
 $(TEST_BUILD_DIR):
 	mkdir -p $@
 
-test: c89-check $(MAP_TEST) $(ASSET_TEST) $(ASSET_CATALOG_TEST) $(ASSET_VALUES_TEST) $(STROKE_FONT_TEST) $(AUDIO_CATALOG_TEST) $(ASSET_BINDINGS_TEST) $(NO_EMBEDDED_ASSETS_TEST)
+test: c89-check $(MAP_TEST) $(ASSET_TEST) $(ASSET_CATALOG_TEST) $(ASSET_VALUES_TEST) $(STROKE_FONT_TEST) $(AUDIO_CATALOG_TEST) $(ASSET_BINDINGS_TEST) $(ENTITY_CATALOG_TEST) $(ENTITY_BEHAVIOR_TEST) $(NO_EMBEDDED_ASSETS_TEST)
 	./$(MAP_TEST)
 	./$(ASSET_TEST)
 	./$(ASSET_CATALOG_TEST)
@@ -323,6 +331,8 @@ test: c89-check $(MAP_TEST) $(ASSET_TEST) $(ASSET_CATALOG_TEST) $(ASSET_VALUES_T
 	./$(STROKE_FONT_TEST)
 	./$(AUDIO_CATALOG_TEST)
 	./$(ASSET_BINDINGS_TEST)
+	./$(ENTITY_CATALOG_TEST)
+	./$(ENTITY_BEHAVIOR_TEST)
 	./$(NO_EMBEDDED_ASSETS_TEST)
 
 clean:

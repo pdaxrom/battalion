@@ -15,6 +15,8 @@
 #ifndef BATTALION_MAP_PACKAGE_H
 #define BATTALION_MAP_PACKAGE_H
 
+#include "entity_behavior.h"
+
 #include <stddef.h>
 
 struct BattalionMapRoad
@@ -39,8 +41,35 @@ struct BattalionMapUnit
     int type;
     };
 
+#define BATTALION_MAP_TRIGGER_ID 1
+#define BATTALION_MAP_TRIGGER_GROUP 2
+
+struct BattalionMapTrigger
+    {
+    char event[ENTITY_NAME_SIZE];
+    char target[ENTITY_NAME_SIZE];
+    int targetType;
+    };
+
+struct BattalionMapActor
+    {
+    char id[ENTITY_NAME_SIZE];
+    char archetype[ENTITY_NAME_SIZE];
+    char group[ENTITY_NAME_SIZE];
+    float x;
+    float z;
+    float heading;
+    int active;
+    int patrolMode;
+    struct EntityWaypoint *waypoints;
+    size_t waypointCount;
+    struct BattalionMapTrigger *triggers;
+    size_t triggerCount;
+    };
+
 struct BattalionMapPackage
     {
+    int version;
     char id[32];
     char name[128];
     struct BattalionMapRoad *roads;
@@ -49,6 +78,8 @@ struct BattalionMapPackage
     size_t structureCount;
     struct BattalionMapUnit *units;
     size_t unitCount;
+    struct BattalionMapActor *actors;
+    size_t actorCount;
     };
 
 void battalionMapPackageInit(struct BattalionMapPackage *map);

@@ -70,6 +70,7 @@ struct GltfAccessor
 struct GltfMaterial
     {
     float color[4];
+    int blend;
     };
 
 static void setAssetError(char *error, size_t errorSize, const char *message)
@@ -507,6 +508,7 @@ static struct GltfMaterial *readMaterials(const char *json,
     int colorArray;
     int component;
     int colorToken;
+    int alphaMode;
     struct GltfMaterial *materials;
 
     array = objectValue(json, tokens, tokenCount, 0, "materials");
@@ -541,6 +543,10 @@ static struct GltfMaterial *readMaterials(const char *json,
                 materials[index].color[component] =
                     (float)tokenNumber(json, &tokens[colorToken]);
             }
+        alphaMode = objectValue(json, tokens, tokenCount, object,
+                                "alphaMode");
+        materials[index].blend = alphaMode >= 0 &&
+            tokenEquals(json, &tokens[alphaMode], "BLEND");
         }
     *resultCount = count;
     return materials;
@@ -1167,6 +1173,7 @@ static int buildStaticModel(const char *json, const struct JsonToken *tokens,
     int meshPrimitive;
     int extras;
     int styleToken;
+    int materialIndex;
     size_t meshVertices;
     size_t primitiveVertices;
     size_t outputOffset;
@@ -1223,6 +1230,12 @@ static int buildStaticModel(const char *json, const struct JsonToken *tokens,
             {
             primitive = arrayItem(tokens, tokenCount, primitivesArray,
                                   primitiveIndex);
+            materialIndex = tokenInteger(json, tokens,
+                objectValue(json, tokens, tokenCount, primitive, "material"),
+                -1);
+            if (materialIndex >= 0 && materialIndex < materialCount &&
+                materials[materialIndex].blend)
+                mesh->blend = 1;
             mode = tokenInteger(json, tokens,
                 objectValue(json, tokens, tokenCount, primitive, "mode"),
                 GLTF_TRIANGLES);

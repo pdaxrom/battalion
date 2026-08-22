@@ -88,6 +88,7 @@
 #endif
 
 #include "tk.h"
+#include "entity_behavior.h"
 
 
 #include <time.h>
@@ -265,6 +266,7 @@
 #define MONSTERVIEW	    1
 #define ARMYVIEW	    2
 #define MAPVIEW		    4
+#define FIRSTPERSONVIEW     5
 
 #define NOTANKONPLANE	    -9999
 
@@ -334,6 +336,7 @@
 #define AIRPLANE    6
 #define LAUNCHER    7
 #define FIGHTER     8
+#define DATAENTITY  9
 
 #define PARTIALM  100
 #define PARTIALH  101
@@ -391,6 +394,8 @@ struct tree
 	char intact;		    /* is structure intact? */
 	};
 
+struct BattalionMapActor;
+
 struct tank
 	{
 	struct tank * next;
@@ -401,6 +406,7 @@ struct tank
 	float minrange;		    /* minimum range vehicle can fire */
 	float finalR;		    /* final range vehicle is attempting */
 	float rad, theta;
+	float aimYaw, aimPitch;
 	float speed;		    /* speed of vehicle */
 	float rand1, rand2, rand3;
 	int count; 
@@ -410,6 +416,11 @@ struct tank
 	int number;
 	char type;		    /* type of vehicle */
 	char subtype;		    /* sub type (for hero) */
+	const struct EntityArchetype *dataArchetype;
+	const struct BattalionMapActor *dataActor;
+	char dataId[ENTITY_NAME_SIZE];
+	char dataGroup[ENTITY_NAME_SIZE];
+	struct EntityAgent dataAgent;
 	};
 
 struct road
@@ -420,7 +431,7 @@ struct road
 
 struct monsterInfo
 	{
-	float a[MAXTRIBUTES][5];    /* vapour particles */
+	float a[MAXTRIBUTES][5];    /* reserved by the legacy network record */
 	float energyRemaining;	    /* amount of energy remaining */
 	float rot1,rot2;
 	float speed;		    /* movement speed */
@@ -612,12 +623,12 @@ GLenum processKeyRelease(int);
 void checkInput (void);
 
 void updateDeadMonster(float, float, struct monsterInfo * );
-void updateVapourLook(float a[MAXTRIBUTES][5], int);
 void updateTargets(void);
 
 void doUpdate (void);
 
 void goToMonsterView(int);
+void goToFirstPersonView(int);
 void goToArmyView(int);
 void goToMapView(void);
 void goToOverView(int);
@@ -673,7 +684,7 @@ GLuint makeOverviewLookat(void);
  *****************************************/
 
 void initFonts(const char *, const char *);
-void showText(struct targetInfo *, float,  int,  long, int, int);
+void showText(struct targetInfo *, float, int, long, int, int, int, float);
 void showText2(long, int, int, int, int, int, int, int, int, int);
 void showText3(int);
 void showText4(void);
@@ -692,6 +703,17 @@ void showScores(int, struct score*, struct score*, struct score*, struct score*,
 
 void makeObjects(char *);
 const char *assetFilePath(const char *);
+GLuint assetModelDisplayList(const char *);
+int assetModelHasNode(const char *, const char *);
+int assetAnimationAvailable(const char *);
+void drawConfiguredPlayerEntity(const struct EntityArchetype *, int, int,
+				int, int, float, float);
+const struct EntityArchetype *selectedPlayerArchetype(void);
+int playerWeaponUsesReload(void);
+float playerWeaponReadiness(void);
+const struct EntityArchetype *legacyMonsterArchetype(int);
+size_t playerEntityOptionCount(void);
+size_t selectedPlayerArchetypeNumber(void);
 
 void shadow (float,  float,  float,  float);
 
@@ -702,8 +724,6 @@ void drawFighter();
 
 void drawMonster(struct monsterInfo, int, int, int);
 void drawSimpleMonster(struct monsterInfo, int, int, int);
-
-void drawVapour(struct monsterInfo, int, int);
 
 void drawFlutter(struct monsterInfo, int, int, float, int, int);
 void drawTechs(struct monsterInfo, int);
@@ -748,4 +768,5 @@ void drawBooms(struct boom *, int);
 void drawBeam(float, float, int,  int, int, int);
 
 void drawRoads(struct road *,  float,  float, int, int, int);
-void drawProjectiles(struct projectile *, int, struct fireType*, int, int, int);
+void drawProjectiles(struct projectile *, int, struct fireType*, int, int, int,
+                     const struct monsterInfo *, int);

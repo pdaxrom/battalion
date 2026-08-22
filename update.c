@@ -108,7 +108,7 @@ int different(char * first,  char * second)
 
 struct monsterInfo resetMonsterParameters(struct monsterInfo Googelon)
     {
-    register int i;
+    const struct EntityArchetype *playerEntity;
 
     /************************************/
     /* reset general monster parmeters  */
@@ -129,61 +129,32 @@ struct monsterInfo resetMonsterParameters(struct monsterInfo Googelon)
 
     Googelon.monsterID		= rand();
 
-    for(i=0; i<MAXTRIBUTES; i++)
-	{	
-	Googelon.a[i][0] = randy(0.2);
-	Googelon.a[i][1] = PLANEY + 0.55 + randy(0.5);
-	Googelon.a[i][2] = randy(0.2);
-
-	Googelon.a[i][3] = 0;
-
-	Googelon.a[i][4] = (rand() % 32) * 0.1;
-	}
-
     /*************************************/
     /* reset specific monster parameters */
     /*************************************/
-    
-    switch(Googelon.monster){
-	case GOOGELON:	Googelon.speed	    = 0.08;
-			Googelon.xspeed	    = 30;
-			Googelon.moveCost   = 0.1;
-			Googelon.height	    = PLANEY + 1.3;
-			Googelon.width	    = 0.3;
-			Googelon.bottom	    = PLANEY;
-			Googelon.regenRate  = 0.1;
-			break;
-			
-	case VAPOUR:	Googelon.speed	    = 0.12;
-			Googelon.xspeed	    = 40;
-			Googelon.moveCost   = 0.05;
-			Googelon.height	    = PLANEY + 1.3;
-			Googelon.width	    = 0.3;
-			Googelon.bottom	    = PLANEY;
-			Googelon.regenRate  = 0.14;
-			break;
-			
-	case TECHS:	Googelon.speed	    = 0.06;
-			Googelon.xspeed	    = 35;
-			Googelon.moveCost   = 0.1;
-			Googelon.height	    = PLANEY + 1.3;
-			Googelon.width	    = 0.3;
-			Googelon.bottom	    = PLANEY;
-			Googelon.regenRate  = 0.1;
-			break;
-			
-	case FLUTTER:	Googelon.speed	    = 0.12;
-			Googelon.xspeed	    = 40;
-			Googelon.moveCost   = 0.06;
-			Googelon.height	    = PLANEY + 1.4;
-			Googelon.width	    = 0.5;
-			Googelon.bottom	    = PLANEY + 0.9;
-			Googelon.regenRate  = 0.1;
-			break;
-			
-	default:	showError("Bogus Monster! (setPlayConditions)");
-			break;
-    }
+
+    if (Googelon.monster == DATAENTITY)
+	{
+	playerEntity = selectedPlayerArchetype();
+	if (playerEntity != NULL)
+	    Googelon.headVertRotate =
+		(int)(playerEntity->aimPitchDefault * 10.0f);
+	}
+    else
+	playerEntity = legacyMonsterArchetype(Googelon.monster);
+    if (playerEntity == NULL)
+	{
+	showError("No entity archetype for player type");
+	return Googelon;
+	}
+    Googelon.energyRemaining = playerEntity->playerEnergy;
+    Googelon.speed = playerEntity->speed;
+    Googelon.xspeed = playerEntity->playerTurnRate;
+    Googelon.moveCost = playerEntity->playerMoveCost;
+    Googelon.height = PLANEY + playerEntity->playerHeight;
+    Googelon.width = playerEntity->playerWidth;
+    Googelon.bottom = PLANEY + playerEntity->playerBottom;
+    Googelon.regenRate = playerEntity->playerRegen;
     
     return(Googelon);
     }
@@ -388,6 +359,12 @@ void updateBeam(struct monsterInfo * g,  struct targetInfo * t, float x, float z
 				(fabs(tankx) < 0.2) && (fabs(tanky) < 0.55))
 				itsDead = 1;
 			    break;
+
+	    case DATAENTITY: if ((tankz >= 0) && (tankz <= (beamz + 0.2)) &&
+				(fabs(tankx) < ttank->dataArchetype->collisionRadius) &&
+				(fabs(tanky) < ttank->dataArchetype->collisionHeight))
+				itsDead = 1;
+			    break;
 			        
 	    default:	    showError("Bogus Vehicle in Tank List! (updateBeam)");
 			    break;
@@ -396,6 +373,12 @@ void updateBeam(struct monsterInfo * g,  struct targetInfo * t, float x, float z
 	if (itsDead)
 	    {
 	    ttank->damage -= 1;
+	    if (ttank->type == DATAENTITY)
+		{
+		ttank->dataAgent.damaged = 1;
+		ttank->dataAgent.targetX = x;
+		ttank->dataAgent.targetZ = z;
+		}
 
 	    switch (ttank->type)
 		{
@@ -414,6 +397,11 @@ void updateBeam(struct monsterInfo * g,  struct targetInfo * t, float x, float z
 				    break;
 				    
 		case HERO:	    addScore(PARTIALH, m);
+				    break;
+
+		case DATAENTITY: if (m != NULL)
+					m->monsterScore +=
+					    ttank->dataArchetype->score;
 				    break;
 		}
 	    
@@ -483,6 +471,14 @@ void updateBeam(struct monsterInfo * g,  struct targetInfo * t, float x, float z
 				    (fabs(tankx) < 0.25) && (fabs(tanky) < 0.55))
 				    itsDead = 1;
 				break;
+
+		case DATAENTITY: if ((tankz >= 0) &&
+				    (tankz <= (beamz + 0.2)) &&
+				    (fabs(tankx) < temptarget->monster.width) &&
+				    (fabs(tanky) < (temptarget->monster.height -
+				                       temptarget->monster.bottom) * 0.5f))
+				    itsDead = 1;
+				break;
     				    
 		default:	    showError("Bogus Monster in Target List! (updateBeam)");
 				break;
@@ -544,6 +540,13 @@ void updateBeam(struct monsterInfo * g,  struct targetInfo * t, float x, float z
 		case VAPOUR:
 		case TECHS:    if ((tankz >= 0) && (tankz <= (beamz+0.2)) &&
 				    (fabs(tankx) < 0.25) && (fabs(tanky) < 0.55))
+				    itsDead = 1;
+				break;
+
+		case DATAENTITY: if ((tankz >= 0) &&
+				    (tankz <= (beamz + 0.2)) &&
+				    (fabs(tankx) < g->width) &&
+				    (fabs(tanky) < (g->height - g->bottom) * 0.5f))
 				    itsDead = 1;
 				break;
     				    
@@ -670,6 +673,11 @@ int tankHit(struct tank * ttank, float xloc, float yloc, float zloc)
 			    blasty = BLASTRX2;
 			    break;
 
+	case DATAENTITY: blastx = blastz =
+			        ttank->dataArchetype->collisionRadius;
+			    blasty = ttank->dataArchetype->collisionHeight;
+			    break;
+
 	default:	    showError("Bogus Vehicle in Tank List! (tankHit)");
 			    break;
 	}
@@ -681,5 +689,3 @@ int tankHit(struct tank * ttank, float xloc, float yloc, float zloc)
     else
 	    return(0);
     }
-
-

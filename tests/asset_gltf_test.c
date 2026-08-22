@@ -140,22 +140,58 @@ static int testStaticRoundTrip(const struct AssetModel *source)
 static int testExportedTank(void)
     {
     struct AssetModel model;
+    struct AssetPose startPose;
+    struct AssetPose movingPose;
     char error[160];
+    int treadNode;
     int result;
 
     assetModelInitialize(&model);
+    assetPoseInitialize(&startPose);
+    assetPoseInitialize(&movingPose);
     if (!assetModelLoadGLB("assets/models/vehicles/tank.glb", &model,
 			   error, sizeof(error)))
 	{
 	fprintf(stderr, "exported tank load failed: %s\n", error);
 	return 0;
 	}
-    result = model.meshCount == 1 &&
-	     model.meshes[0].vertexCount == 168 &&
-	     model.nodeCount == 1 &&
-	     model.sceneRootCount == 1 &&
-	     model.sceneRoots[0] == 0 &&
-	     model.nodes[0].mesh == 0;
+    result = model.meshCount == 5 &&
+             model.meshes[0].vertexCount == 72 &&
+             model.meshes[1].vertexCount == 30 &&
+             model.meshes[2].vertexCount == 30 &&
+             model.meshes[3].vertexCount == 36 &&
+             model.meshes[4].vertexCount == 36 &&
+             model.nodeCount == 29 &&
+             model.sceneRootCount == 1 &&
+             model.sceneRoots[0] == 0 &&
+             model.nodes[0].mesh == -1 &&
+             model.nodes[0].childCount == 27 &&
+             model.nodes[0].children[0] == 1 &&
+             model.nodes[0].children[1] == 2 &&
+             model.nodes[0].children[2] == 3 &&
+             model.nodes[3].childCount == 1 &&
+             model.nodes[3].children[0] == 4 &&
+             model.animationCount == 1 &&
+             model.animations[0].trackCount == 24 &&
+             strcmp(model.animations[0].name, "tracks") == 0 &&
+             assetModelFindNode(&model, "body") == 0 &&
+             assetModelFindNode(&model, "tracks") == 1 &&
+             assetModelFindNode(&model, "upper-hull") == 2 &&
+             assetModelFindNode(&model, "turret") == 3 &&
+             assetModelFindNode(&model, "barrel") == 4 &&
+             assetModelFindNode(&model, "tread-left-00") == 5 &&
+             assetModelFindNode(&model, "tread-right-11") == 28;
+    treadNode = assetModelFindNode(&model, "tread-left-00");
+    if (result)
+        result = assetPoseSample(&model, 0, 0.0f, 1, &startPose) &&
+                 assetPoseSample(&model, 0, 0.3f, 1, &movingPose) &&
+                 treadNode >= 0 &&
+                 (!nearValue(startPose.nodes[treadNode].translation[1],
+                             movingPose.nodes[treadNode].translation[1]) ||
+                  !nearValue(startPose.nodes[treadNode].translation[2],
+                             movingPose.nodes[treadNode].translation[2]));
+    assetPoseDestroy(&movingPose);
+    assetPoseDestroy(&startPose);
     assetModelDestroy(&model);
     if (!result)
 	fprintf(stderr, "unexpected exported tank structure\n");
@@ -232,6 +268,7 @@ static int testPrimitiveRoundTrip(void)
         source.meshes[mesh].lineWidth = 2.5f;
         source.meshes[mesh].pointSize = 3.5f;
         source.meshes[mesh].useCurrentColor = mesh == 1;
+        source.meshes[mesh].blend = mesh == 2;
         for (vertex = 0; vertex < counts[mesh]; vertex++)
             {
             source.meshes[mesh].vertices[vertex].position[0] = (float)vertex;
@@ -258,6 +295,8 @@ static int testPrimitiveRoundTrip(void)
              !loaded.meshes[0].useCurrentColor &&
              loaded.meshes[1].useCurrentColor &&
              !loaded.meshes[2].useCurrentColor &&
+             !loaded.meshes[0].blend && !loaded.meshes[1].blend &&
+             loaded.meshes[2].blend &&
              nearValue(loaded.meshes[0].vertices[1].normal[1], 1.0f) &&
              nearValue(loaded.meshes[0].vertices[1].texcoord[0], 0.25f) &&
              nearValue(loaded.meshes[1].vertices[0].texcoord[1], 0.5f);
@@ -378,6 +417,33 @@ static int testExportedSlagHelicopter(void)
         strcmp(model.animations[0].name, "rotors") == 0;
     if (!result)
         fprintf(stderr, "slag helicopter animation load failed: %s\n", error);
+    assetModelDestroy(&model);
+    return result;
+    }
+
+static int testAnimatedVapour(void)
+    {
+    struct AssetModel model;
+    struct AssetPose pose;
+    char error[160];
+    int result;
+
+    assetModelInitialize(&model);
+    assetPoseInitialize(&pose);
+    result = assetModelLoadGLB("assets/models/monsters/vapour.glb",
+                               &model, error, sizeof(error)) &&
+             model.meshCount == 1 && model.nodeCount == 45 &&
+             model.meshes[0].blend &&
+             nearValue(model.meshes[0].vertices[0].color[3], 0.2f) &&
+             model.sceneRootCount == 45 && model.animationCount == 1 &&
+             model.animations[0].name != NULL &&
+             strcmp(model.animations[0].name, "cloud") == 0 &&
+             model.animations[0].trackCount == 90 &&
+             assetPoseSample(&model, 0, 0.8f, 1, &pose) &&
+             pose.nodeCount == 45;
+    if (!result)
+        fprintf(stderr, "animated Vapour asset is invalid: %s\n", error);
+    assetPoseDestroy(&pose);
     assetModelDestroy(&model);
     return result;
     }
@@ -630,6 +696,8 @@ int main(void)
     if (!testExportedHelicopter())
 	return 1;
     if (!testExportedSlagHelicopter())
+	return 1;
+    if (!testAnimatedVapour())
 	return 1;
     if (!testPrimitiveRoundTrip())
 	return 1;

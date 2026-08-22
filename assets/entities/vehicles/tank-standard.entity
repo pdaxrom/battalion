@@ -1,0 +1,62 @@
+# A generic guard/patrol tank. Maps provide instances and patrol paths.
+battalion-entity 1
+id tank-standard
+kind vehicle
+controllable yes
+control-mode steered
+model tank
+move-animation tank-tracks
+animation-speed 0.05
+aim-yaw-node turret
+aim-pitch-node barrel
+destroyed-model tank-slag
+shadow-model tank-shadow
+faction army
+hostile-faction monster
+movement ground
+speed 0.03
+turn-rate 0.2
+health 2
+score 10
+scale 1
+vertical-offset 0
+collision-radius 0.25
+collision-height 0.3
+weapon shell
+weapon-range 6
+weapon-min-range 0.5
+projectile-speed 0.3
+muzzle-forward 0.24
+muzzle-height 0.195
+fire-interval 120
+accuracy 1000
+forget-range 12
+lost-frames 180
+target-mode all
+max-targets 4
+sensor nearby proximity 2 360 hostile
+sensor sight vision 8 120 hostile
+sensor noise hearing 12 360 hostile
+sensor damaged damage 0 360 hostile
+on-sensor nearby attack base-alarm
+on-sensor sight attack base-alarm
+on-sensor noise investigate base-alarm
+on-sensor damaged attack base-alarm
+on-trigger base-alarm attack none
+spawn-weight 0
+spawn-after 0
+max-active 0
+player-energy 50
+player-height 0.6
+player-width 0.3
+player-bottom 0
+player-regen 0.1
+player-move-cost 0.05
+player-fire-cost 0.05
+player-turn-rate 35
+player-steer-rate 8
+aim-pitch-default 0
+aim-pitch-min -20
+aim-pitch-max 35
+first-person-eye-height 0.28
+first-person-visible no

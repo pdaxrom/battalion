@@ -31,6 +31,7 @@ struct AssetMesh
     float lineWidth;
     float pointSize;
     int useCurrentColor;
+    int blend;
     };
 
 #define ASSET_PRIMITIVE_TRIANGLES 0

@@ -1,6 +1,6 @@
 {
   "format": "battalion-map",
-  "version": 1,
+  "version": 2,
   "id": "default",
   "name": "default",
   "roads": [
@@ -1084,5 +1084,35 @@
     {"x": -9, "z": -50, "type": 2},
     {"x": 12, "z": -45, "type": 2},
     {"x": 9, "z": -45, "type": 2}
+  ],
+  "actors": [
+    {
+      "id": "guard-a",
+      "archetype": "tank-standard",
+      "group": "base-guards",
+      "x": 5,
+      "z": 5,
+      "heading": 0,
+      "active": true,
+      "patrol-mode": "loop",
+      "path": [{"x": 5, "z": 5}, {"x": 8, "z": 5}],
+      "triggers": [
+        {"event": "base-alarm", "target-group": "base-guards"}
+      ]
+    },
+    {
+      "id": "guard-b",
+      "archetype": "tank-standard",
+      "group": "base-guards",
+      "x": 8,
+      "z": 7,
+      "heading": 3.14159265,
+      "active": true,
+      "patrol-mode": "pingpong",
+      "path": [{"x": 8, "z": 7}, {"x": 5, "z": 7}],
+      "triggers": [
+        {"event": "base-alarm", "target-id": "guard-a"}
+      ]
+    }
   ]
 }

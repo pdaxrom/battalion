@@ -108,6 +108,11 @@ static void drawMesh(const struct AssetMesh *mesh, const float matrix[16],
     size_t vertexIndex;
 
     GLfloat savedSize;
+    GLboolean blending;
+
+    blending = glIsEnabled(GL_BLEND);
+    if (mesh->blend && !blending)
+	glEnable(GL_BLEND);
 
     if (mesh->primitive == ASSET_PRIMITIVE_LINES)
 	{
@@ -159,6 +164,8 @@ static void drawMesh(const struct AssetMesh *mesh, const float matrix[16],
 	glLineWidth(savedSize);
     else if (mesh->primitive == ASSET_PRIMITIVE_POINTS)
 	glPointSize(savedSize);
+    if (mesh->blend && !blending)
+	glDisable(GL_BLEND);
     }
 
 static void drawNode(const struct AssetModel *model, int nodeIndex,

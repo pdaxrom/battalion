@@ -1,0 +1,11 @@
+# Extensible gameplay entity catalog.
+battalion-entities 1
+fallback tank-standard
+
+entity entities/vehicles/tank-standard.entity
+entity entities/vehicles/helo-standard.entity
+entity entities/npcs/beam-soldier.entity
+entity entities/creatures/googelon.entity
+entity entities/creatures/flutter.entity
+entity entities/creatures/techs.entity
+entity entities/creatures/vapour.entity

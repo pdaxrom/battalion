@@ -2,18 +2,22 @@
 #include "map_package.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 static int samePackage(const struct BattalionMapPackage *left,
                        const struct BattalionMapPackage *right)
     {
     size_t index;
+    size_t nested;
 
-    if (strcmp(left->id, right->id) != 0 ||
+    if (left->version != right->version ||
+        strcmp(left->id, right->id) != 0 ||
         strcmp(left->name, right->name) != 0 ||
         left->roadCount != right->roadCount ||
         left->structureCount != right->structureCount ||
-        left->unitCount != right->unitCount)
+        left->unitCount != right->unitCount ||
+        left->actorCount != right->actorCount)
         return 0;
     for (index = 0; index < left->roadCount; index++)
         if (left->roads[index].x != right->roads[index].x ||
@@ -31,7 +35,108 @@ static int samePackage(const struct BattalionMapPackage *left,
             left->units[index].z != right->units[index].z ||
             left->units[index].type != right->units[index].type)
             return 0;
+    for (index = 0; index < left->actorCount; index++)
+        {
+        if (strcmp(left->actors[index].id, right->actors[index].id) != 0 ||
+            strcmp(left->actors[index].archetype,
+                   right->actors[index].archetype) != 0 ||
+            strcmp(left->actors[index].group,
+                   right->actors[index].group) != 0 ||
+            left->actors[index].x != right->actors[index].x ||
+            left->actors[index].z != right->actors[index].z ||
+            left->actors[index].heading != right->actors[index].heading ||
+            left->actors[index].active != right->actors[index].active ||
+            left->actors[index].patrolMode !=
+                right->actors[index].patrolMode ||
+            left->actors[index].waypointCount !=
+                right->actors[index].waypointCount ||
+            left->actors[index].triggerCount !=
+                right->actors[index].triggerCount)
+            return 0;
+        for (nested = 0; nested < left->actors[index].waypointCount; nested++)
+            if (left->actors[index].waypoints[nested].x !=
+                    right->actors[index].waypoints[nested].x ||
+                left->actors[index].waypoints[nested].z !=
+                    right->actors[index].waypoints[nested].z)
+                return 0;
+        for (nested = 0; nested < left->actors[index].triggerCount; nested++)
+            if (strcmp(left->actors[index].triggers[nested].event,
+                       right->actors[index].triggers[nested].event) != 0 ||
+                strcmp(left->actors[index].triggers[nested].target,
+                       right->actors[index].triggers[nested].target) != 0 ||
+                left->actors[index].triggers[nested].targetType !=
+                    right->actors[index].triggers[nested].targetType)
+                return 0;
+        }
     return 1;
+    }
+
+static int checkActors(void)
+    {
+    struct BattalionMapPackage source;
+    struct BattalionMapPackage loaded;
+    char error[256];
+    int result;
+
+    battalionMapPackageInit(&source);
+    battalionMapPackageInit(&loaded);
+    source.version = 2;
+    strcpy(source.id, "actor-test");
+    strcpy(source.name, "actor test");
+    source.actorCount = 2;
+    source.actors = (struct BattalionMapActor *)calloc(
+        source.actorCount, sizeof(struct BattalionMapActor));
+    if (source.actors == NULL)
+        return 0;
+    strcpy(source.actors[0].id, "guard-a");
+    strcpy(source.actors[0].archetype, "tank-standard");
+    strcpy(source.actors[0].group, "guards");
+    source.actors[0].x = 1.0f;
+    source.actors[0].z = 2.0f;
+    source.actors[0].heading = 0.5f;
+    source.actors[0].active = 1;
+    source.actors[0].patrolMode = ENTITY_PATROL_PINGPONG;
+    source.actors[0].waypointCount = 2;
+    source.actors[0].waypoints = (struct EntityWaypoint *)calloc(
+        2, sizeof(struct EntityWaypoint));
+    source.actors[0].triggerCount = 2;
+    source.actors[0].triggers = (struct BattalionMapTrigger *)calloc(
+        2, sizeof(struct BattalionMapTrigger));
+    if (source.actors[0].waypoints == NULL ||
+        source.actors[0].triggers == NULL)
+        {
+        battalionMapPackageFree(&source);
+        return 0;
+        }
+    source.actors[0].waypoints[0].x = 1.0f;
+    source.actors[0].waypoints[0].z = 2.0f;
+    source.actors[0].waypoints[1].x = 4.0f;
+    source.actors[0].waypoints[1].z = 5.0f;
+    strcpy(source.actors[0].triggers[0].event, "base-alarm");
+    strcpy(source.actors[0].triggers[0].target, "guard-b");
+    source.actors[0].triggers[0].targetType = BATTALION_MAP_TRIGGER_ID;
+    strcpy(source.actors[0].triggers[1].event, "base-alarm");
+    strcpy(source.actors[0].triggers[1].target, "guards");
+    source.actors[0].triggers[1].targetType = BATTALION_MAP_TRIGGER_GROUP;
+
+    strcpy(source.actors[1].id, "guard-b");
+    strcpy(source.actors[1].archetype, "tank-standard");
+    strcpy(source.actors[1].group, "guards");
+    source.actors[1].x = 6.0f;
+    source.actors[1].z = 7.0f;
+    source.actors[1].active = 0;
+    source.actors[1].patrolMode = ENTITY_PATROL_LOOP;
+
+    result = battalionMapPackageWrite("build/tests/map-actors.json",
+                                      &source, error, sizeof(error)) &&
+             battalionMapPackageLoad("build/tests/map-actors.json",
+                                     &loaded, error, sizeof(error)) &&
+             samePackage(&source, &loaded);
+    if (!result)
+        fprintf(stderr, "actor package failed: %s\n", error);
+    battalionMapPackageFree(&loaded);
+    battalionMapPackageFree(&source);
+    return result;
     }
 
 static int checkPackage(const char *selector)
@@ -135,6 +240,8 @@ int main(void)
         }
     if (!checkPackage("default") || !checkPackage("0") ||
         !checkPackage("1") || !checkPackage("2"))
+        return 1;
+    if (!checkActors())
         return 1;
     return 0;
     }

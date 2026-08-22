@@ -5,8 +5,6 @@ value googelon-heading-scale 0.1
 value googelon-head-pitch-scale 0.1
 value googelon-leg-left 0.2 1 1
 value googelon-leg-right -0.2 -1 -1
-value googelon-vapour-death-fade 0.022
-
 value flutter-heading-scale 0.1
 value flutter-bank-scale 10
 value flutter-head-pitch-scale 0.05

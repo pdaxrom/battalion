@@ -54,7 +54,6 @@
     float colorblue[4];
     float colorblue2[4];
     float colorwater[4];
-    float colorsnowvapour[4];
     float coloryellow[4];
     float colormaseryellow[4];
     float colororange[4];
@@ -187,6 +186,7 @@
     static size_t externalPowerTowerClip;
     static int externalPowerTowerLoop;
     static struct AssetPose externalPowerTowerPose;
+    static struct AssetPose externalEntityPose;
     
 
     struct road roadsOnPlane[MAXROADSONPLANE];
@@ -294,6 +294,38 @@ const char *assetFilePath(const char *slot)
     return requiredBoundFile(slot)->path;
     }
 
+GLuint assetModelDisplayList(const char *key)
+    {
+    const struct AssetManifestModel *model;
+
+    model = assetManifestFindModel(&externalAssets, key);
+    if (model == NULL)
+        return 0;
+    return model->displayList;
+    }
+
+int assetModelHasNode(const char *key, const char *nodeName)
+    {
+    const struct AssetManifestModel *model;
+
+    if (nodeName == NULL || nodeName[0] == '\0')
+        return 1;
+    model = assetManifestFindModel(&externalAssets, key);
+    return model != NULL && assetModelFindNode(&model->model, nodeName) >= 0;
+    }
+
+int assetAnimationAvailable(const char *key)
+    {
+    const struct AssetManifestModel *model;
+    size_t clip;
+    int loop;
+
+    if (key == NULL || key[0] == '\0')
+        return 1;
+    return assetManifestFindAnimation(&externalAssets, key, &model, &clip,
+                                      &loop);
+    }
+
 static int requiredNode(const struct AssetManifestModel *entry,
                         const char *name)
     {
@@ -395,7 +427,6 @@ static void applyExternalPalette(void)
     copyPaletteColor("blue", colorblue);
     copyPaletteColor("blue-2", colorblue2);
     copyPaletteColor("water", colorwater);
-    copyPaletteColor("snow-vapour", colorsnowvapour);
     copyPaletteColor("yellow", coloryellow);
     copyPaletteColor("maser-yellow", colormaseryellow);
     copyPaletteColor("orange", colororange);
@@ -449,6 +480,7 @@ void makeObjects(char * dataPath)
     assetPoseInitialize(&externalBuilding28Pose);
     assetPoseInitialize(&externalBuilding33Pose);
     assetPoseInitialize(&externalPowerTowerPose);
+    assetPoseInitialize(&externalEntityPose);
     if (!assetManifestLoad(dataPath, &externalAssets,
 			   assetError, sizeof(assetError)))
 	{
@@ -1144,59 +1176,6 @@ void drawSimpleMonster(struct monsterInfo monster, int counter,
     glPopMatrix();
     }
 
-/*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
-/*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
-/* Draw the Vapour                                               */
-/*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
-
-void drawVapour(struct monsterInfo monster, int itsChristmas, int detail)
-    {
-    register int i;
-    glPushMatrix();
-
-    if (detail > 0)
-	glEnable(GL_BLEND);
-	
-    glRotatef(animationScalar("googelon-heading-scale") *
-              monster.headHorzRotate, 0, 1, 0);
-
-    colorwhite2[0] = 1;
-    colorwhite2[1] = 1;
-    colorwhite2[2] = 1;
-
-    if (monster.monsterIsDead)
-	{
-	if (detail == -1)
-	    {
-	    colorwhite2[0] = 1 - monster.deadCount *
-	        animationScalar("googelon-vapour-death-fade");
-	    colorwhite2[1] = colorwhite2[0];
-	    colorwhite2[2] = colorwhite2[0];
-	    }
-
-	colorwhite2[3] = 1 - monster.deadCount *
-	    animationScalar("googelon-vapour-death-fade");
-	glColor4fv(colorwhite2);
-	}
-    else if (itsChristmas)
-	glColor4fv(colorsnowvapour);
-    else
-	glColor4fv(colorwhite); 
-
-    if (detail == 0)
-	for(i = 0; i < (int) (MAXTRIBUTES/1.5); i++)
-	    drawEffectSphere(monster.a[i], effectSphereLow);
-    else
-	for(i=0; i<MAXTRIBUTES; i++)
-	    drawEffectSphere(monster.a[i], effectSphereLow);
-
-    glDisable(GL_BLEND);
-
-    glPopMatrix();
-    } 
-
-
-   
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 /* draw Flutter                                                  */
@@ -2217,6 +2196,124 @@ void drawtrees(struct tree * allTreesOnPlane, int numTreesOnPlane, int counter,
 /* draw all tanks currently dying                                */
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
+static void multiplyQuaternion(const float left[4], const float right[4],
+                               float result[4])
+    {
+    result[0] = left[3] * right[0] + left[0] * right[3] +
+                left[1] * right[2] - left[2] * right[1];
+    result[1] = left[3] * right[1] - left[0] * right[2] +
+                left[1] * right[3] + left[2] * right[0];
+    result[2] = left[3] * right[2] + left[0] * right[1] -
+                left[1] * right[0] + left[2] * right[3];
+    result[3] = left[3] * right[3] - left[0] * right[0] -
+                left[1] * right[1] - left[2] * right[2];
+    }
+
+static void rotatePoseNode(struct AssetNodePose *node, float degrees,
+                           int axis)
+    {
+    float controller[4];
+    float result[4];
+    float radians;
+    float sine;
+
+    radians = degrees * DEG_TO_RAD * 0.5f;
+    sine = (float)sin((double)radians);
+    controller[0] = controller[1] = controller[2] = 0.0f;
+    controller[axis] = sine;
+    controller[3] = (float)cos((double)radians);
+    multiplyQuaternion(node->rotation, controller, result);
+    memcpy(node->rotation, result, sizeof(result));
+    }
+
+static void applyExternalEntityAim(const struct AssetModel *model,
+                                   const struct EntityArchetype *archetype,
+                                   const struct tank *tank,
+                                   struct AssetPose *pose)
+    {
+    int node;
+
+    if (archetype->aimYawNode[0] != '\0')
+        {
+        node = assetModelFindNode(model, archetype->aimYawNode);
+        if (node >= 0)
+            rotatePoseNode(&pose->nodes[node], tank->aimYaw, 1);
+        }
+    if (archetype->aimPitchNode[0] != '\0')
+        {
+        node = assetModelFindNode(model, archetype->aimPitchNode);
+        if (node >= 0)
+            rotatePoseNode(&pose->nodes[node], tank->aimPitch, 0);
+        }
+    }
+
+static void drawExternalEntity(const struct tank *tank, int counter,
+                               int destroyed)
+    {
+    const struct EntityArchetype *archetype;
+    const struct AssetManifestModel *model;
+    const char *animation;
+    size_t clip;
+    int loop;
+
+    archetype = tank->dataArchetype;
+    if (archetype == NULL)
+        return;
+    if (destroyed && archetype->destroyedModel[0] != '\0')
+        {
+        model = assetManifestFindModel(&externalAssets,
+                                       archetype->destroyedModel);
+        if (model != NULL)
+            assetModelDraw(&model->model, NULL);
+        return;
+        }
+    animation = archetype->idleAnimation;
+    if (tank->dataAgent.reaction == ENTITY_REACTION_ATTACK &&
+        archetype->attackAnimation[0] != '\0')
+        animation = archetype->attackAnimation;
+    else if (tank->walking && archetype->moveAnimation[0] != '\0')
+        animation = archetype->moveAnimation;
+    if (animation[0] != '\0' &&
+        assetManifestFindAnimation(&externalAssets, animation, &model,
+                                   &clip, &loop) &&
+        assetPoseSample(&model->model, clip,
+                        (float)counter * archetype->animationSpeed,
+                        loop, &externalEntityPose))
+        {
+        applyExternalEntityAim(&model->model, archetype, tank,
+                               &externalEntityPose);
+        assetModelDraw(&model->model, &externalEntityPose);
+        return;
+        }
+    model = assetManifestFindModel(&externalAssets, archetype->model);
+    if (model != NULL &&
+        assetPoseReset(&model->model, &externalEntityPose))
+        {
+        applyExternalEntityAim(&model->model, archetype, tank,
+                               &externalEntityPose);
+        assetModelDraw(&model->model, &externalEntityPose);
+        }
+    }
+
+void drawConfiguredPlayerEntity(const struct EntityArchetype *archetype,
+                                int moving, int attacking, int counter,
+                                int destroyed, float aimYaw, float aimPitch)
+    {
+    struct tank entity;
+
+    if (archetype == NULL)
+        return;
+    memset(&entity, 0, sizeof(entity));
+    entity.dataArchetype = archetype;
+    entity.dataAgent.reaction = attacking ? ENTITY_REACTION_ATTACK :
+                                           ENTITY_REACTION_OBSERVE;
+    entity.walking = moving;
+    entity.aimYaw = aimYaw;
+    entity.aimPitch = aimPitch;
+    glScalef(archetype->scale, archetype->scale, archetype->scale);
+    drawExternalEntity(&entity, counter, destroyed);
+    }
+
 void drawSlagTanks(struct tank * allSlags, int counter, int detail)
     {    
     const struct AssetValue *groundScale;
@@ -2334,6 +2431,14 @@ void drawSlagTanks(struct tank * allSlags, int counter, int detail)
 				         animationScalar("fighter-world-scale"));
 				drawFighter();
 				break;
+
+		case DATAENTITY: glTranslatef(ttank->x, ttank->y, ttank->z);
+				glRotatef(angle2, 0, 1, 0);
+				glScalef(ttank->dataArchetype->scale,
+				         ttank->dataArchetype->scale,
+				         ttank->dataArchetype->scale);
+				drawExternalEntity(ttank, counter, 1);
+				break;
 				
 		default:	showError("Bogus Vehicle in Tank List! (drawSlagTanks)");
 				break;
@@ -2373,7 +2478,8 @@ void drawMaser(float sourceX, float sourceY, float sourceZ,
     outerWidths = requiredEffectValue("maser-outer-width", 2);
 
     /* if line widths are integral Mesa chokes in a large window */
-    if ((view == MONSTERVIEW) || (view == ARMYVIEW))
+    if ((view == MONSTERVIEW) || (view == FIRSTPERSONVIEW) ||
+	(view == ARMYVIEW))
 	glLineWidth(width * innerWidths->components[0]);
     else
 	glLineWidth(width * innerWidths->components[1]);
@@ -2391,6 +2497,9 @@ void drawMaser(float sourceX, float sourceY, float sourceZ,
 			    
 	case MECHAG:	    beamColor = colorred;
 			    break;
+
+	case DATAENTITY: beamColor = colorred;
+			    break;
 			    
 	default:	    showError("Invalid Vehicle Type (drawMaser)");
 			    break;
@@ -2400,7 +2509,8 @@ void drawMaser(float sourceX, float sourceY, float sourceZ,
 	glEnable(GL_BLEND);
     
     /* if line widths are integral Mesa chokes in a large window */
-    if ((view == MONSTERVIEW) || (view == ARMYVIEW))
+    if ((view == MONSTERVIEW) || (view == FIRSTPERSONVIEW) ||
+	(view == ARMYVIEW))
 	glLineWidth(width * outerWidths->components[0]);
     else
 	glLineWidth(width * outerWidths->components[1]);
@@ -2555,6 +2665,14 @@ void drawTanks(struct tank * allTanks,  int counter, struct monsterInfo G,
 				else
 				    drawHeroDude2(cTank.damage, cTank.walking, cTank.maserCount, 0, detail);
 				break;
+
+		case DATAENTITY: glTranslatef(cTank.x, cTank.y, cTank.z);
+				glRotatef(angle2, 0, 1, 0);
+				glScalef(cTank.dataArchetype->scale,
+				         cTank.dataArchetype->scale,
+				         cTank.dataArchetype->scale);
+				drawExternalEntity(&cTank, counter, 0);
+				break;
 				
 		default:	showError("Bogus Vehicle in Tank List! (drawTanks)");
 				break;
@@ -2600,6 +2718,11 @@ void drawTanks(struct tank * allTanks,  int counter, struct monsterInfo G,
 		    case FIGHTER:	glCallList(fighterShadow);	
 					break;
 
+		    case DATAENTITY: if (cTank.dataArchetype->shadowModel[0] != '\0')
+					    glCallList(assetModelDisplayList(
+					        cTank.dataArchetype->shadowModel));
+					break;
+
 		    default:		showError("Bogus Vehicle in Tank List! (drawTanks)");
 					break;
 		    }
@@ -2641,6 +2764,12 @@ void drawTanks(struct tank * allTanks,  int counter, struct monsterInfo G,
     			drawHeroWeapon(nearestTarget->x, nearestTarget->z, cTank.x, cTank.y + 0.275, cTank.z, colormaserblue, height, bottom);
 		    else
     			drawHeroWeapon(0, 0, cTank.x, cTank.y + 0.275, cTank.z, colormaserblue, height, bottom);
+
+		if (cTank.type == DATAENTITY && cTank.dataAgent.hasTarget)
+		    drawMaser(cTank.x, cTank.y + cTank.dataArchetype->collisionHeight,
+		              cTank.z, DATAENTITY,
+		              cTank.dataAgent.targetX, cTank.dataAgent.targetZ,
+		              PLANEY + 1.2, PLANEY, 0, 0, 0, wid, view, detail);
 
   		} 
 	    }  
@@ -3089,7 +3218,8 @@ void drawRoads(struct road * roads, float xshift, float zshift,
 
 void drawProjectiles(struct projectile * allProjs, int counter, 
     struct fireType * fires, int fireCounter,
-		    int itsChristmas, int detail)
+		    int itsChristmas, int detail,
+		    const struct monsterInfo *viewer, int currentView)
     {
     struct projectile *temp;
     float col[4] = {1.0, 0, 0, 0};
@@ -3123,7 +3253,12 @@ void drawProjectiles(struct projectile * allProjs, int counter,
 
     beamCounter = 0;
     for (temp = allProjs->next;temp != NULL;temp = temp->next)
-	if ((fabs(temp->x) <= PLANESIZE) && (fabs(temp->z) <= PLANESIZE))
+	if ((fabs(temp->x) <= PLANESIZE) && (fabs(temp->z) <= PLANESIZE) &&
+	    !(currentView == FIRSTPERSONVIEW && viewer != NULL &&
+	      ((temp->mine == viewer && temp->count < ARMCOUNT) ||
+	       (fabs(temp->x) <= viewer->width &&
+	        fabs(temp->z) <= viewer->width &&
+	        temp->y >= viewer->bottom && temp->y <= viewer->height))))
 	    {
 	    x = temp->x;
 	    y = temp->y;

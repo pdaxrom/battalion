@@ -14,6 +14,7 @@
 
 #include "map_package.h"
 
+#include <ctype.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -307,6 +308,39 @@ static int tokenInt(const char *json, const struct MapJsonToken *token,
     return 1;
     }
 
+static int tokenBool(const char *json, const struct MapJsonToken *token,
+                     int *value)
+    {
+    size_t length;
+
+    if (token->type != MAP_JSON_PRIMITIVE)
+        return 0;
+    length = (size_t)(token->end - token->start);
+    if (length == 4 && strncmp(json + token->start, "true", 4) == 0)
+        {
+        *value = 1;
+        return 1;
+        }
+    if (length == 5 && strncmp(json + token->start, "false", 5) == 0)
+        {
+        *value = 0;
+        return 1;
+        }
+    return 0;
+    }
+
+static int validEntityName(const char *name)
+    {
+    const unsigned char *cursor;
+
+    if (name == NULL || name[0] == '\0')
+        return 0;
+    for (cursor = (const unsigned char *)name; *cursor; cursor++)
+        if (!(islower(*cursor) || isdigit(*cursor) || *cursor == '-'))
+            return 0;
+    return 1;
+    }
+
 static size_t arrayCount(const struct MapJsonToken *tokens, int tokenCount,
                          int array)
     {
@@ -436,19 +470,294 @@ static int loadUnits(const char *json, const struct MapJsonToken *tokens,
     return output == map->unitCount;
     }
 
+static int loadActorPath(const char *json,
+                         const struct MapJsonToken *tokens,
+                         int tokenCount, int array,
+                         struct BattalionMapActor *actor)
+    {
+    size_t output;
+    int index;
+    int xToken;
+    int zToken;
+
+    if (array < 0)
+        return 1;
+    if (tokens[array].type != MAP_JSON_ARRAY)
+        return 0;
+    actor->waypointCount = arrayCount(tokens, tokenCount, array);
+    if (actor->waypointCount > 0)
+        actor->waypoints = (struct EntityWaypoint *)calloc(
+            actor->waypointCount, sizeof(struct EntityWaypoint));
+    if (actor->waypointCount > 0 && actor->waypoints == NULL)
+        return 0;
+    output = 0;
+    for (index = array + 1;
+         index < tokenCount && output < actor->waypointCount; index++)
+        if (tokens[index].parent == array)
+            {
+            if (tokens[index].type != MAP_JSON_OBJECT)
+                return 0;
+            xToken = objectValue(json, tokens, tokenCount, index, "x");
+            zToken = objectValue(json, tokens, tokenCount, index, "z");
+            if (xToken < 0 || zToken < 0 ||
+                !tokenFloat(json, &tokens[xToken],
+                            &actor->waypoints[output].x) ||
+                !tokenFloat(json, &tokens[zToken],
+                            &actor->waypoints[output].z))
+                return 0;
+            output++;
+            }
+    return output == actor->waypointCount;
+    }
+
+static int loadActorTriggers(const char *json,
+                             const struct MapJsonToken *tokens,
+                             int tokenCount, int array,
+                             struct BattalionMapActor *actor)
+    {
+    size_t output;
+    int index;
+    int eventToken;
+    int targetIdToken;
+    int targetGroupToken;
+    struct BattalionMapTrigger *trigger;
+
+    if (array < 0)
+        return 1;
+    if (tokens[array].type != MAP_JSON_ARRAY)
+        return 0;
+    actor->triggerCount = arrayCount(tokens, tokenCount, array);
+    if (actor->triggerCount > 0)
+        actor->triggers = (struct BattalionMapTrigger *)calloc(
+            actor->triggerCount, sizeof(struct BattalionMapTrigger));
+    if (actor->triggerCount > 0 && actor->triggers == NULL)
+        return 0;
+    output = 0;
+    for (index = array + 1;
+         index < tokenCount && output < actor->triggerCount; index++)
+        if (tokens[index].parent == array)
+            {
+            if (tokens[index].type != MAP_JSON_OBJECT)
+                return 0;
+            eventToken = objectValue(json, tokens, tokenCount, index,
+                                     "event");
+            targetIdToken = objectValue(json, tokens, tokenCount, index,
+                                        "target-id");
+            targetGroupToken = objectValue(json, tokens, tokenCount, index,
+                                           "target-group");
+            if (eventToken < 0 ||
+                ((targetIdToken >= 0) == (targetGroupToken >= 0)))
+                return 0;
+            trigger = &actor->triggers[output];
+            if (!copyString(json, &tokens[eventToken], trigger->event,
+                            sizeof(trigger->event)))
+                return 0;
+            if (targetIdToken >= 0)
+                {
+                trigger->targetType = BATTALION_MAP_TRIGGER_ID;
+                if (!copyString(json, &tokens[targetIdToken],
+                                trigger->target, sizeof(trigger->target)))
+                    return 0;
+                }
+            else
+                {
+                trigger->targetType = BATTALION_MAP_TRIGGER_GROUP;
+                if (!copyString(json, &tokens[targetGroupToken],
+                                trigger->target, sizeof(trigger->target)))
+                    return 0;
+                }
+            if (!validEntityName(trigger->event) ||
+                !validEntityName(trigger->target))
+                return 0;
+            output++;
+            }
+    return output == actor->triggerCount;
+    }
+
+static int patrolModeValue(const char *json,
+                           const struct MapJsonToken *token)
+    {
+    if (tokenEquals(json, token, "loop"))
+        return ENTITY_PATROL_LOOP;
+    if (tokenEquals(json, token, "pingpong"))
+        return ENTITY_PATROL_PINGPONG;
+    if (tokenEquals(json, token, "once"))
+        return ENTITY_PATROL_ONCE;
+    return 0;
+    }
+
+static int loadActors(const char *json, const struct MapJsonToken *tokens,
+                      int tokenCount, int array,
+                      struct BattalionMapPackage *map)
+    {
+    size_t output;
+    int index;
+    int idToken;
+    int archetypeToken;
+    int groupToken;
+    int xToken;
+    int zToken;
+    int headingToken;
+    int activeToken;
+    int patrolModeToken;
+    int pathToken;
+    int triggersToken;
+    struct BattalionMapActor *actor;
+
+    if (array < 0 || tokens[array].type != MAP_JSON_ARRAY)
+        return 0;
+    map->actorCount = arrayCount(tokens, tokenCount, array);
+    if (map->actorCount > 0)
+        map->actors = (struct BattalionMapActor *)calloc(
+            map->actorCount, sizeof(struct BattalionMapActor));
+    if (map->actorCount > 0 && map->actors == NULL)
+        return 0;
+    output = 0;
+    for (index = array + 1;
+         index < tokenCount && output < map->actorCount; index++)
+        if (tokens[index].parent == array)
+            {
+            if (tokens[index].type != MAP_JSON_OBJECT)
+                return 0;
+            actor = &map->actors[output];
+            actor->active = 1;
+            actor->patrolMode = ENTITY_PATROL_LOOP;
+            idToken = objectValue(json, tokens, tokenCount, index, "id");
+            archetypeToken = objectValue(json, tokens, tokenCount, index,
+                                         "archetype");
+            groupToken = objectValue(json, tokens, tokenCount, index,
+                                     "group");
+            xToken = objectValue(json, tokens, tokenCount, index, "x");
+            zToken = objectValue(json, tokens, tokenCount, index, "z");
+            headingToken = objectValue(json, tokens, tokenCount, index,
+                                       "heading");
+            activeToken = objectValue(json, tokens, tokenCount, index,
+                                      "active");
+            patrolModeToken = objectValue(json, tokens, tokenCount, index,
+                                          "patrol-mode");
+            pathToken = objectValue(json, tokens, tokenCount, index, "path");
+            triggersToken = objectValue(json, tokens, tokenCount, index,
+                                        "triggers");
+            if (idToken < 0 || archetypeToken < 0 || xToken < 0 ||
+                zToken < 0 ||
+                !copyString(json, &tokens[idToken], actor->id,
+                            sizeof(actor->id)) ||
+                !copyString(json, &tokens[archetypeToken], actor->archetype,
+                            sizeof(actor->archetype)) ||
+                !validEntityName(actor->id) ||
+                !validEntityName(actor->archetype) ||
+                !tokenFloat(json, &tokens[xToken], &actor->x) ||
+                !tokenFloat(json, &tokens[zToken], &actor->z))
+                return 0;
+            if (groupToken >= 0 &&
+                (!copyString(json, &tokens[groupToken], actor->group,
+                             sizeof(actor->group)) ||
+                 !validEntityName(actor->group)))
+                return 0;
+            if (headingToken >= 0 &&
+                !tokenFloat(json, &tokens[headingToken], &actor->heading))
+                return 0;
+            if (activeToken >= 0 &&
+                !tokenBool(json, &tokens[activeToken], &actor->active))
+                return 0;
+            if (patrolModeToken >= 0)
+                {
+                actor->patrolMode = patrolModeValue(
+                    json, &tokens[patrolModeToken]);
+                if (actor->patrolMode == 0)
+                    return 0;
+                }
+            if (!loadActorPath(json, tokens, tokenCount, pathToken, actor) ||
+                !loadActorTriggers(json, tokens, tokenCount, triggersToken,
+                                   actor))
+                return 0;
+            output++;
+            }
+    return output == map->actorCount;
+    }
+
+static int actorIdExists(const struct BattalionMapPackage *map,
+                         const char *id)
+    {
+    size_t index;
+
+    for (index = 0; index < map->actorCount; index++)
+        if (strcmp(map->actors[index].id, id) == 0)
+            return 1;
+    return 0;
+    }
+
+static int actorGroupExists(const struct BattalionMapPackage *map,
+                            const char *group)
+    {
+    size_t index;
+
+    for (index = 0; index < map->actorCount; index++)
+        if (strcmp(map->actors[index].group, group) == 0)
+            return 1;
+    return 0;
+    }
+
+static int validateActors(const struct BattalionMapPackage *map)
+    {
+    size_t actorIndex;
+    size_t otherIndex;
+    size_t triggerIndex;
+    const struct BattalionMapTrigger *trigger;
+
+    for (actorIndex = 0; actorIndex < map->actorCount; actorIndex++)
+        {
+        for (otherIndex = actorIndex + 1; otherIndex < map->actorCount;
+             otherIndex++)
+            if (strcmp(map->actors[actorIndex].id,
+                       map->actors[otherIndex].id) == 0)
+                return 0;
+        for (triggerIndex = 0;
+             triggerIndex < map->actors[actorIndex].triggerCount;
+             triggerIndex++)
+            {
+            trigger = &map->actors[actorIndex].triggers[triggerIndex];
+            if (trigger->targetType == BATTALION_MAP_TRIGGER_ID)
+                {
+                if (!actorIdExists(map, trigger->target))
+                    return 0;
+                }
+            else if (trigger->targetType == BATTALION_MAP_TRIGGER_GROUP)
+                {
+                if (!actorGroupExists(map, trigger->target))
+                    return 0;
+                }
+            else
+                return 0;
+            }
+        }
+    return 1;
+    }
+
 void battalionMapPackageInit(struct BattalionMapPackage *map)
     {
     if (map != NULL)
+        {
         memset(map, 0, sizeof(*map));
+        map->version = 1;
+        }
     }
 
 void battalionMapPackageFree(struct BattalionMapPackage *map)
     {
+    size_t index;
+
     if (map == NULL)
         return;
     free(map->roads);
     free(map->structures);
     free(map->units);
+    for (index = 0; index < map->actorCount; index++)
+        {
+        free(map->actors[index].waypoints);
+        free(map->actors[index].triggers);
+        }
+    free(map->actors);
     battalionMapPackageInit(map);
     }
 
@@ -504,6 +813,7 @@ int battalionMapPackageLoad(const char *path,
     int roadsToken;
     int structuresToken;
     int unitsToken;
+    int actorsToken;
     int version;
     struct BattalionMapPackage loaded;
 
@@ -530,14 +840,21 @@ int battalionMapPackageLoad(const char *path,
     roadsToken = objectValue(json, tokens, tokenCount, 0, "roads");
     structuresToken = objectValue(json, tokens, tokenCount, 0, "structures");
     unitsToken = objectValue(json, tokens, tokenCount, 0, "units");
+    actorsToken = objectValue(json, tokens, tokenCount, 0, "actors");
     if (formatToken < 0 || versionToken < 0 || idToken < 0 || nameToken < 0 ||
         !tokenEquals(json, &tokens[formatToken], "battalion-map") ||
-        !tokenInt(json, &tokens[versionToken], &version) || version != 1 ||
+        !tokenInt(json, &tokens[versionToken], &version) ||
+        (version != 1 && version != 2) ||
         !copyString(json, &tokens[idToken], loaded.id, sizeof(loaded.id)) ||
         !copyString(json, &tokens[nameToken], loaded.name, sizeof(loaded.name)) ||
         !loadRoads(json, tokens, tokenCount, roadsToken, &loaded) ||
         !loadStructures(json, tokens, tokenCount, structuresToken, &loaded) ||
-        !loadUnits(json, tokens, tokenCount, unitsToken, &loaded))
+        !loadUnits(json, tokens, tokenCount, unitsToken, &loaded) ||
+        (version == 2 && !loadActors(json, tokens, tokenCount, actorsToken,
+                                    &loaded)))
+        goto invalid;
+    loaded.version = version;
+    if (!validateActors(&loaded))
         goto invalid;
 
     free(tokens);
@@ -575,12 +892,87 @@ static void writeJsonString(FILE *file, const char *text)
     fputc('"', file);
     }
 
+static const char *patrolModeName(int patrolMode)
+    {
+    if (patrolMode == ENTITY_PATROL_PINGPONG)
+        return "pingpong";
+    if (patrolMode == ENTITY_PATROL_ONCE)
+        return "once";
+    return "loop";
+    }
+
+static void writeActors(FILE *file, const struct BattalionMapPackage *map)
+    {
+    size_t actorIndex;
+    size_t waypointIndex;
+    size_t triggerIndex;
+    const struct BattalionMapActor *actor;
+    const struct BattalionMapTrigger *trigger;
+
+    fputs(",\n  \"actors\": [\n", file);
+    for (actorIndex = 0; actorIndex < map->actorCount; actorIndex++)
+        {
+        actor = &map->actors[actorIndex];
+        fputs("    {\"id\": ", file);
+        writeJsonString(file, actor->id);
+        fputs(", \"archetype\": ", file);
+        writeJsonString(file, actor->archetype);
+        if (actor->group[0] != '\0')
+            {
+            fputs(", \"group\": ", file);
+            writeJsonString(file, actor->group);
+            }
+        fprintf(file, ", \"x\": %.9g, \"z\": %.9g, \"heading\": %.9g, "
+                      "\"active\": %s, \"patrol-mode\": ",
+                actor->x, actor->z, actor->heading,
+                actor->active ? "true" : "false");
+        writeJsonString(file, patrolModeName(actor->patrolMode));
+        fputs(",\n      \"path\": [", file);
+        for (waypointIndex = 0; waypointIndex < actor->waypointCount;
+             waypointIndex++)
+            {
+            if (waypointIndex > 0)
+                fputs(", ", file);
+            fprintf(file, "{\"x\": %.9g, \"z\": %.9g}",
+                    actor->waypoints[waypointIndex].x,
+                    actor->waypoints[waypointIndex].z);
+            }
+        fputs("],\n      \"triggers\": [", file);
+        for (triggerIndex = 0; triggerIndex < actor->triggerCount;
+             triggerIndex++)
+            {
+            trigger = &actor->triggers[triggerIndex];
+            if (triggerIndex > 0)
+                fputs(", ", file);
+            fputs("{\"event\": ", file);
+            writeJsonString(file, trigger->event);
+            if (trigger->targetType == BATTALION_MAP_TRIGGER_ID)
+                fputs(", \"target-id\": ", file);
+            else
+                fputs(", \"target-group\": ", file);
+            writeJsonString(file, trigger->target);
+            fputc('}', file);
+            }
+        fprintf(file, "]}%s\n",
+                actorIndex + 1 < map->actorCount ? "," : "");
+        }
+    fputs("  ]", file);
+    }
+
 int battalionMapPackageWrite(const char *path,
                              const struct BattalionMapPackage *map,
                              char *error, size_t errorSize)
     {
     FILE *file;
     size_t index;
+    int version;
+
+    if (map == NULL || !validateActors(map))
+        {
+        setMapError(error, errorSize, "Invalid map actors or trigger links");
+        return 0;
+        }
+    version = map->version == 2 || map->actorCount > 0 ? 2 : 1;
 
     file = fopen(path, "wb");
     if (file == NULL)
@@ -588,7 +980,8 @@ int battalionMapPackageWrite(const char *path,
         setMapError(error, errorSize, "Could not create map package");
         return 0;
         }
-    fputs("{\n  \"format\": \"battalion-map\",\n  \"version\": 1,\n  \"id\": ", file);
+    fputs("{\n  \"format\": \"battalion-map\",\n  \"version\": ", file);
+    fprintf(file, "%d,\n  \"id\": ", version);
     writeJsonString(file, map->id);
     fputs(",\n  \"name\": ", file);
     writeJsonString(file, map->name);
@@ -610,7 +1003,10 @@ int battalionMapPackageWrite(const char *path,
                 map->units[index].x, map->units[index].z,
                 map->units[index].type,
                 index + 1 < map->unitCount ? "," : "");
-    fputs("  ]\n}\n", file);
+    fputs("  ]", file);
+    if (version == 2)
+        writeActors(file, map);
+    fputs("\n}\n", file);
     if (fclose(file) != 0)
         {
         setMapError(error, errorSize, "Could not finish map package");
