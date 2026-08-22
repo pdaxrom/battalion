@@ -255,13 +255,13 @@ void updateScores(char * scorefullPath, int monster, int monsterScore, int mode,
     if (hiScoreFile != NULL)
 	{
 	for(c=0;c<3;c++)
-	    fscanf(hiScoreFile, "%d%c%s", &(G[c].number), &garbage, &(G[c].name));
+	    fscanf(hiScoreFile, "%d%c%255s", &(G[c].number), &garbage, G[c].name);
 	for(c=0;c<3;c++)
-	    fscanf(hiScoreFile, "%d%c%s", &(V[c].number), &garbage, &(V[c].name));
+	    fscanf(hiScoreFile, "%d%c%255s", &(V[c].number), &garbage, V[c].name);
 	for(c=0;c<3;c++)
-	    fscanf(hiScoreFile, "%d%c%s", &(F[c].number), &garbage, &(F[c].name));
+	    fscanf(hiScoreFile, "%d%c%255s", &(F[c].number), &garbage, F[c].name);
 	for(c=0;c<3;c++)
-	    fscanf(hiScoreFile, "%d%c%s", &(T[c].number), &garbage, &(T[c].name));
+	    fscanf(hiScoreFile, "%d%c%255s", &(T[c].number), &garbage, T[c].name);
 
 	fclose(hiScoreFile);
 
@@ -2957,7 +2957,7 @@ void initialization()
 
 	if (hiScoreFile == NULL)
 	    {
-	    sprintf(textBuffer, "Couldn't create high score file: %s", hiScoreFile);
+	    sprintf(textBuffer, "Couldn't create high score file: %s", scorefullPath);
 	    showError(textBuffer);
 	    }
 	else
@@ -2982,7 +2982,7 @@ void initialization()
 	    /* Make hiscore file read/writeable for everyone */
 	    if (chmod(scorefullPath, 0666))
 		{
-		sprintf(textBuffer, "Couldn't change permission of high score file: %s", hiScoreFile);
+		sprintf(textBuffer, "Couldn't change permission of high score file: %s", scorefullPath);
 		showError(textBuffer);
 		}
 # endif
@@ -2990,21 +2990,21 @@ void initialization()
 	}
     else
 	{
-	fscanf(hiScoreFile, "%d%c%s", &(G[0].number), &garbage, &(G[0].name));
-	fscanf(hiScoreFile, "%d%c%s", &(G[1].number), &garbage, &(G[1].name));
-	fscanf(hiScoreFile, "%d%c%s", &(G[2].number), &garbage, &(G[2].name));
+	fscanf(hiScoreFile, "%d%c%255s", &(G[0].number), &garbage, G[0].name);
+	fscanf(hiScoreFile, "%d%c%255s", &(G[1].number), &garbage, G[1].name);
+	fscanf(hiScoreFile, "%d%c%255s", &(G[2].number), &garbage, G[2].name);
 
-	fscanf(hiScoreFile, "%d%c%s", &(V[0].number), &garbage, &(V[0].name));
-	fscanf(hiScoreFile, "%d%c%s", &(V[1].number), &garbage, &(V[1].name));
-	fscanf(hiScoreFile, "%d%c%s", &(V[2].number), &garbage, &(V[2].name));
+	fscanf(hiScoreFile, "%d%c%255s", &(V[0].number), &garbage, V[0].name);
+	fscanf(hiScoreFile, "%d%c%255s", &(V[1].number), &garbage, V[1].name);
+	fscanf(hiScoreFile, "%d%c%255s", &(V[2].number), &garbage, V[2].name);
 
-	fscanf(hiScoreFile, "%d%c%s", &(F[0].number), &garbage, &(F[0].name));
-	fscanf(hiScoreFile, "%d%c%s", &(F[1].number), &garbage, &(F[1].name));
-	fscanf(hiScoreFile, "%d%c%s", &(F[2].number), &garbage, &(F[2].name));
+	fscanf(hiScoreFile, "%d%c%255s", &(F[0].number), &garbage, F[0].name);
+	fscanf(hiScoreFile, "%d%c%255s", &(F[1].number), &garbage, F[1].name);
+	fscanf(hiScoreFile, "%d%c%255s", &(F[2].number), &garbage, F[2].name);
 
-	fscanf(hiScoreFile, "%d%c%s", &(T[0].number), &garbage, &(T[0].name));
-	fscanf(hiScoreFile, "%d%c%s", &(T[1].number), &garbage, &(T[1].name));
-	fscanf(hiScoreFile, "%d%c%s", &(T[2].number), &garbage, &(T[2].name));
+	fscanf(hiScoreFile, "%d%c%255s", &(T[0].number), &garbage, T[0].name);
+	fscanf(hiScoreFile, "%d%c%255s", &(T[1].number), &garbage, T[1].name);
+	fscanf(hiScoreFile, "%d%c%255s", &(T[2].number), &garbage, T[2].name);
 
 	fclose(hiScoreFile);
 	}

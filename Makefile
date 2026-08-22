@@ -213,14 +213,18 @@ ifneq ($(or $(findstring clang,$(CC_VERSION)),$(findstring GCC,$(CC_VERSION)),$(
 COMPAT_CFLAGS ?= -std=c89 -fcommon
 COMPAT_OBJCFLAGS ?= -fcommon
 DEPFLAGS ?= -MMD -MP
+C89_CHECK_FLAGS ?= -std=c89 -pedantic-errors -fsyntax-only \
+	-Wno-strict-prototypes -Wno-dangling-else -Wno-pointer-sign \
+	-Wno-pointer-to-int-cast -Wno-int-to-pointer-cast
 else
 COMPAT_CFLAGS ?=
 COMPAT_OBJCFLAGS ?=
 DEPFLAGS ?=
+C89_CHECK_FLAGS ?=
 endif
 CFLAGS ?= -O2
 
-.PHONY: all clean help print-config test
+.PHONY: all clean help print-config test c89-check
 
 all: $(TARGET)
 
@@ -266,6 +270,14 @@ help:
 	@echo "macOS uses the native Metal backend; XQuartz and OpenGL are not required."
 	@echo "GRAPHICS=gles is part of the renderer design but is not implemented yet."
 
+c89-check:
+	@if test -n "$(C89_CHECK_FLAGS)"; then \
+		$(CC) $(CPPFLAGS) $(PLATFORM_CPPFLAGS) $(GRAPHICS_CPPFLAGS) \
+			$(AUDIO_CPPFLAGS) $(C89_CHECK_FLAGS) $(filter %.c,$(SOURCES)); \
+	else \
+		echo "C89 syntax check skipped: compiler has no known strict-C89 flags"; \
+	fi
+
 TEST_BUILD_DIR := build/tests
 MAP_TEST := $(TEST_BUILD_DIR)/map-test
 ASSET_TEST := $(TEST_BUILD_DIR)/asset-gltf-test
@@ -273,6 +285,7 @@ ASSET_CATALOG_TEST := $(TEST_BUILD_DIR)/asset-catalog-test
 ASSET_VALUES_TEST := $(TEST_BUILD_DIR)/asset-values-test
 STROKE_FONT_TEST := $(TEST_BUILD_DIR)/stroke-font-test
 AUDIO_CATALOG_TEST := $(TEST_BUILD_DIR)/audio-catalog-test
+NO_EMBEDDED_ASSETS_TEST := $(TEST_BUILD_DIR)/no-embedded-assets-test
 
 $(MAP_TEST): tests/map_test.c map.c map.h map_package.c map_package.h Makefile | $(TEST_BUILD_DIR)
 	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< map.c map_package.c -o $@
@@ -292,16 +305,20 @@ $(STROKE_FONT_TEST): tests/stroke_font_test.c stroke_font_asset.c stroke_font_as
 $(AUDIO_CATALOG_TEST): tests/audio_catalog_test.c audio_catalog.c audio_catalog.h Makefile | $(TEST_BUILD_DIR)
 	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< audio_catalog.c -o $@
 
+$(NO_EMBEDDED_ASSETS_TEST): tests/no_embedded_assets_test.c Makefile | $(TEST_BUILD_DIR)
+	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< -o $@
+
 $(TEST_BUILD_DIR):
 	mkdir -p $@
 
-test: $(MAP_TEST) $(ASSET_TEST) $(ASSET_CATALOG_TEST) $(ASSET_VALUES_TEST) $(STROKE_FONT_TEST) $(AUDIO_CATALOG_TEST)
+test: c89-check $(MAP_TEST) $(ASSET_TEST) $(ASSET_CATALOG_TEST) $(ASSET_VALUES_TEST) $(STROKE_FONT_TEST) $(AUDIO_CATALOG_TEST) $(NO_EMBEDDED_ASSETS_TEST)
 	./$(MAP_TEST)
 	./$(ASSET_TEST)
 	./$(ASSET_CATALOG_TEST)
 	./$(ASSET_VALUES_TEST)
 	./$(STROKE_FONT_TEST)
 	./$(AUDIO_CATALOG_TEST)
+	./$(NO_EMBEDDED_ASSETS_TEST)
 
 clean:
 	rm -rf build

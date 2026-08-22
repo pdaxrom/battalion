@@ -273,13 +273,14 @@ void addNewNetworkTank(char * recvline, struct tank * tanklist,
     {
     char command[MAXLINE];
     float x, z;
-    int type, number;
+    int type, number, maserCount;
     float finRange, speed;
     struct tank * temptank;
     int foundIt;
     
-    sscanf(recvline, "%s %d %f %f %f %f %d",
-	command, &number, &x, &z, &finRange, &speed, &type);
+    maserCount = 0;
+    sscanf(recvline, "%s %d %f %f %f %f %d %d",
+	command, &number, &x, &z, &finRange, &speed, &type, &maserCount);
 
 
        foundIt = 0;
@@ -315,6 +316,7 @@ void addNewNetworkTank(char * recvline, struct tank * tanklist,
 	temptank->minrange	= 0.5;
 	temptank->speed		= speed;
 	temptank->type		= (char) type;
+	temptank->maserCount	= maserCount;
     
 	temptank->next	= tanklist->next;
 	tanklist->next	= temptank;
@@ -378,7 +380,7 @@ void tellAboutAllTanks(struct sockaddr_in * cli, int length
 
 /* nother copy of this elsewhere */
 
-	sprintf(mesg, "%s %d %3.1f %3.1f %3.1f %3.1f %0.3f %d %d #", MESG_NEW_TANK,
+	sprintf(mesg, "%s %d %3.1f %3.1f %3.1f %3.1f %d %d #", MESG_NEW_TANK,
 						 tempTank->number, 
 						 tempTank->x-globalxshift, 
 						 tempTank->z-globalzshift, 

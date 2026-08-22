@@ -24,6 +24,13 @@ and orphan model or texture files fail validation. Paths are relative to
 `assets/`. There is no normal-build fallback to compiled C geometry or texture
 arrays. This policy is the same on every supported platform.
 
+Renderer colours, HUD rectangles, the complete stroke font, effect parameters,
+and gameplay animation controller values are external assets as well. Audio
+file variants, mixer slots, and music ordering live in
+`assets/audio/catalog.txt`. `make test` rejects any return of immediate-mode
+model geometry or direct model, texture, sound, and music paths to gameplay
+source files.
+
 The checked-in GLB files are the canonical source assets. The one-time legacy
 converter and the old C model factories have been removed, so geometry is not
 duplicated between code and assets.

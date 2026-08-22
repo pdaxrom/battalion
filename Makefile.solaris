@@ -26,8 +26,15 @@
 #
 # "make clean.bin" removes the Mesa, OpenGL and TGS binaries.
 
-OBJS =	gprim.o audio.o text.o objects.o net.o graphics.o update.o battalion.o tk.o
-HDRS =	battalion.h tk.h
+COREOBJS = battalion.o map.o audio.o net.o graphics.o camera.o text.o \
+	update.o tk_x11.o font.o dynamic_primitives.o map_package.o
+ASSETOBJS = asset.o asset_gltf.o asset_animation.o asset_render.o \
+	asset_manifest.o asset_tga.o asset_values.o stroke_font_asset.o \
+	audio_catalog.o
+OBJS = $(COREOBJS) $(ASSETOBJS)
+HDRS = battalion.h tk.h asset.h asset_animation.h asset_manifest.h \
+	asset_render.h asset_tga.h asset_values.h map.h map_package.h \
+	dynamic_primitives.h stroke_font_asset.h audio_catalog.h
 
 MESABIN	= battalion.mesa
 OGLBIN	= battalion.opengl
@@ -86,8 +93,7 @@ TGSLIBS = -L$(TGSHOME)/lib -lGLU -lGL -L/usr/openwin/lib -ldga \
 # Defines the default target
 all:	mesa
 
-mesa:
-	$(MAKE) $(MESABIN)
+mesa: $(MESABIN)
 
 ogl:
 	cd $(OGLDIR); $(MAKE) $(OGLBIN)
@@ -104,9 +110,7 @@ $(OGLBIN): $(OBJS) $(HDRS)
 $(TGSBIN): $(OBJS) $(HDRS)
 	$(CC) $(CFLAGS) $(OBJS) $(TGSLIBS) -o ../$@
 
-tk.o font.o:  $(HDRS)
-
-gprim.o audio.o text.o objects.o net.o graphics.o update.o battalion.o:  battalion.h
+$(OBJS): $(HDRS)
 
 clean:
 	rm -f $(OBJS)
@@ -123,10 +127,9 @@ clean.bin:
 buildlinks.ogl:
 	rm -rf $(OGLDIR)
 	mkdir $(OGLDIR)
-	cd $(OGLDIR); ln -s ../*.c ../*.h ../Makefile .
+	cd $(OGLDIR); ln -s ../*.c ../*.h .; ln -s ../Makefile.solaris Makefile
 
 buildlinks.tgs:
 	rm -rf $(TGSDIR)
 	mkdir $(TGSDIR)
-	cd $(TGSDIR); ln -s ../*.c ../*.h ../Makefile .
-
+	cd $(TGSDIR); ln -s ../*.c ../*.h .; ln -s ../Makefile.solaris Makefile

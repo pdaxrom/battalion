@@ -499,8 +499,7 @@ struct score
     	};
 
 /***************************
- * tk.c
- * 
+ * platform window toolkit
  ***************************/
 
 void tkCloseWindow(void);
