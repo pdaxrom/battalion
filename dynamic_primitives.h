@@ -17,5 +17,9 @@ void dynamicDrawLine3(const float start[3], const float end[3],
                       const float startColor[3], const float endColor[3]);
 void dynamicDrawQuad3(const float vertices[4][3],
                       const float colors[4][3]);
+void dynamicDrawSolidQuad3(const float vertices[4][3],
+                           const float color[4]);
+void dynamicDrawLineLoop3(const float vertices[4][3],
+                          const float color[4]);
 
 #endif

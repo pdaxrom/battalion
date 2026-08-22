@@ -246,7 +246,7 @@ extern void tkSetRGBMap(int, float *);
 
 extern TK_RGBImageRec *tkRGBImageLoad(char *);
 
-extern GLenum tkCreateStrokeFont(GLuint);
+extern GLenum tkCreateStrokeFont(GLuint, const char *);
 extern GLenum tkCreateOutlineFont(GLuint);
 extern GLenum tkCreateFilledFont(GLuint);
 extern GLenum tkCreateBitmapFont(GLuint);

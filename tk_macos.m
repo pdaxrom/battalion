@@ -16,6 +16,7 @@ static struct {
 
 static NSWindow *mainWindow;
 static MTKView *metalView;
+static NSTimer *frameTimer;
 static int running;
 static int pointerIsGrabbed;
 static int mouseX;
@@ -214,6 +215,8 @@ static GLenum buttonMaskForEvent(NSEvent *event)
     if (pointerIsGrabbed)
         unGrabPointer();
     running = 0;
+    [frameTimer invalidate];
+    frameTimer = nil;
     metalView.paused = YES;
     [NSApp stop:nil];
 }
@@ -230,6 +233,7 @@ static GLenum buttonMaskForEvent(NSEvent *event)
 static BattalionWindowDelegate *windowDelegate;
 
 @interface BattalionFrameDriver : NSObject <MTKViewDelegate>
+- (void)tick:(NSTimer *)timer;
 @end
 
 @implementation BattalionFrameDriver
@@ -248,6 +252,13 @@ static BattalionWindowDelegate *windowDelegate;
         (*IdleFunc)();
     else if (DisplayFunc)
         (*DisplayFunc)();
+}
+
+- (void)tick:(NSTimer *)timer
+{
+    (void)timer;
+    if (running)
+        [metalView draw];
 }
 @end
 
@@ -299,7 +310,7 @@ GLenum tkInitWindow(char *title)
     metalView.colorPixelFormat = MTLPixelFormatBGRA8Unorm;
     metalView.depthStencilPixelFormat = MTLPixelFormatDepth32Float;
     metalView.paused = YES;
-    metalView.enableSetNeedsDisplay = NO;
+    metalView.enableSetNeedsDisplay = YES;
     metalView.preferredFramesPerSecond = 60;
     metalView.framebufferOnly = YES;
     metalView.autoResizeDrawable = YES;
@@ -330,8 +341,16 @@ void tkExec(void)
 {
     frameDriver = [[BattalionFrameDriver alloc] init];
     metalView.delegate = frameDriver;
-    metalView.paused = NO;
+    frameTimer = [NSTimer timerWithTimeInterval:(1.0 / 60.0)
+                                        target:frameDriver
+                                      selector:@selector(tick:)
+                                      userInfo:nil
+                                       repeats:YES];
+    [[NSRunLoop mainRunLoop] addTimer:frameTimer
+                              forMode:NSRunLoopCommonModes];
     [NSApp run];
+    [frameTimer invalidate];
+    frameTimer = nil;
     metalView.paused = YES;
     metalView.delegate = nil;
     frameDriver = nil;
@@ -341,6 +360,8 @@ void tkCloseWindow(void)
 {
     if (pointerIsGrabbed)
         unGrabPointer();
+    [frameTimer invalidate];
+    frameTimer = nil;
     metalView.paused = YES;
     rendererBackendShutdown();
     [mainWindow close];

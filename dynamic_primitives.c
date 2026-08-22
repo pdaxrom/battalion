@@ -44,3 +44,27 @@ void dynamicDrawQuad3(const float vertices[4][3],
         }
     glEnd();
     }
+
+void dynamicDrawSolidQuad3(const float vertices[4][3],
+                           const float color[4])
+    {
+    int vertex;
+
+    glColor4fv(color);
+    glBegin(GL_QUADS);
+    for (vertex = 0; vertex < 4; vertex++)
+        glVertex3fv(vertices[vertex]);
+    glEnd();
+    }
+
+void dynamicDrawLineLoop3(const float vertices[4][3],
+                          const float color[4])
+    {
+    int vertex;
+
+    glColor4fv(color);
+    glBegin(GL_LINE_LOOP);
+    for (vertex = 0; vertex < 4; vertex++)
+        glVertex3fv(vertices[vertex]);
+    glEnd();
+    }

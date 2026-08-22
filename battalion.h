@@ -673,7 +673,7 @@ GLuint makeOverviewLookat(void);
  * holds the textual overlay routines
  *****************************************/
 
-void initFonts(void);
+void initFonts(const char *, const char *);
 void showText(struct targetInfo *, float,  int,  long, int, int);
 void showText2(long, int, int, int, int, int, int, int, int, int);
 void showText3(int);

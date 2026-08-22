@@ -1,0 +1,37 @@
+# Runtime colour palette. Values are red, green, blue, alpha.
+battalion-values 1
+
+value olive 0 0.34 0 0
+value plane-green 0.21 0.49 0 0
+value plane-green-2 0.25 0.60 0 0
+value plane-green-3 0.10 0.25 0 0
+value green 0 0.9 0.1 0
+value black 0.2 0.2 0.2 0.95
+value red 0.98 0.17 0 0.7
+value red-50 0.49 0.085 0 0.7
+value red-2 1 0 0 0
+value red-3 0.5 0.08 0 0.7
+value maser-blue 0.3 0.7 1 0.75
+value maser-blue-2 0 1 1 0.75
+value white 1 1 1 0.2
+value white-2 1 1 1 0.4
+value snow 0.8 0.8 0.9 0.4
+value snow-2 0.7 0.7 0.8 0.4
+value grey-1 0.5 0.5 0.5 0.8
+value grey-1-50 0.25 0.25 0.25 0.4
+value grey-2 0.7 0.7 0.7 0
+value grey-3 0.6 0.6 0.6 0
+value grey-3-50 0.3 0.3 0.3 0
+value grey-4 0.55 0.55 0.55 0
+value brown 0.75 0.33 0 0.8
+value beige 0.75 0.75 0.5 0.7
+value blue 0 0 1 0.6
+value blue-2 0 0 0.7 0
+value water 0 0.25 0.5 0
+value snow-vapour 0.3 0.3 1 0.4
+value yellow 1 1 0 0
+value maser-yellow 1 0.7 0 0
+value orange 1 0.7 0 0
+value health-green 0.21 0.49 0 0
+value tree 0.03 0.34 0.025 0
+value tree-2 0.05 0.4 0.025 0

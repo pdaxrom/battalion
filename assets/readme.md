@@ -8,6 +8,7 @@ filesystems.
 assets/
   manifest.txt       versioned runtime asset catalog
   config/            renderer-neutral runtime controller values
+  fonts/             external stroke-font glyphs and metrics
   maps/              versioned JSON battlefield packages
   models/            Khronos glTF 2.0 binary models and animation clips
     vehicles/        tanks, aircraft, and vehicle shadows
@@ -43,7 +44,10 @@ thresholds, live in `config/animation.values` instead of C source.
 Dynamic beam endpoints still come from live gameplay, while their widths,
 radii, jitter and density live in `config/effects.values`. Road surfaces,
 texture coordinates, normals and lane markers are authored GLB assets rather
-than procedural geometry in `graphics.c`.
+than procedural geometry in `graphics.c`. The renderer palette lives in
+`config/palette.values`, HUD layout values live in `config/ui.values`, and the
+complete SGI stroke font lives in `fonts/stroke.font` rather than compiled C
+tables.
 
 Verify the checked-in content with:
 

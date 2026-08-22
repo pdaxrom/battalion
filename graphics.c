@@ -26,52 +26,40 @@
     /* colours   */
     /*************/
 
-    float colorolive[4]	    	= {0,    0.34,  0.0,  0.0};
-    float planeGreen[4]	    	= {0.21, 0.49,  0.0,  0.0};
-    float planeGreen2[4]    	= {0.25, 0.60,  0.0,  0.0}; 
-    float planeGreen3[4]    	= {0.10, 0.25,  0.0,  0.0}; 
-    float colorgreen[4]	    	= {0.0,  0.9,  0.1,  0.0};
-
-    float colorblack[4]	    	= {0.2,  0.2,  0.2,  0.95};
-
-    float colorred[4]	    	= {0.98, 0.17, 0.0,  0.7};
-    float colorred_50[4]	= {0.49, 0.085, 0.0,  0.7}; /* colorred * 0.5 */
-    float colorred2[4]	    	= {1.0,  0.0,  0.0,  0.0};
-    float colorred3[4]	   	= {0.5,  0.08, 0.0,  0.7};
-
-    float colormaserblue[4] 	= {0.3,  0.7,  1.0,  0.75};
-    float colormaserblue2[4]	= {0.0,  1.0,  1.0,  0.75};
-
-    float colorwhite[4]	    	= {1.0,  1.0,  1.0,  0.2};
-    float colorwhite2[4]    	= {1.0,  1.0,  1.0,  0.4}; /* dying vapour */
-
-    float colorsnow[4]	    	= {0.8,  0.8,  0.9,  0.4};
-    float colorsnow2[4]	    	= {0.7,  0.7,  0.8,  0.4};
-
-    float colorgrey1[4]	    	= {0.5,  0.5,  0.5,  0.8};
-    float colorgrey1_50[4]	= {0.25, 0.25, 0.25, 0.4}; /* colorgrey * 0.5 */
-    float colorgrey2[4]	    	= {0.7,  0.7,  0.7,  0.0};
-    float colorgrey3[4]	    	= {0.6,  0.6,  0.6,  0.0};
-    float colorgrey3_50[4]    	= {0.3,  0.3,  0.3,  0.0}; /* colorgrey3 * 0.5 */
-    float colorgrey4[4]	    	= {0.55, 0.55, 0.55, 0.0};
-
-    float colorbrown[4]	    	= {0.75, 0.33, 0.0,  0.8};
-    float colorbeige[4]	    	= {0.75, 0.75, 0.5,  0.7};
-
-    float colorblue[4]	    	= {0.0,  0.0,  1.0,  0.6};
-    float colorblue2[4]	    	= {0.0,  0.0,  0.7,  0.0};
-    float colorwater[4]	    	= {0.0,  0.25, 0.5,  0.0};
-
-    float colorsnowvapour[4]	= {0.3,  0.3,  1.0,  0.4};
-
-    float coloryellow[4]    	= {1.0,  1.0,  0.0,  0.0};
-    float colormaseryellow[4]	= {1.0,  0.7,  0.0,  0.0};
-    float colororange[4]    	= {1.0,  0.7,  0.0,  0.0};
-
-    float healthGreen[4]    	= {0.21, 0.49, 0.0,  0.0}; 
-
-    float treeColor[4] 		= {0.03, 0.34, 0.025, 0};
-    float treeColor2[4] 	= {0.05, 0.4,  0.025, 0};
+    float colorolive[4];
+    float planeGreen[4];
+    float planeGreen2[4];
+    float planeGreen3[4];
+    float colorgreen[4];
+    float colorblack[4];
+    float colorred[4];
+    float colorred_50[4];
+    float colorred2[4];
+    float colorred3[4];
+    float colormaserblue[4];
+    float colormaserblue2[4];
+    float colorwhite[4];
+    float colorwhite2[4];
+    float colorsnow[4];
+    float colorsnow2[4];
+    float colorgrey1[4];
+    float colorgrey1_50[4];
+    float colorgrey2[4];
+    float colorgrey3[4];
+    float colorgrey3_50[4];
+    float colorgrey4[4];
+    float colorbrown[4];
+    float colorbeige[4];
+    float colorblue[4];
+    float colorblue2[4];
+    float colorwater[4];
+    float colorsnowvapour[4];
+    float coloryellow[4];
+    float colormaseryellow[4];
+    float colororange[4];
+    float healthGreen[4];
+    float treeColor[4];
+    float treeColor2[4];
     
     /*************/
     /* objects   */
@@ -127,6 +115,7 @@
     static struct AssetManifest externalAssets;
     static struct AssetValues externalAnimationValues;
     static struct AssetValues externalEffectValues;
+    static struct AssetValues externalPaletteValues;
     static const struct AssetManifestModel *externalHeloModels[2];
     static size_t externalHeloClips[2];
     static int externalHeloLoops[2];
@@ -300,6 +289,58 @@ static float effectScalar(const char *key)
     return requiredEffectValue(key, 1)->components[0];
     }
 
+static void copyPaletteColor(const char *key, float color[4])
+    {
+    const struct AssetValue *value;
+
+    value = assetValuesFind(&externalPaletteValues, key);
+    if (value == NULL || value->componentCount != 4)
+        {
+        fprintf(stderr, "Required palette colour is missing: %s\n", key);
+        showError("Required palette colour is missing from assets");
+        exit(1);
+        }
+    memcpy(color, value->components, 4 * sizeof(float));
+    }
+
+static void applyExternalPalette(void)
+    {
+    copyPaletteColor("olive", colorolive);
+    copyPaletteColor("plane-green", planeGreen);
+    copyPaletteColor("plane-green-2", planeGreen2);
+    copyPaletteColor("plane-green-3", planeGreen3);
+    copyPaletteColor("green", colorgreen);
+    copyPaletteColor("black", colorblack);
+    copyPaletteColor("red", colorred);
+    copyPaletteColor("red-50", colorred_50);
+    copyPaletteColor("red-2", colorred2);
+    copyPaletteColor("red-3", colorred3);
+    copyPaletteColor("maser-blue", colormaserblue);
+    copyPaletteColor("maser-blue-2", colormaserblue2);
+    copyPaletteColor("white", colorwhite);
+    copyPaletteColor("white-2", colorwhite2);
+    copyPaletteColor("snow", colorsnow);
+    copyPaletteColor("snow-2", colorsnow2);
+    copyPaletteColor("grey-1", colorgrey1);
+    copyPaletteColor("grey-1-50", colorgrey1_50);
+    copyPaletteColor("grey-2", colorgrey2);
+    copyPaletteColor("grey-3", colorgrey3);
+    copyPaletteColor("grey-3-50", colorgrey3_50);
+    copyPaletteColor("grey-4", colorgrey4);
+    copyPaletteColor("brown", colorbrown);
+    copyPaletteColor("beige", colorbeige);
+    copyPaletteColor("blue", colorblue);
+    copyPaletteColor("blue-2", colorblue2);
+    copyPaletteColor("water", colorwater);
+    copyPaletteColor("snow-vapour", colorsnowvapour);
+    copyPaletteColor("yellow", coloryellow);
+    copyPaletteColor("maser-yellow", colormaseryellow);
+    copyPaletteColor("orange", colororange);
+    copyPaletteColor("health-green", healthGreen);
+    copyPaletteColor("tree", treeColor);
+    copyPaletteColor("tree-2", treeColor2);
+    }
+
 static int hasPrefix(const char *text, const char *prefix)
     {
     return strncmp(text, prefix, strlen(prefix)) == 0;
@@ -309,11 +350,14 @@ void makeObjects(char * dataPath)
     {
     char assetError[256];
     char valuesPath[MAXPATH];
+    char fontPath[MAXPATH];
+    char uiPath[MAXPATH];
     const struct AssetManifestFile *valuesFile;
 
     assetManifestInitialize(&externalAssets);
     assetValuesInitialize(&externalAnimationValues);
     assetValuesInitialize(&externalEffectValues);
+    assetValuesInitialize(&externalPaletteValues);
     assetPoseInitialize(&externalHeloPoses[0]);
     assetPoseInitialize(&externalHeloPoses[1]);
     assetPoseInitialize(&externalProjectilePoses[0]);
@@ -381,6 +425,24 @@ void makeObjects(char * dataPath)
         showError("Cannot load effect values");
         exit(1);
         }
+
+    valuesFile = assetManifestFindFile(&externalAssets, "palette-values");
+    if (valuesFile == NULL ||
+        strlen(dataPath) + strlen(valuesFile->path) + 1 > sizeof(valuesPath))
+        {
+        showError("Palette asset path is missing or too long");
+        exit(1);
+        }
+    strcpy(valuesPath, dataPath);
+    strcat(valuesPath, valuesFile->path);
+    if (!assetValuesLoad(valuesPath, &externalPaletteValues,
+                         assetError, sizeof(assetError)))
+        {
+        fprintf(stderr, "Could not load palette values: %s\n", assetError);
+        showError("Cannot load palette values");
+        exit(1);
+        }
+    applyExternalPalette();
 
     leftScreen = requiredTexture("screen-left");
     rightScreen = requiredTexture("screen-right");
@@ -634,8 +696,25 @@ void makeObjects(char * dataPath)
 	showError("Required projectile animation is missing from external assets");
 	exit(1);
 	}
-
-    initFonts();
+    valuesFile = assetManifestFindFile(&externalAssets, "stroke-font");
+    if (valuesFile == NULL ||
+        strlen(dataPath) + strlen(valuesFile->path) + 1 > sizeof(fontPath))
+        {
+        showError("Stroke-font asset path is missing or too long");
+        exit(1);
+        }
+    strcpy(fontPath, dataPath);
+    strcat(fontPath, valuesFile->path);
+    valuesFile = assetManifestFindFile(&externalAssets, "ui-values");
+    if (valuesFile == NULL ||
+        strlen(dataPath) + strlen(valuesFile->path) + 1 > sizeof(uiPath))
+        {
+        showError("UI asset path is missing or too long");
+        exit(1);
+        }
+    strcpy(uiPath, dataPath);
+    strcat(uiPath, valuesFile->path);
+    initFonts(fontPath, uiPath);
     return;
     }
 

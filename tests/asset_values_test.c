@@ -49,5 +49,39 @@ int main(void)
         return 1;
         }
     assetValuesDestroy(&values);
+    if (!assetValuesLoad("assets/config/palette.values", &values,
+                         error, sizeof(error)))
+        {
+        fprintf(stderr, "palette values failed to load: %s\n", error);
+        return 1;
+        }
+    value = assetValuesFind(&values, "black");
+    if (value == NULL || value->componentCount != 4 ||
+        !nearValue(value->components[0], 0.2f) ||
+        !nearValue(value->components[3], 0.95f) ||
+        assetValuesFind(&values, "tree-2") == NULL)
+        {
+        fprintf(stderr, "unexpected external palette values\n");
+        assetValuesDestroy(&values);
+        return 1;
+        }
+    assetValuesDestroy(&values);
+    if (!assetValuesLoad("assets/config/ui.values", &values,
+                         error, sizeof(error)))
+        {
+        fprintf(stderr, "UI values failed to load: %s\n", error);
+        return 1;
+        }
+    value = assetValuesFind(&values, "energy-bar");
+    if (value == NULL || value->componentCount != 5 ||
+        !nearValue(value->components[0], -4.0f) ||
+        !nearValue(value->components[3], 4.81f) ||
+        assetValuesFind(&values, "summary-box") == NULL)
+        {
+        fprintf(stderr, "unexpected external UI values\n");
+        assetValuesDestroy(&values);
+        return 1;
+        }
+    assetValuesDestroy(&values);
     return 0;
     }

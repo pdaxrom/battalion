@@ -14,6 +14,8 @@
 /***********************************************************************/
 
 #include "battalion.h"
+#include "asset_values.h"
+#include "dynamic_primitives.h"
 
     /*************/
     /* colours   */
@@ -77,13 +79,72 @@ extern GLuint launchertank;
 
     GLuint strokeBase;
     char textline[80];
+    static struct AssetValues externalUiValues;
+
+static const struct AssetValue *requiredUiValue(const char *key,
+                                                size_t components)
+    {
+    const struct AssetValue *value;
+
+    value = assetValuesFind(&externalUiValues, key);
+    if (value == NULL || value->componentCount != components)
+        {
+        fprintf(stderr, "Required UI value is missing or invalid: %s\n", key);
+        showError("Required UI value is missing from assets");
+        exit(1);
+        }
+    return value;
+    }
+
+static float uiScalar(const char *key)
+    {
+    return requiredUiValue(key, 1)->components[0];
+    }
+
+static void uiRectangle(const char *key, float vertices[4][3])
+    {
+    const struct AssetValue *value;
+    float left;
+    float bottom;
+    float right;
+    float top;
+    float depth;
+
+    value = requiredUiValue(key, 5);
+    left = value->components[0];
+    bottom = value->components[1];
+    right = value->components[2];
+    top = value->components[3];
+    depth = value->components[4];
+    vertices[0][0] = left;
+    vertices[0][1] = top;
+    vertices[0][2] = depth;
+    vertices[1][0] = left;
+    vertices[1][1] = bottom;
+    vertices[1][2] = depth;
+    vertices[2][0] = right;
+    vertices[2][1] = bottom;
+    vertices[2][2] = depth;
+    vertices[3][0] = right;
+    vertices[3][1] = top;
+    vertices[3][2] = depth;
+    }
 
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
-void initFonts(void)
+void initFonts(const char *fontPath, const char *uiPath)
     {
+    char error[160];
+
+    assetValuesInitialize(&externalUiValues);
+    if (!assetValuesLoad(uiPath, &externalUiValues, error, sizeof(error)))
+	{
+	fprintf(stderr, "Could not load external UI values: %s\n", error);
+	showError("Can't load UI values");
+	exit(1);
+	}
     strokeBase = glGenLists(256);
-    if (tkCreateStrokeFont(strokeBase) == GL_FALSE)
+    if (tkCreateStrokeFont(strokeBase, fontPath) == GL_FALSE)
 	{
 	showError("Can't create font");
 	exit(1);
@@ -102,16 +163,18 @@ void showText(struct targetInfo * targets, float energy, int score,
     float pixtoSpace;
     struct targetInfo * temptarget;
     float drop;
+    float energyBar[4][3];
+    float *energyColor;
+    float energyLeft;
+    float energyRight;
 
 static    char energyEnglish[]		= "energy:";
 static    char pausedEnglish[]		= "<p>aused";
 static    char grabbedEnglish[]		= "<g>rabbed";
-    
-static float energyBar[4][3] = {
-	-4.0, 4.81, 0.0, 
-	-4.0, 4.39, 0.0, 
-	 0.0, 4.39, 0.0, 
-	 0.0, 4.81, 0.0};
+
+    uiRectangle("energy-bar", energyBar);
+    energyLeft = energyBar[0][0];
+    energyRight = energyBar[2][0];
 
     glPushAttrib(GL_DEPTH_BUFFER_BIT);
     
@@ -123,36 +186,25 @@ static float energyBar[4][3] = {
 
 
     if (energy > (MAXLIFE / 3))
-	glColor3fv(healthGreen);
+	energyColor = healthGreen;
     else if (energy > (MAXLIFE / 10))
-	glColor3fv(colorbrown); 
+	energyColor = colorbrown;
     else
-	glColor3fv(colorred); 
+	energyColor = colorred;
 	
-    energyBar[2][0] = energyBar[3][0] = energy / MAXLIFE * 3 - 4;
+    energyBar[2][0] = energyBar[3][0] = energyLeft +
+	energy / MAXLIFE * (energyRight - energyLeft);
 
     glPushAttrib(GL_POLYGON_BIT);
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL); 
 
-    glBegin(GL_QUADS);
-	glVertex3fv(energyBar[0]);
-	glVertex3fv(energyBar[1]);
-	glVertex3fv(energyBar[2]);
-	glVertex3fv(energyBar[3]);
-    glEnd(); 
+    dynamicDrawSolidQuad3(energyBar, energyColor);
 
 
-    energyBar[2][0] = energyBar[3][0] = -1;
+    energyBar[2][0] = energyBar[3][0] = energyRight;
 
 
-    glColor3fv(colorwhite);	
-	
-    glBegin(GL_LINE_LOOP);
-	glVertex3fv(energyBar[0]);
-	glVertex3fv(energyBar[1]);
-	glVertex3fv(energyBar[2]);
-	glVertex3fv(energyBar[3]);
-    glEnd(); 
+    dynamicDrawLineLoop3(energyBar, colorwhite);
 
     /************************************************/
     /* draw energy bar for any target on the screen */
@@ -172,31 +224,20 @@ static float energyBar[4][3] = {
 		energy = temptarget->monster.energyRemaining;
     
 		if (energy > (MAXLIFE / 3))
-		    glColor3fv(healthGreen);
+		    energyColor = healthGreen;
 		else if (energy > (MAXLIFE / 10))
-		    glColor3fv(colorbrown); 
+		    energyColor = colorbrown;
 		else
-		    glColor3fv(colorred); 
+		    energyColor = colorred;
 		    
-		energyBar[2][0] = energyBar[3][0] = energy / MAXLIFE * 3 - 4;
+		energyBar[2][0] = energyBar[3][0] = energyLeft +
+		    energy / MAXLIFE * (energyRight - energyLeft);
 	    
-		glBegin(GL_QUADS);
-		    glVertex3fv(energyBar[0]);
-		    glVertex3fv(energyBar[1]);
-		    glVertex3fv(energyBar[2]);
-		    glVertex3fv(energyBar[3]);
-		glEnd(); 
+		dynamicDrawSolidQuad3(energyBar, energyColor);
 	    
-		energyBar[2][0] = energyBar[3][0] = -1;
+		energyBar[2][0] = energyBar[3][0] = energyRight;
 	    
-		glColor3fv(colorwhite);	
-		    
-		glBegin(GL_LINE_LOOP);
-		    glVertex3fv(energyBar[0]);
-		    glVertex3fv(energyBar[1]);
-		    glVertex3fv(energyBar[2]);
-		    glVertex3fv(energyBar[3]);
-		glEnd(); 
+		dynamicDrawLineLoop3(energyBar, colorwhite);
     
 	    glPopMatrix();
     
@@ -282,12 +323,9 @@ void showScores(int itsChristmas, struct score* gscore, struct score* vscore,
     char textString[256];
     struct monsterInfo tempMonster;
     GLfloat lineWidthNow;
+    float scoreBox[4][3];
 
-static    float scoreBox[4][3] = {
-	-1,  0.42, 7.1,
-	-1, -0.6, 7.1,
-	 1, -0.6, 7.1, 
-	 1,  0.42, 7.1};
+    uiRectangle("score-box", scoreBox);
 
 glPushAttrib(GL_DEPTH_BUFFER_BIT);
 
@@ -304,29 +342,16 @@ glPushAttrib(GL_DEPTH_BUFFER_BIT);
     /* draw transparent brown background */
     /*************************************/
 
-    glColor4fv(colorbrown);
-
     glDisable(GL_DEPTH_TEST);
 
     if (detail <= 0)
 	{
-	glBegin(GL_QUADS);
-	    glVertex3fv(scoreBox[0]);
-	    glVertex3fv(scoreBox[1]);
-	    glVertex3fv(scoreBox[2]);
-	    glVertex3fv(scoreBox[3]);
-	glEnd();		
+	dynamicDrawSolidQuad3(scoreBox, colorbrown);
  	}
     else
 	{
 	glEnable(GL_BLEND);
-	
-	glBegin(GL_QUADS);
-	    glVertex3fv(scoreBox[0]);
-	    glVertex3fv(scoreBox[1]);
-	    glVertex3fv(scoreBox[2]);
-	    glVertex3fv(scoreBox[3]);
-	glEnd();		
+	dynamicDrawSolidQuad3(scoreBox, colorbrown);
      
 	glDisable(GL_BLEND);
 	}
@@ -339,7 +364,7 @@ glPushAttrib(GL_DEPTH_BUFFER_BIT);
 	glEnable(GL_DEPTH_TEST);
 
     glGetFloatv(GL_LINE_WIDTH, &lineWidthNow);
-    glLineWidth(2.01);
+    glLineWidth(uiScalar("overlay-model-line-width"));
 
 	    
     glPushMatrix();
@@ -905,17 +930,14 @@ void doOptions(struct monsterInfo monster, long xWin, int counter,
     float pixtoSpace;
     struct monsterInfo tempMonster;
     GLfloat lineWidthNow;
+    float optionsBox[4][3];
 
 static    char googelonEnglish[]	= "Googelon-6";    
 static    char techsEnglish[]		= "Techs-7";    
 static    char vapourEnglish[]		= "The Vapour-8";    
 static    char flutterEnglish[]		= "Flutter-9";
 
-    static float optionsBox[4][3] = {
-	-0.85,  0.5, 7.1,
-	-0.85, -1.0, 7.1,
-	 0.85, -1.0, 7.1, 
-	 0.85,  0.5, 7.1};
+    uiRectangle("options-box", optionsBox);
 
     glPushAttrib(GL_DEPTH_BUFFER_BIT);
  
@@ -934,27 +956,14 @@ static    char flutterEnglish[]		= "Flutter-9";
 
     glDisable(GL_DEPTH_TEST);
 
-    glColor4fv(colorbrown);
-
     if (detail <= 0)
 	{
-	glBegin(GL_QUADS);
-	    glVertex3fv(optionsBox[0]);
-	    glVertex3fv(optionsBox[1]);
-	    glVertex3fv(optionsBox[2]);
-	    glVertex3fv(optionsBox[3]);
-	glEnd();		
+	dynamicDrawSolidQuad3(optionsBox, colorbrown);
 	}
     else
 	{
 	glEnable(GL_BLEND);
-	
-	glBegin(GL_QUADS);
-	    glVertex3fv(optionsBox[0]);
-	    glVertex3fv(optionsBox[1]);
-	    glVertex3fv(optionsBox[2]);
-	    glVertex3fv(optionsBox[3]);
-	glEnd();		
+	dynamicDrawSolidQuad3(optionsBox, colorbrown);
     
 	glDisable(GL_BLEND);
 	}
@@ -1002,7 +1011,7 @@ static    char flutterEnglish[]		= "Flutter-9";
 	glEnable(GL_DEPTH_TEST);
 
     glGetFloatv(GL_LINE_WIDTH, &lineWidthNow);
-    glLineWidth(2.01);
+    glLineWidth(uiScalar("overlay-model-line-width"));
 	    
     glPushMatrix();
 	glTranslatef(-.5,  0.25,  7.2);
@@ -1050,12 +1059,9 @@ void doSummary(int monster,  int deadTime, long winX, int killtanks,
     char resultString[15];
     char monsterString[40];
     GLfloat lineWidthNow;
+    float summaryBox[4][3];
 
-static    float summaryBox[4][3] = {
-	-0.97,  0.25,  7.0,
-	-0.97, -1.05,  7.0,
-	 0.97, -1.05,  7.0, 
-	 0.97,  0.25,  7.0};
+    uiRectangle("summary-box", summaryBox);
 
     glPushAttrib(GL_DEPTH_BUFFER_BIT);
 
@@ -1065,27 +1071,14 @@ static    float summaryBox[4][3] = {
 
     glDisable(GL_DEPTH_TEST);
 
-    glColor4fv(colorbrown);
-    
     if (detail <= 0)
 	{
-	glBegin(GL_QUADS);
-	    glVertex3fv(summaryBox[0]);
-	    glVertex3fv(summaryBox[1]);
-	    glVertex3fv(summaryBox[2]);
-	    glVertex3fv(summaryBox[3]);
-	glEnd();		
+	dynamicDrawSolidQuad3(summaryBox, colorbrown);
 	}
     else
 	{
 	glEnable(GL_BLEND);
-	
-	glBegin(GL_QUADS);
-	    glVertex3fv(summaryBox[0]);
-	    glVertex3fv(summaryBox[1]);
-	    glVertex3fv(summaryBox[2]);
-	    glVertex3fv(summaryBox[3]);
-	glEnd();		
+	dynamicDrawSolidQuad3(summaryBox, colorbrown);
     
 	glDisable(GL_BLEND);
 	}
@@ -1239,7 +1232,7 @@ static    float summaryBox[4][3] = {
 	glEnable(GL_DEPTH_TEST);
 
     glGetFloatv(GL_LINE_WIDTH, &lineWidthNow);
-    glLineWidth(2.01);
+    glLineWidth(uiScalar("overlay-model-line-width"));
 
     if (killfighters > 0)
 	{
