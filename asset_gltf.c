@@ -89,6 +89,28 @@ static unsigned long readU32(const unsigned char *bytes)
            ((unsigned long)bytes[3] << 24);
     }
 
+static float readF32(const unsigned char *bytes)
+    {
+    unsigned char nativeBytes[4];
+    unsigned short endianTest;
+    float value;
+
+    if (sizeof(value) != 4)
+        return 0.0f;
+    endianTest = 1;
+    if (*(unsigned char *)&endianTest)
+        memcpy(nativeBytes, bytes, 4);
+    else
+        {
+        nativeBytes[0] = bytes[3];
+        nativeBytes[1] = bytes[2];
+        nativeBytes[2] = bytes[1];
+        nativeBytes[3] = bytes[0];
+        }
+    memcpy(&value, nativeBytes, sizeof(value));
+    return value;
+    }
+
 static struct JsonToken *allocateToken(struct JsonParser *parser,
                                        struct JsonToken *tokens,
                                        int tokenCapacity)
@@ -559,7 +581,6 @@ static double readComponent(const unsigned char *bytes, int componentType,
     short signedShort;
     unsigned short unsignedShort;
     unsigned long unsignedInt;
-    float floatValue;
 
     switch (componentType)
         {
@@ -584,8 +605,7 @@ static double readComponent(const unsigned char *bytes, int componentType,
             unsignedInt = readU32(bytes);
             return normalized ? unsignedInt / 4294967295.0 : unsignedInt;
         case 5126:
-            memcpy(&floatValue, bytes, sizeof(floatValue));
-            return floatValue;
+            return readF32(bytes);
         default:
             return 0.0;
         }

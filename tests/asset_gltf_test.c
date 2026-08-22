@@ -19,6 +19,34 @@ static void writeU32(FILE *file, unsigned long value)
     fwrite(bytes, 1, 4, file);
     }
 
+static void writeF32(FILE *file, float value)
+    {
+    unsigned char bytes[4];
+    unsigned char *nativeBytes;
+    unsigned short endianTest;
+
+    nativeBytes = (unsigned char *)&value;
+    endianTest = 1;
+    if (*(unsigned char *)&endianTest)
+        memcpy(bytes, nativeBytes, 4);
+    else
+        {
+        bytes[0] = nativeBytes[3];
+        bytes[1] = nativeBytes[2];
+        bytes[2] = nativeBytes[1];
+        bytes[3] = nativeBytes[0];
+        }
+    fwrite(bytes, 1, 4, file);
+    }
+
+static void writeF32Array(FILE *file, const float *values, size_t count)
+    {
+    size_t index;
+
+    for (index = 0; index < count; index++)
+        writeF32(file, values[index]);
+    }
+
 static int writeFixture(const char *path)
     {
     static const char jsonText[] =
@@ -82,10 +110,11 @@ static int writeFixture(const char *path)
     writeU32(file, (unsigned long)(sizeof(positions) + sizeof(indices) +
                                   sizeof(times) + sizeof(translations)));
     writeU32(file, 0x004e4942UL);
-    fwrite(positions, 1, sizeof(positions), file);
+    writeF32Array(file, positions, sizeof(positions) / sizeof(positions[0]));
     fwrite(indices, 1, sizeof(indices), file);
-    fwrite(times, 1, sizeof(times), file);
-    fwrite(translations, 1, sizeof(translations), file);
+    writeF32Array(file, times, sizeof(times) / sizeof(times[0]));
+    writeF32Array(file, translations,
+                  sizeof(translations) / sizeof(translations[0]));
     fclose(file);
     return 1;
     }
