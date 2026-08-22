@@ -2794,8 +2794,10 @@ void drawTanks(struct tank * allTanks,  int counter, struct monsterInfo G,
 	    
 	/* need to find the nearest target */
 	
-	radToNearestTarget = 10000;
 	nearestTarget = NULL;
+	nearestMonster = NULL;
+	radToNearestTarget = sqrt((cTank.x - G.x) * (cTank.x - G.x) +
+	                          (cTank.z - G.z) * (cTank.z - G.z));
     	for(temptarget = targs->next;temptarget != NULL;temptarget = temptarget->next)
 	    {
 	    rad = sqrt((cTank.x-temptarget->x) * (cTank.x-temptarget->x) + (cTank.z-temptarget->z) * (cTank.z-temptarget->z));
@@ -2805,18 +2807,6 @@ void drawTanks(struct tank * allTanks,  int counter, struct monsterInfo G,
 		nearestTarget = temptarget;
 		nearestMonster = &(temptarget->monster);
 		}
-	    }
-
-	/* need to compute radius to player's monster */
-
-	rad = sqrt((cTank.x - G.x) * (cTank.x - G.x) +
-	           (cTank.z - G.z) * (cTank.z - G.z));
-
-	if (rad < radToNearestTarget)
-	    {
-	    radToNearestTarget = rad;
-	    nearestMonster = NULL;
-	    nearestTarget = NULL;
 	    }
 
 	if (nearestMonster == NULL)
