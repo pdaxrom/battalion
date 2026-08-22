@@ -116,10 +116,13 @@ name their yaw and pitch nodes with `aim-yaw-node` and `aim-pitch-node`; mouse
 aim and IJKL then rotate only those authored GLB nodes. Pitch limits and hull
 steering rate are descriptor values as well.
 
-`vertical-offset` places the model origin relative to the battlefield plane.
-Collision height and player height frame third-person and first-person cameras
-independently, so a ground vehicle is not positioned like a tall monster and
-an air entity can retain its configured altitude. `first-person-eye-height`
+`vertical-offset` places only the model origin relative to the battlefield
+plane. `player-bottom` and `player-height` are respectively the lower and upper
+Y bounds of the controllable player's collision envelope, both relative to
+`PLANEY`; they do not inherit `vertical-offset`. This keeps ground creatures
+solid from the terrain up while allowing an air entity to declare clearance
+over low objects explicitly. `collision-height` describes the non-player actor
+above its model origin. `first-person-eye-height`
 sets the cockpit/eye position and `first-person-visible` controls whether the
 player model is drawn in that view. View 1 retains Battalion's original close
 third-person camera; true first-person is a separate view selected with 5.

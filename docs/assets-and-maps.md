@@ -150,11 +150,15 @@ parts, with descriptor-defined pitch limits and steering rate. The standard
 tank therefore turns its hull with A/D while the turret and barrel aim
 independently.
 
-The descriptor's `vertical-offset` is the model-origin height relative to
-`PLANEY`. `collision-height`, `player-height`, and `player-bottom` describe the
-physical/player envelope. Camera framing is derived from these authored values,
-so short ground vehicles, humanoids, tall monsters, and hovering aircraft do
-not require type-specific camera or placement code. View 1 remains the original
+The descriptor's `vertical-offset` is only the model-origin height relative to
+`PLANEY`. An actor's `collision-height` extends above that model origin. For a
+controllable player, `player-bottom` and `player-height` are the lower and upper
+collision-envelope bounds relative to `PLANEY`; neither value inherits
+`vertical-offset`. Ground actors normally start at `player-bottom 0`, while an
+air actor declares both bounds above the terrain so it can clear low objects
+without passing through tall structures. Camera framing is derived from these
+authored values, so short ground vehicles, humanoids, tall monsters, and
+hovering aircraft do not require type-specific camera or placement code. View 1 remains the original
 close third-person camera, while view 5 is first-person. First-person eye height and
 player-model visibility are also authored per entity.
 `model-yaw-offset` is a data-side correction for imported models whose visual

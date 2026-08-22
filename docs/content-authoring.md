@@ -530,9 +530,9 @@ capability first.
 | `controllable` | `no` | Include this archetype in player selection. |
 | `shortcut` | none | Unique one-character selection shortcut; requires controllable. |
 | `player-energy` | `50` | Maximum/start energy; positive. |
-| `player-height` | `1.3` | Player/camera envelope height; positive. |
+| `player-height` | `1.3` | Upper Y bound of the player collision envelope relative to `PLANEY`; must exceed `player-bottom`. |
 | `player-width` | `0.3` | Player envelope width; positive. |
-| `player-bottom` | `0` | Bottom of the player envelope relative to origin. |
+| `player-bottom` | `0` | Lower Y bound of the player collision envelope relative to `PLANEY`; does not inherit `vertical-offset`. |
 | `player-regen` | `0.1` | Energy regenerated per step; non-negative. |
 | `player-move-cost` | `0.1` | Movement energy cost; non-negative. |
 | `player-fire-cost` | `0.1` | Per-shot energy cost; non-negative. |
@@ -557,6 +557,13 @@ View 1 is the original close third-person chase view. View 5 is true
 first-person. Tune `vertical-offset`, collision/player dimensions, and
 `first-person-eye-height` together; do not compensate for a bad model origin by
 moving only the camera.
+
+`vertical-offset` moves the rendered/model origin. It does not move the
+controllable player's collision envelope. A ground actor normally uses
+`player-bottom 0`; an airborne actor must put both `player-bottom` and
+`player-height` above the terrain. This separation lets a helicopter pass over
+a low tank while still colliding with a building whose vertical interval
+reaches the helicopter.
 
 ## Sensors and perception zones
 

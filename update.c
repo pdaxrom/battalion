@@ -157,9 +157,9 @@ struct monsterInfo resetMonsterParameters(struct monsterInfo Googelon)
     Googelon.speed = playerEntity->speed;
     Googelon.xspeed = playerEntity->playerTurnRate;
     Googelon.moveCost = playerEntity->playerMoveCost;
-    Googelon.height = Googelon.y + playerEntity->playerHeight;
+    Googelon.height = PLANEY + playerEntity->playerHeight;
     Googelon.width = playerEntity->playerWidth;
-    Googelon.bottom = Googelon.y + playerEntity->playerBottom;
+    Googelon.bottom = PLANEY + playerEntity->playerBottom;
     Googelon.regenRate = playerEntity->playerRegen;
     
     return(Googelon);

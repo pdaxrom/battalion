@@ -47,9 +47,9 @@ spawn-weight 0
 spawn-after 0
 max-active 0
 player-energy 50
-player-height 0.4
+player-height 1.4
 player-width 0.3
-player-bottom 0
+player-bottom 1
 player-regen 0.1
 player-move-cost 0.06
 player-fire-cost 0.06

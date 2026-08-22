@@ -38,6 +38,18 @@ int main(void)
                                         10.6f, 10.0f, 0.25f, 0.2f, 0.8f),
                  "an airborne actor was blocked by an object below it"))
         return 1;
+    if (!require(worldCylindersOverlap(10.0f, 10.0f, 0.5f, -1.0f, 0.3f,
+                                       10.0f, 10.0f, 0.5f, -1.0f, 0.5f),
+                 "a ground creature passed through a building"))
+        return 1;
+    if (!require(!worldCylindersOverlap(10.0f, 10.0f, 0.5f, 0.0f, 0.4f,
+                                        10.0f, 10.0f, 0.5f, -1.0f, -0.7f),
+                 "an airborne player was blocked by a ground vehicle"))
+        return 1;
+    if (!require(worldCylindersOverlap(10.0f, 10.0f, 0.5f, 0.0f, 0.4f,
+                                       10.0f, 10.0f, 0.5f, -1.0f, 0.5f),
+                 "an airborne player passed through a tall building"))
+        return 1;
     if (!require(!worldVerticalIntervalsOverlap(1.0f, 1.5f, 0.0f, 1.0f),
                  "touching vertical bounds must not be a collision"))
         return 1;

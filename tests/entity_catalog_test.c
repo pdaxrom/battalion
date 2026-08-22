@@ -145,6 +145,8 @@ int main(void)
         vapour == NULL || techs == NULL ||
         !helicopter->controllable || !soldier->controllable ||
         helicopter->modelYawOffset != 180.0f ||
+        helicopter->playerBottom != 1.0f ||
+        helicopter->playerHeight != 1.4f ||
         !monster->controllable || !vapour->controllable ||
         helicopter->movement != ENTITY_MOVEMENT_AIR ||
         soldier->kind != ENTITY_KIND_NPC ||

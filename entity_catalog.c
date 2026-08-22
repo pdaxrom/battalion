@@ -643,6 +643,7 @@ static int validArchetype(const struct EntityArchetype *entry,
         entry->forgetRange < 0.0f || entry->animationSpeed <= 0.0f ||
         (entry->controllable &&
          (entry->playerEnergy <= 0.0f || entry->playerHeight <= 0.0f ||
+          entry->playerHeight <= entry->playerBottom ||
           entry->playerWidth <= 0.0f || entry->playerRegen < 0.0f ||
           entry->playerMoveCost < 0.0f || entry->playerFireCost < 0.0f ||
           entry->playerTurnRate <= 0.0f ||
