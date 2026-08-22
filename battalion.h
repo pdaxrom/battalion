@@ -478,6 +478,8 @@ struct sound
 	{
 #ifdef SGIVERSION
 	ALport audio_port;
+	int sampleIndex;
+	long samplePosition;
 #endif
 	struct sound * next;
 	int type;

@@ -107,6 +107,64 @@ static void selectMusicSlots(const char *backend)
     struct sound * allSounds;
     struct aSound oneSound[MAXSOUNDS];
 
+static int soundSampleComplete(struct sound *sound)
+    {
+    int sampleIndex;
+
+    sampleIndex = sound->sampleIndex;
+    if (sampleIndex < 0 || sampleIndex >= MAXSOUNDS)
+	return 1;
+    return sound->samplePosition >= oneSound[sampleIndex].numberSamples;
+    }
+
+static void pumpSound(struct sound *sound)
+    {
+    struct aSound *sample;
+    long available;
+    long remaining;
+    long writeCount;
+    long frameSize;
+
+    if (soundSampleComplete(sound))
+	return;
+
+    sample = &oneSound[sound->sampleIndex];
+    available = ALgetfillable(sound->audio_port);
+    if (available <= 0)
+	return;
+
+    remaining = sample->numberSamples - sound->samplePosition;
+    writeCount = available;
+    if (writeCount > remaining)
+	writeCount = remaining;
+
+    frameSize = sample->samplesPerFrame;
+    if (frameSize > 1)
+	writeCount -= writeCount % frameSize;
+    if (writeCount <= 0)
+	return;
+
+    if (ALwritesamps(sound->audio_port,
+		     sample->sampleBuffer + sound->samplePosition,
+		     writeCount) >= 0)
+	sound->samplePosition += writeCount;
+    }
+
+static int queueSoundSample(struct sound *sound, int sampleIndex)
+    {
+    if (!soundSampleComplete(sound))
+	return 0;
+    if (sampleIndex < 0 || sampleIndex >= MAXSOUNDS ||
+	oneSound[sampleIndex].sampleBuffer == NULL ||
+	oneSound[sampleIndex].numberSamples <= 0)
+	return 0;
+
+    sound->sampleIndex = sampleIndex;
+    sound->samplePosition = 0;
+    pumpSound(sound);
+    return 1;
+    }
+
 #endif
 #ifdef SUNAUDIO
 
@@ -544,7 +602,9 @@ void flushSounds()
     s = allSounds;
     while(s->next != NULL)
 	{
-	if(ALgetfilled(s->next->audio_port) <= 0)
+	pumpSound(s->next);
+	if (soundSampleComplete(s->next) &&
+	    ALgetfilled(s->next->audio_port) <= 0)
 	    {
 	    ALcloseport(s->next->audio_port);
 	    t = s->next;
@@ -747,16 +807,9 @@ void doSound(int theSound)
 				    if ((t != NULL) &&
 					(deadCount < deathMusicSlotCount))
 					{
-					if ((ALgetfilled(t->audio_port) +
-					     oneSound[deathMusicSlots[deadCount]].numberSamples <
-					     2 * oneSound[musicSlots[0]].samplesPerBuffer) &&
-					    (deadCount < 3))
-					    {
-					    ALwritesamps(t->audio_port,
-						oneSound[deathMusicSlots[deadCount]].sampleBuffer,
-						oneSound[deathMusicSlots[deadCount]].numberSamples);
+					if (queueSoundSample(t,
+						deathMusicSlots[deadCount]))
 					    deadCount = deadCount+1;
-					    }
 					}
 				    else if (deadCount < deathMusicSlotCount)
 					{
@@ -769,13 +822,9 @@ void doSound(int theSound)
 				    deadCount = 0;
 				    if (t != NULL)
 					{
-					if (ALgetfilled(t->audio_port) +
-					    oneSound[musicSlots[musicCount]].numberSamples <
-					    2 * oneSound[musicSlots[0]].samplesPerBuffer)
+					if (queueSoundSample(t,
+						musicSlots[musicCount]))
 					    {
-					    ALwritesamps(t->audio_port,
-						oneSound[musicSlots[musicCount]].sampleBuffer,
-						oneSound[musicSlots[musicCount]].numberSamples);
 					    musicCount = (musicCount+1) % musicSlotCount;
 					    }
 					}
@@ -812,10 +861,7 @@ void doSound(int theSound)
 					s = s->next;
 				if (t != NULL)
 				    {
-				    if(ALgetfilled(t->audio_port) <= oneSound[0].samplesPerBuffer)
-					ALwritesamps(t->audio_port,
-						    oneSound[0].sampleBuffer,
-						    oneSound[0].numberSamples);
+				    queueSoundSample(t, 0);
 				    }
 				else
 				    OutAudio(0);
@@ -838,10 +884,7 @@ void doSound(int theSound)
 					s = s->next;
 				if (t != NULL)
 				    {
-				    if(ALgetfilled(t->audio_port) <= oneSound[3].samplesPerBuffer)
-					ALwritesamps(t->audio_port,
-						    oneSound[3].sampleBuffer,
-						    oneSound[3].numberSamples);
+				    queueSoundSample(t, 3);
 				    }
 				else
 				    OutAudio(3);
@@ -1169,6 +1212,11 @@ void OutAudio(int sCounter)
     long pvbuf[4];
     long outputRate;
     struct sound * s;
+
+    if (sCounter < 0 || sCounter >= MAXSOUNDS ||
+	oneSound[sCounter].sampleBuffer == NULL ||
+	oneSound[sCounter].numberSamples <= 0)
+	return;
         
     pvbuf[0] = AL_OUTPUT_RATE;
     ALgetparams(AL_DEFAULT_DEVICE, pvbuf, 2);
@@ -1222,6 +1270,9 @@ void OutAudio(int sCounter)
 	else
 	    s->type = -1;
 
+	s->sampleIndex = sCounter;
+	s->samplePosition = 0;
+
 	s->next = allSounds->next;
 	allSounds->next = s;
 
@@ -1233,8 +1284,10 @@ void OutAudio(int sCounter)
 	    free(s);
 	    }
 	else
-	    ALwritesamps(s->audio_port, oneSound[sCounter].sampleBuffer, oneSound[sCounter].numberSamples);
+	    pumpSound(s);
 	}
+
+    ALfreeconfig(audioPortConfig);
 
 #endif
 # ifdef SUNAUDIO
