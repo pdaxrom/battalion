@@ -113,6 +113,7 @@ int main(void)
         tank->sensors[1].type != ENTITY_SENSOR_VISION ||
         tank->sensors[2].type != ENTITY_SENSOR_HEARING ||
         tank->reactionRules[0].reaction != ENTITY_REACTION_ATTACK ||
+        tank->reactionRules[0].phase != ENTITY_SENSOR_PHASE_ENTER ||
         strcmp(tank->reactionRules[0].emit, "base-alarm") != 0 ||
         !entityArchetypeIsHostileTo(tank, "monster") ||
         entityArchetypeIsHostileTo(tank, "army"))

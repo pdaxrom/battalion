@@ -41,6 +41,8 @@ int main(void)
     struct EntityWaypoint path[2];
     struct EntityAgent guard;
     struct EntityAgent receiver;
+    struct EntityAgent phaseAgent;
+    struct EntityArchetype phaseArchetype;
     struct EntityContact contacts[2];
     char error[256];
     int index;
@@ -106,12 +108,18 @@ int main(void)
         return 1;
         }
 
-    entityAgentInitialize(&receiver, tank, 20.0f, 20.0f, 0.0f,
+    entityAgentInitialize(&receiver, tank, 2.0f, 2.0f, 0.0f,
                           NULL, 0, ENTITY_PATROL_LOOP);
     if (!entityAgentQueueTrigger(&receiver, guard.events[0].name,
                                  &guard.events[0].contact))
         {
         fprintf(stderr, "trigger queue failed\n");
+        return 1;
+        }
+    entityAgentStep(&guard, contacts, 2);
+    if (guard.eventCount != 0)
+        {
+        fprintf(stderr, "enter sensor repeated while contact stayed\n");
         return 1;
         }
     entityAgentStep(&receiver, NULL, 0);
@@ -121,6 +129,56 @@ int main(void)
         {
         fprintf(stderr, "trigger failed: reaction=%d target=%s\n",
                 receiver.reaction, receiver.target.id);
+        return 1;
+        }
+
+    phaseArchetype = *tank;
+    phaseArchetype.sensorCount = 1;
+    strcpy(phaseArchetype.sensors[0].id, "test-zone");
+    strcpy(phaseArchetype.sensors[0].factionFilter, "hostile");
+    phaseArchetype.sensors[0].type = ENTITY_SENSOR_PROXIMITY;
+    phaseArchetype.sensors[0].range = 3.0f;
+    phaseArchetype.sensors[0].angle = 360.0f;
+    phaseArchetype.targetMode = ENTITY_TARGET_NEAREST;
+    phaseArchetype.reactionRuleCount = 3;
+    strcpy(phaseArchetype.reactionRules[0].event, "test-zone");
+    strcpy(phaseArchetype.reactionRules[0].emit, "zone-entered");
+    phaseArchetype.reactionRules[0].source = ENTITY_RULE_SENSOR;
+    phaseArchetype.reactionRules[0].phase = ENTITY_SENSOR_PHASE_ENTER;
+    phaseArchetype.reactionRules[0].reaction = ENTITY_REACTION_ALERT;
+    strcpy(phaseArchetype.reactionRules[1].event, "test-zone");
+    strcpy(phaseArchetype.reactionRules[1].emit, "zone-stayed");
+    phaseArchetype.reactionRules[1].source = ENTITY_RULE_SENSOR;
+    phaseArchetype.reactionRules[1].phase = ENTITY_SENSOR_PHASE_STAY;
+    phaseArchetype.reactionRules[1].reaction = ENTITY_REACTION_PURSUE;
+    strcpy(phaseArchetype.reactionRules[2].event, "test-zone");
+    strcpy(phaseArchetype.reactionRules[2].emit, "zone-exited");
+    phaseArchetype.reactionRules[2].source = ENTITY_RULE_SENSOR;
+    phaseArchetype.reactionRules[2].phase = ENTITY_SENSOR_PHASE_EXIT;
+    phaseArchetype.reactionRules[2].reaction = ENTITY_REACTION_OBSERVE;
+    entityAgentInitialize(&phaseAgent, &phaseArchetype, 0.0f, 0.0f, 0.0f,
+                          NULL, 0, ENTITY_PATROL_LOOP);
+    contact(&contacts[0], "phase-contact", 0.0f, 1.0f, 1, 1);
+    entityAgentStep(&phaseAgent, contacts, 1);
+    if (phaseAgent.eventCount != 1 ||
+        strcmp(phaseAgent.events[0].name, "zone-entered") != 0)
+        {
+        fprintf(stderr, "sensor enter phase failed\n");
+        return 1;
+        }
+    entityAgentStep(&phaseAgent, contacts, 1);
+    if (phaseAgent.eventCount != 1 ||
+        strcmp(phaseAgent.events[0].name, "zone-stayed") != 0)
+        {
+        fprintf(stderr, "sensor stay phase failed\n");
+        return 1;
+        }
+    entityAgentStep(&phaseAgent, NULL, 0);
+    if (phaseAgent.eventCount != 1 ||
+        strcmp(phaseAgent.events[0].name, "zone-exited") != 0 ||
+        phaseAgent.events[0].contact.active)
+        {
+        fprintf(stderr, "sensor exit phase failed\n");
         return 1;
         }
 

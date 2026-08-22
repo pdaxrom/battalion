@@ -1651,7 +1651,6 @@ static void updateDataEntity(struct tank *tank, struct tank *allTanks,
     else
         tank->rad = 0;
     fireDataEntity(tank, allTanks, player, targetList);
-    routeDataEntityEvents(tank, allTanks);
     }
 
 static void updateConfiguredPlayerWeapon(void)
@@ -2205,9 +2204,16 @@ void updateTanks(struct tank * allTanks, float width, float height,
 		afree(killertank, arena);
 
 		}
-	    else
-		temptank = temptank->next;
+	else
+	    temptank = temptank->next;
 	}
+
+    /* Deliver data-driven events only after every agent has completed its
+       simulation step.  Receivers consume this queue on the next step, so
+       trigger timing no longer depends on linked-list order. */
+    for (ttank = allTanks->next; ttank != NULL; ttank = ttank->next)
+	if (ttank->type == DATAENTITY)
+	    routeDataEntityEvents(ttank, allTanks);
 
     /**********************************************************/
     /* if some vehicle is firing a maser then do maser sound  */

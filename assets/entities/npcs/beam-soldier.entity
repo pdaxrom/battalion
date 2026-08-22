@@ -36,10 +36,10 @@ sensor nearby proximity 1.5 360 hostile
 sensor sight vision 8 100 hostile
 sensor noise hearing 10 360 hostile
 sensor damaged damage 0 360 hostile
-on-sensor nearby attack squad-alert
-on-sensor sight attack squad-alert
-on-sensor noise investigate squad-alert
-on-sensor damaged attack squad-alert
+on-enter nearby attack squad-alert
+on-enter sight attack squad-alert
+on-enter noise investigate squad-alert
+on-enter damaged attack squad-alert
 on-trigger squad-alert attack none
 spawn-weight 0
 spawn-after 0

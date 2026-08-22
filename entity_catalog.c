@@ -586,8 +586,8 @@ static int addSensor(struct EntityArchetype *entry, const char *id,
     }
 
 static int addReactionRule(struct EntityArchetype *entry, int source,
-                           const char *event, const char *reaction,
-                           const char *emit)
+                           int phase, const char *event,
+                           const char *reaction, const char *emit)
     {
     struct EntityReactionRule *rule;
     int parsedReaction;
@@ -603,6 +603,7 @@ static int addReactionRule(struct EntityArchetype *entry, int source,
     copyName(rule->event, event);
     copyName(rule->emit, emit);
     rule->source = source;
+    rule->phase = phase;
     rule->reaction = parsedReaction;
     return 1;
     }
@@ -717,13 +718,27 @@ static int loadArchetype(const char *path, struct EntityArchetype *entry,
                 goto invalid;
             }
         else if (strcmp(directive, "on-sensor") == 0 ||
+                 strcmp(directive, "on-enter") == 0 ||
+                 strcmp(directive, "on-stay") == 0 ||
+                 strcmp(directive, "on-exit") == 0 ||
                  strcmp(directive, "on-trigger") == 0)
             {
+            int source;
+            int phase;
+
+            source = ENTITY_RULE_SENSOR;
+            phase = ENTITY_SENSOR_PHASE_ANY;
+            if (strcmp(directive, "on-trigger") == 0)
+                source = ENTITY_RULE_TRIGGER;
+            else if (strcmp(directive, "on-enter") == 0)
+                phase = ENTITY_SENSOR_PHASE_ENTER;
+            else if (strcmp(directive, "on-stay") == 0)
+                phase = ENTITY_SENSOR_PHASE_STAY;
+            else if (strcmp(directive, "on-exit") == 0)
+                phase = ENTITY_SENSOR_PHASE_EXIT;
             if (fields != 4 ||
-                !addReactionRule(entry,
-                    strcmp(directive, "on-sensor") == 0 ?
-                        ENTITY_RULE_SENSOR : ENTITY_RULE_TRIGGER,
-                    value, argument2, argument3))
+                !addReactionRule(entry, source, phase, value, argument2,
+                                 argument3))
                 goto invalid;
             }
         else if (fields != 2 ||

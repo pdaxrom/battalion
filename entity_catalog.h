@@ -21,7 +21,7 @@
 #define ENTITY_PATH_SIZE 256
 #define ENTITY_MAX_HOSTILE_FACTIONS 8
 #define ENTITY_MAX_SENSORS 8
-#define ENTITY_MAX_REACTION_RULES 16
+#define ENTITY_MAX_REACTION_RULES 32
 
 #define ENTITY_KIND_VEHICLE 1
 #define ENTITY_KIND_NPC 2
@@ -55,6 +55,11 @@
 #define ENTITY_RULE_SENSOR 1
 #define ENTITY_RULE_TRIGGER 2
 
+#define ENTITY_SENSOR_PHASE_ANY 0
+#define ENTITY_SENSOR_PHASE_ENTER 1
+#define ENTITY_SENSOR_PHASE_STAY 2
+#define ENTITY_SENSOR_PHASE_EXIT 3
+
 #define ENTITY_REACTION_OBSERVE 0
 #define ENTITY_REACTION_ALERT 1
 #define ENTITY_REACTION_INVESTIGATE 2
@@ -81,6 +86,7 @@ struct EntityReactionRule
     char event[ENTITY_NAME_SIZE];
     char emit[ENTITY_NAME_SIZE];
     int source;
+    int phase;
     int reaction;
     };
 

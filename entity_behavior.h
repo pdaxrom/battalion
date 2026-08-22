@@ -22,6 +22,8 @@
 #define ENTITY_MAX_CONTACTS 8
 #define ENTITY_MAX_EVENTS 16
 #define ENTITY_MAX_PENDING_TRIGGERS 8
+#define ENTITY_MAX_SENSOR_DETECTIONS \
+    (ENTITY_MAX_SENSORS * ENTITY_MAX_CONTACTS)
 
 #define ENTITY_PATROL_LOOP 1
 #define ENTITY_PATROL_PINGPONG 2
@@ -56,6 +58,12 @@ struct EntityPendingTrigger
     struct EntityContact contact;
     };
 
+struct EntitySensorDetection
+    {
+    int sensorIndex;
+    struct EntityContact contact;
+    };
+
 struct EntityAgent
     {
     const struct EntityArchetype *archetype;
@@ -85,6 +93,9 @@ struct EntityAgent
     size_t eventCount;
     struct EntityPendingTrigger pending[ENTITY_MAX_PENDING_TRIGGERS];
     size_t pendingCount;
+    struct EntitySensorDetection previousDetections[
+        ENTITY_MAX_SENSOR_DETECTIONS];
+    size_t previousDetectionCount;
     };
 
 void entityAgentInitialize(struct EntityAgent *agent,
