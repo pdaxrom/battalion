@@ -157,7 +157,7 @@ void initFonts(const char *fontPath, const char *uiPath)
 
 void showText(struct targetInfo * targets, float energy, int score,
 	    long winX, int paused, int grabbed, int weaponUsesReload,
-	    float weaponReadiness)
+	    float weaponReadiness, float viewerX, float viewerZ)
     {
     float pixtoSpace;
     struct targetInfo * temptarget;
@@ -238,7 +238,8 @@ static    char reloadEnglish[]		= "reload";
 	{
 	drop = 0;
 	for(temptarget = targets->next; temptarget != NULL; temptarget = temptarget->next)
-	    if ((fabs(temptarget->x) <= PLANESIZE) && (fabs(temptarget->z) <= PLANESIZE))
+	    if ((fabs(temptarget->x - viewerX) <= PLANESIZE) &&
+	        (fabs(temptarget->z - viewerZ) <= PLANESIZE))
 	    {
 	    drop -=0.6;
     

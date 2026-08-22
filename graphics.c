@@ -1935,7 +1935,8 @@ void drawHill3(int sidemod, int itsChristmas)
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
 void drawtrees(struct tree * allTreesOnPlane, int numTreesOnPlane, int counter, 
-		int detail, int itsChristmas, int view)
+		int detail, int itsChristmas, int view,
+		float viewerX, float viewerZ)
     {
     
     float x, y, z;
@@ -1953,7 +1954,9 @@ void drawtrees(struct tree * allTreesOnPlane, int numTreesOnPlane, int counter,
 	    glShadeModel(GL_FLAT);
 
 
-	if (((fabs(allTreesOnPlane[treeCounter].x) <= PLANESIZE) && (fabs(allTreesOnPlane[treeCounter].z) <= PLANESIZE)) || (view == MAPVIEW))
+	if (((fabs(allTreesOnPlane[treeCounter].x - viewerX) <= PLANESIZE) &&
+	     (fabs(allTreesOnPlane[treeCounter].z - viewerZ) <= PLANESIZE)) ||
+	    (view == MAPVIEW))
 	    {
 	    x = allTreesOnPlane[treeCounter].x;
 	    y = allTreesOnPlane[treeCounter].y;
@@ -2350,7 +2353,8 @@ void drawConfiguredPlayerEntity(const struct EntityArchetype *archetype,
     drawExternalEntity(&entity, counter, destroyed);
     }
 
-void drawSlagTanks(struct tank * allSlags, int counter, int detail)
+void drawSlagTanks(struct tank * allSlags, int counter, int detail,
+		   float viewerX, float viewerZ)
     {    
     const struct AssetValue *groundScale;
     const struct AssetValue *maserScale;
@@ -2369,7 +2373,8 @@ void drawSlagTanks(struct tank * allSlags, int counter, int detail)
     
     for(ttank = allSlags->next;ttank != NULL;ttank = ttank->next)
 	{
-	if ((fabs(ttank->x) <= PLANESIZE) && (fabs(ttank->z) <= PLANESIZE))
+	if ((fabs(ttank->x - viewerX) <= PLANESIZE) &&
+	    (fabs(ttank->z - viewerZ) <= PLANESIZE))
 	    {
 	    angle2 = ttank->theta * RAD_TO_SMALL_DEG;
 
@@ -2585,7 +2590,8 @@ void drawTanks(struct tank * allTanks,  int counter, struct monsterInfo G,
 	{
 	cTank = *temptank;
 	
-	if (((fabs(cTank.x) <= PLANESIZE) && (fabs(cTank.z) <= PLANESIZE)) || (view == MAPVIEW))
+	if (((fabs(cTank.x - G.x) <= PLANESIZE) &&
+	     (fabs(cTank.z - G.z) <= PLANESIZE)) || (view == MAPVIEW))
 	    {
 	    
 	    
@@ -2606,7 +2612,8 @@ void drawTanks(struct tank * allTanks,  int counter, struct monsterInfo G,
 
 	/* need to compute radius to player's monster */
 
-	rad = sqrt(cTank.x * cTank.x + cTank.z * cTank.z);
+	rad = sqrt((cTank.x - G.x) * (cTank.x - G.x) +
+	           (cTank.z - G.z) * (cTank.z - G.z));
 
 	if (rad < radToNearestTarget)
 	    {
@@ -2620,8 +2627,8 @@ void drawTanks(struct tank * allTanks,  int counter, struct monsterInfo G,
 	    monsterIsDead = G.monsterIsDead;
 	    height = G.height;
 	    bottom = G.bottom;
-	    xloc = 0;
-	    zloc = 0;
+	    xloc = G.x;
+	    zloc = G.z;
 	    }
 	else
 	    {
@@ -2801,10 +2808,12 @@ void drawTanks(struct tank * allTanks,  int counter, struct monsterInfo G,
 		/**********************************/
 
 		if ((cTank.type == HERO) && (cTank.subtype == 1) && (cTank.maserCount > 10) && (cTank.maserCount < 30))
+		    {
 		    if (nearestTarget)
     			drawHeroWeapon(nearestTarget->x, nearestTarget->z, cTank.x, cTank.y + 0.275, cTank.z, colormaserblue, height, bottom);
 		    else
-    			drawHeroWeapon(0, 0, cTank.x, cTank.y + 0.275, cTank.z, colormaserblue, height, bottom);
+			drawHeroWeapon(G.x, G.z, cTank.x, cTank.y + 0.275, cTank.z, colormaserblue, height, bottom);
+		    }
 
 		if (cTank.type == DATAENTITY && cTank.maserCount > 0 &&
 		    cTank.dataArchetype->weapon == ENTITY_WEAPON_BEAM &&
@@ -2831,9 +2840,13 @@ void drawHeroWeapon(float targetx, float targetz, float x, float y,
     {
     float vertices[4][3];
     float colors[4][3];
-    float rad,  angle,  r;
+    float rad;
+    float directionX, directionZ;
+    float perpendicularX, perpendicularZ;
+    float sourceX, sourceZ;
     float midPoint;
     float sourceRadius;
+    float sourceWidth;
     float targetRadius;
     float verticalSourceRadius;
     float verticalTargetRadius;
@@ -2844,38 +2857,35 @@ void drawHeroWeapon(float targetx, float targetz, float x, float y,
     glGetIntegerv(GL_SHADE_MODEL, &shadeNow);
     backNow = glIsEnabled(GL_CULL_FACE);
     
-    rad = sqrt(x * x + z * z);
+    directionX = x - targetx;
+    directionZ = z - targetz;
+    rad = sqrt(directionX * directionX + directionZ * directionZ);
     
     if (rad == 0)
 	rad = NEARZERO;
-	
-    r = effectScalar("hero-angle-radius") / rad;
+    directionX /= rad;
+    directionZ /= rad;
+    perpendicularX = -directionZ;
+    perpendicularZ = directionX;
+    sourceWidth = effectScalar("hero-angle-radius");
     sourceRadius = effectScalar("hero-source-radius");
     targetRadius = effectScalar("hero-target-radius");
     verticalSourceRadius = effectScalar("hero-vertical-source-radius");
     verticalTargetRadius = effectScalar("hero-vertical-target-radius");
     
-    if (z == 0)
-	z = NEARZERO;
-
-    angle = atan(x / z);
-
-    if (z > 0)
-	angle += PI;
-   
-    angle += PI;
-     
     midPoint = 0.5 * (height - bottom) + bottom;
+    sourceX = x - directionX * sourceRadius;
+    sourceZ = z - directionZ * sourceRadius;
     
     glShadeModel(GL_SMOOTH);
     glDisable(GL_CULL_FACE);
 
-    vertices[0][0] = (rad - sourceRadius) * sin(angle + r);
+    vertices[0][0] = sourceX + perpendicularX * sourceWidth;
     vertices[0][1] = y;
-    vertices[0][2] = (rad - sourceRadius) * cos(angle + r);
-    vertices[1][0] = (rad - sourceRadius) * sin(angle - r);
+    vertices[0][2] = sourceZ + perpendicularZ * sourceWidth;
+    vertices[1][0] = sourceX - perpendicularX * sourceWidth;
     vertices[1][1] = y;
-    vertices[1][2] = (rad - sourceRadius) * cos(angle - r);
+    vertices[1][2] = sourceZ - perpendicularZ * sourceWidth;
     vertices[2][0] = targetx - targetRadius;
     vertices[2][1] = midPoint;
     vertices[2][2] = targetz - targetRadius;
@@ -2889,9 +2899,9 @@ void drawHeroWeapon(float targetx, float targetz, float x, float y,
 
     /* make beam viewable from side */
 
-    vertices[0][0] = (rad - sourceRadius) * sin(angle);
+    vertices[0][0] = sourceX;
     vertices[0][1] = y + verticalSourceRadius;
-    vertices[0][2] = (rad - sourceRadius) * cos(angle);
+    vertices[0][2] = sourceZ;
     vertices[1][0] = vertices[0][0];
     vertices[1][1] = y - verticalSourceRadius;
     vertices[1][2] = vertices[0][2];
@@ -3314,11 +3324,13 @@ void drawProjectiles(struct projectile * allProjs, int counter,
 
     beamCounter = 0;
     for (temp = allProjs->next;temp != NULL;temp = temp->next)
-	if ((fabs(temp->x) <= PLANESIZE) && (fabs(temp->z) <= PLANESIZE) &&
+	if ((viewer == NULL ||
+	     (fabs(temp->x - viewer->x) <= PLANESIZE &&
+	      fabs(temp->z - viewer->z) <= PLANESIZE)) &&
 	    !(currentView == FIRSTPERSONVIEW && viewer != NULL &&
 	      ((temp->mine == viewer && temp->count < ARMCOUNT) ||
-	       (fabs(temp->x) <= viewer->width &&
-	        fabs(temp->z) <= viewer->width &&
+	       (fabs(temp->x - viewer->x) <= viewer->width &&
+	        fabs(temp->z - viewer->z) <= viewer->width &&
 	        temp->y >= viewer->bottom && temp->y <= viewer->height))))
 	    {
 	    x = temp->x;
@@ -3403,7 +3415,9 @@ void drawProjectiles(struct projectile * allProjs, int counter,
     for (i=0;i<fireCounter;i++)
 	{
 	col[1] = fires[i].col;
-	if ((fabs(fires[i].x) <= PLANESIZE) && (fabs(fires[i].z) <= PLANESIZE))
+	if ((viewer == NULL) ||
+	    ((fabs(fires[i].x - viewer->x) <= PLANESIZE) &&
+	     (fabs(fires[i].z - viewer->z) <= PLANESIZE)))
 	    {
 	    glColor4fv(col);
 	    glPushMatrix();

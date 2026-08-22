@@ -234,38 +234,6 @@ void entityAgentNotifyDamage(struct EntityAgent *agent,
     agent->targetZ = source->z;
     }
 
-static void translateContact(struct EntityContact *contact, float x, float z)
-    {
-    contact->x += x;
-    contact->z += z;
-    }
-
-void entityAgentTranslate(struct EntityAgent *agent, float x, float z)
-    {
-    size_t index;
-
-    if (agent == NULL)
-        return;
-    agent->x += x;
-    agent->z += z;
-    agent->homeX += x;
-    agent->homeZ += z;
-    agent->targetX += x;
-    agent->targetZ += z;
-    agent->waypointOffsetX += x;
-    agent->waypointOffsetZ += z;
-    translateContact(&agent->target, x, z);
-    translateContact(&agent->damageSource, x, z);
-    for (index = 0; index < ENTITY_MAX_CONTACTS; index++)
-        translateContact(&agent->contacts[index], x, z);
-    for (index = 0; index < agent->eventCount; index++)
-        translateContact(&agent->events[index].contact, x, z);
-    for (index = 0; index < agent->pendingCount; index++)
-        translateContact(&agent->pending[index].contact, x, z);
-    for (index = 0; index < agent->previousDetectionCount; index++)
-        translateContact(&agent->previousDetections[index].contact, x, z);
-    }
-
 static void processTriggers(struct EntityAgent *agent)
     {
     size_t index;

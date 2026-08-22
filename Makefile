@@ -99,7 +99,7 @@ SOURCES := \
 
 SOURCES += asset.c asset_gltf.c asset_animation.c asset_render.c \
 	asset_manifest.c asset_bindings.c asset_tga.c asset_values.c stroke_font_asset.c \
-	audio_catalog.c entity_catalog.c entity_behavior.c
+	audio_catalog.c entity_catalog.c entity_behavior.c world_coordinates.c
 
 PLATFORM_CPPFLAGS :=
 PLATFORM_LDFLAGS :=
@@ -289,6 +289,7 @@ ASSET_BINDINGS_TEST := $(TEST_BUILD_DIR)/asset-bindings-test
 ENTITY_CATALOG_TEST := $(TEST_BUILD_DIR)/entity-catalog-test
 ENTITY_BEHAVIOR_TEST := $(TEST_BUILD_DIR)/entity-behavior-test
 NO_EMBEDDED_ASSETS_TEST := $(TEST_BUILD_DIR)/no-embedded-assets-test
+WORLD_COORDINATES_TEST := $(TEST_BUILD_DIR)/world-coordinates-test
 
 $(MAP_TEST): tests/map_test.c map.c map.h map_package.c map_package.h entity_behavior.c entity_behavior.h entity_catalog.c entity_catalog.h Makefile | $(TEST_BUILD_DIR)
 	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< map.c map_package.c entity_behavior.c entity_catalog.c -lm -o $@
@@ -320,10 +321,13 @@ $(ENTITY_BEHAVIOR_TEST): tests/entity_behavior_test.c entity_behavior.c entity_b
 $(NO_EMBEDDED_ASSETS_TEST): tests/no_embedded_assets_test.c Makefile | $(TEST_BUILD_DIR)
 	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< -o $@
 
+$(WORLD_COORDINATES_TEST): tests/world_coordinates_test.c world_coordinates.c world_coordinates.h Makefile | $(TEST_BUILD_DIR)
+	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< world_coordinates.c -o $@
+
 $(TEST_BUILD_DIR):
 	mkdir -p $@
 
-test: c89-check $(MAP_TEST) $(ASSET_TEST) $(ASSET_CATALOG_TEST) $(ASSET_VALUES_TEST) $(STROKE_FONT_TEST) $(AUDIO_CATALOG_TEST) $(ASSET_BINDINGS_TEST) $(ENTITY_CATALOG_TEST) $(ENTITY_BEHAVIOR_TEST) $(NO_EMBEDDED_ASSETS_TEST)
+test: c89-check $(MAP_TEST) $(ASSET_TEST) $(ASSET_CATALOG_TEST) $(ASSET_VALUES_TEST) $(STROKE_FONT_TEST) $(AUDIO_CATALOG_TEST) $(ASSET_BINDINGS_TEST) $(ENTITY_CATALOG_TEST) $(ENTITY_BEHAVIOR_TEST) $(NO_EMBEDDED_ASSETS_TEST) $(WORLD_COORDINATES_TEST)
 	./$(MAP_TEST)
 	./$(ASSET_TEST)
 	./$(ASSET_CATALOG_TEST)
@@ -334,6 +338,7 @@ test: c89-check $(MAP_TEST) $(ASSET_TEST) $(ASSET_CATALOG_TEST) $(ASSET_VALUES_T
 	./$(ENTITY_CATALOG_TEST)
 	./$(ENTITY_BEHAVIOR_TEST)
 	./$(NO_EMBEDDED_ASSETS_TEST)
+	./$(WORLD_COORDINATES_TEST)
 
 clean:
 	rm -rf build

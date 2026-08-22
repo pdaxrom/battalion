@@ -77,9 +77,10 @@ build/macos-metal-none/battalion --map 1
 build/macos-metal-none/battalion --map Andyville
 ```
 
-The runtime still dynamically spawns enemies, applies destruction, expands
-some compact map markers, and shifts world coordinates around the player. That
-runtime behavior is separate from the authored map layout.
+The runtime still dynamically spawns enemies, applies destruction, and expands
+some compact map markers. The map and every live object keep stable map-world
+coordinates. Player movement changes the player's coordinates; a camera-only
+transform centres the rendered view without moving gameplay state.
 
 ## Unified map package
 
@@ -199,8 +200,8 @@ optional patrol mode/waypoints, and zero or more trigger routes. A route sends
 an emitted event to a configured target actor id or group and carries the
 original perceived contact. Thus one guard can raise an alarm that activates or
 retargets any number of other configured actors. Actor positions and paths are
-authored in map-world coordinates; the runtime rebases the entire live agent
-state together as the player moves.
+authored in map-world coordinates. Those coordinates remain stable while the
+player moves; trigger contacts and paths therefore never depend on the camera.
 
 A minimal actor looks like this:
 

@@ -150,13 +150,16 @@ struct monsterInfo resetMonsterParameters(struct monsterInfo Googelon)
 	return Googelon;
 	}
     Googelon.dataArchetype = playerEntity;
+    Googelon.x = 0.0f;
+    Googelon.z = 0.0f;
+    Googelon.y = PLANEY + playerEntity->verticalOffset;
     Googelon.energyRemaining = playerEntity->playerEnergy;
     Googelon.speed = playerEntity->speed;
     Googelon.xspeed = playerEntity->playerTurnRate;
     Googelon.moveCost = playerEntity->playerMoveCost;
-    Googelon.height = PLANEY + playerEntity->playerHeight;
+    Googelon.height = Googelon.y + playerEntity->playerHeight;
     Googelon.width = playerEntity->playerWidth;
-    Googelon.bottom = PLANEY + playerEntity->playerBottom;
+    Googelon.bottom = Googelon.y + playerEntity->playerBottom;
     Googelon.regenRate = playerEntity->playerRegen;
     
     return(Googelon);
@@ -561,13 +564,14 @@ void updateBeam(struct monsterInfo * g,  struct targetInfo * t, float x, float z
 
 	if (g != m)
 	    {
-	    if ((0 - loc1[2]) == 0)
+	    if ((g->z - loc1[2]) == 0)
 		loc1[2] += NEARZERO; 
     
-	    rtankhorz = fabs(sqrt(loc1[0]*loc1[0] + loc1[2]*loc1[2]));
-	    atankhorz = atan( loc1[0] / loc1[2]);
+	    rtankhorz = fabs(sqrt(pow(g->x - loc1[0], 2) +
+	                           pow(g->z - loc1[2], 2)));
+	    atankhorz = atan((g->x - loc1[0]) / (g->z - loc1[2]));
     
-	    if (-loc1[2] < 0)
+	    if ((g->z - loc1[2]) < 0)
 		atankhorz += PI;
 	
 	    tankx = rtankhorz * sin(atankhorz + hdiff);

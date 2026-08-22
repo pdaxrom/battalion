@@ -51,9 +51,6 @@ int tankModulator   = 0;
 
 char hostAddr[40];
 
-extern float globalxshift;
-extern float globalzshift;
-
 extern struct targetInfo * targets;
 
 static int monsterNetworkCode(struct monsterInfo monster)
@@ -313,9 +310,9 @@ void addNewNetworkTank(char * recvline, struct tank * tanklist,
 	temptank->goforit	= NULL;
 	
 	temptank->number	= number;
-	temptank->x		= x + globalxshift;;
+	temptank->x		= x;
 	temptank->y		= -1;
-	temptank->z		= z + globalxshift;;
+	temptank->z		= z;
 
 	temptank->xv		= 0;
 	temptank->zv		= 0;
@@ -370,8 +367,8 @@ void updateNetworkTank(char * recvline, struct tank * tanklist)
 	fprintf(stderr, "%s \n", recvline);
 	fprintf(stderr, "UPDATING TANK %d %f %f %f %d \n", number, x, y, z, maserCount);
 */
-	foundtank->x	= x + globalxshift;
-	foundtank->z	= z + globalzshift;
+	foundtank->x	= x;
+	foundtank->z	= z;
 	
 	if (maserCount > 1)
 	    foundtank->maserCount = 10;
@@ -396,8 +393,8 @@ void tellAboutAllTanks(struct sockaddr_in * cli, int length
 
 	sprintf(mesg, "%s %d %3.1f %3.1f %3.1f %3.1f %d %d #", MESG_NEW_TANK,
 						 tempTank->number, 
-						 tempTank->x-globalxshift, 
-						 tempTank->z-globalzshift, 
+						 tempTank->x,
+						 tempTank->z,
 						 tempTank->finalR,
 						 tempTank->speed,
 						 tempTank->type, 
@@ -454,8 +451,8 @@ void updateNetworkMonsters(char * recvline, long clientFrom, void * arena)
 	thaOne->net_headHorzRotate	= n_horzrot;
 	thaOne->net_headVertRotate	= n_vertrot;
 	thaOne->net_energyRemaining	= n_energy;
-	thaOne->net_x			= n_x + globalxshift;
-	thaOne->net_z			= n_z + globalzshift;
+	thaOne->net_x			= n_x;
+	thaOne->net_z			= n_z;
 	thaOne->net_beamOn		= n_beamOn;
 	}
     else if (n_timeDead < 40)
@@ -465,7 +462,7 @@ void updateNetworkMonsters(char * recvline, long clientFrom, void * arena)
 	/*******************************/
 	
 	addNetworkTarget(clientFrom, n_monsterType, n_horzrot, n_vertrot, 
-	    n_energy, n_x + globalxshift, n_z + globalzshift, n_beamOn, arena);
+	    n_energy, n_x, n_z, n_beamOn, arena);
 	}
     }
 
@@ -597,8 +594,8 @@ void updateClientMonster(char * recvline, void * arena)
 	thaOne->net_headHorzRotate	= n_horzrot;
 	thaOne->net_headVertRotate	= n_vertrot;
 	thaOne->net_energyRemaining	= n_energy;
-	thaOne->net_x			= n_x + globalxshift;
-	thaOne->net_z			= n_z + globalzshift;
+	thaOne->net_x			= n_x;
+	thaOne->net_z			= n_z;
 	thaOne->net_beamOn		= n_beamOn;
 	}
     else if (n_timeDead < 40)
@@ -608,7 +605,7 @@ void updateClientMonster(char * recvline, void * arena)
 	/*******************************/
 	
 	addNetworkTarget(recvfrom, n_monsterType, n_horzrot, n_vertrot, 
-	    n_energy, n_x + globalxshift, n_z + globalzshift, n_beamOn, arena);
+	    n_energy, n_x, n_z, n_beamOn, arena);
 	}
     }
 
@@ -695,8 +692,8 @@ void processClient(time_t now, int mainCounter, int totalCounter,
 			    Googelon.headHorzRotate,
 			    Googelon.headVertRotate,
 			    Googelon.monsterIsDead, 
-			    -globalxshift, 
-			    -globalzshift, 
+			    Googelon.x,
+			    Googelon.z,
 			    beamOnSinceLast, 
 			    Googelon.timeDead
 			    );
@@ -999,8 +996,8 @@ void processNetwork(time_t now, int mainCounter, int totalCounter,
 			    Googelon.headHorzRotate,
 			    Googelon.headVertRotate,
 			    Googelon.monsterIsDead, 
-			    -globalxshift, 
-			    -globalzshift, 
+			    Googelon.x,
+			    Googelon.z,
 			    beamOnSinceLast, 
 			    Googelon.timeDead
 			    );

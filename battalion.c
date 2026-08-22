@@ -212,6 +212,42 @@ static float tankCollisionRadius(const struct tank *tank)
     return 0.3f;
     }
 
+static float tankCollisionBottom(const struct tank *tank)
+    {
+    return tank->y;
+    }
+
+static float tankCollisionTop(const struct tank *tank)
+    {
+    if (tank != NULL && tank->type == DATAENTITY &&
+        tank->dataArchetype != NULL)
+        return tank->y + tank->dataArchetype->collisionHeight;
+    if (tank != NULL && (tank->type == HELO || tank->type == CHH ||
+                         tank->type == AIRPLANE || tank->type == FIGHTER))
+        return tank->y + 0.4f;
+    return tank == NULL ? PLANEY : tank->y + 0.6f;
+    }
+
+static float structureCollisionTop(const struct tree *structure)
+    {
+    return structure->y + structure->height + TREEBLASTHEIGHTR;
+    }
+
+static float legacyTankSpawnY(int type)
+    {
+    if (type == HELO || type == CHH)
+	return PLANEY + 1.0f;
+    if (type == AIRPLANE)
+	return PLANEY + 2.5f;
+    if (type == FIGHTER)
+	return PLANEY + 2.0f;
+    if (type == HERO)
+	return PLANEY + 0.58f;
+    if (type == MECHAG)
+	return PLANEY + 0.4f;
+    return PLANEY;
+    }
+
 /*********/
 /* files */
 /*********/
@@ -336,8 +372,6 @@ struct targetInfo * targets;
 /*********************/
 /* battlefield stuff */
 /*********************/
-
-float globalxshift, globalzshift;
 
 GLfloat xrot, xsaverot, yrot, ysaverot;
 
@@ -688,108 +722,40 @@ void quickTanks()
 
 int checkForBlock(struct tank * ttank, float rad, float theta, float y)
     {
-    register int tankCounter;
-
-    struct tank* ttank2;
+    struct tank *ttank2;
     struct tree * temptree;
-    struct targetInfo * temptarget;
-    float tankInRad, tankOutRad;
-    float treeInRad, treeOutRad;
-    float raddy;
-    float angle;
-    float targx,  targz;
-    float rad2;
-    float angDiff;
-    int useTarg;
-    int blocked;
+    float nextX;
+    float nextZ;
+    float radius;
+    float bottom;
+    float top;
 
-    tankInRad	= rad + 0.2;
-    tankOutRad	= rad - 0.8;
-    treeInRad	= rad + 0.3;
-    treeOutRad	= rad - 1.2;
+    (void)rad;
+    (void)y;
+    nextX = ttank->x + (float)sin((double)theta) * ttank->speed;
+    nextZ = ttank->z + (float)cos((double)theta) * ttank->speed;
+    radius = tankCollisionRadius(ttank);
+    bottom = tankCollisionBottom(ttank);
+    top = tankCollisionTop(ttank);
 
+    for (ttank2 = tanklist->next; ttank2 != NULL; ttank2 = ttank2->next)
+	if (ttank2 != ttank && ttank2->damage > 0 &&
+	    worldCylindersOverlap(
+		nextX, nextZ, radius, bottom, top,
+		ttank2->x, ttank2->z, tankCollisionRadius(ttank2),
+		tankCollisionBottom(ttank2), tankCollisionTop(ttank2)))
+	    return 1;
 
-    blocked = 0;
+    for (temptree = treelist->next; temptree != NULL;
+	 temptree = temptree->next)
+	if (temptree->intact &&
+	    worldCylindersOverlap(
+		nextX, nextZ, radius, bottom, top,
+		temptree->x, temptree->z, TREEBLASTR,
+		temptree->y, structureCollisionTop(temptree)))
+	    return 1;
 
-    /**********************************************/
-    /* is the vehicle blocked by another vehicle? */
-    /**********************************************/
-
-    tankCounter = 0;
-    while ((tankCounter < numTanksOnPlane) && (!blocked))
-	{
-	ttank2 = allTanks2OnPlane[tankCounter];
-	rad2 = ttank2->rad;
-
-	if ((ttank->goforit == ttank2->goforit) &&
-	    (tankInRad >= rad2)  &&	     /* check radius */
-	    (tankOutRad <= rad2) &&
-	    (ttank2 != ttank)    &&		    /* not same tank */
-	    (fabs(theta - ttank2->theta) < 0.22) &&   /* check angle */
-	    (fabs(ttank2->y - y) <= 0.6)	    /* check altitude */
-	    )
-		blocked = 1;
-
-	tankCounter += 1;
-	}
-
-    /**********************************************************/
-    /* is the vehicle blocked by a structure (tree,building)? */
-    /**********************************************************/
-
-    useTarg = 0;
-    for(temptarget = targets->next; temptarget != NULL; temptarget = temptarget->next)
-	if (&(temptarget->monster) == ttank->goforit)
-	    {
-	    targx = temptarget->x;
-	    targz = temptarget->z;
-	    useTarg = 1;
-	    }
-
-	for(temptree = treelist->next;(temptree != NULL) && (!blocked); temptree = temptree->next)
-	    {
-	    if (!temptree->intact)
-		continue;
-
-	    if (useTarg) /* radius to the target */
-		{
-		raddy = sqrt((temptree->x - targx) * (temptree->x - targx) + (temptree->z - targz) * (temptree->z - targz));
-		}
-	    else
-		{
-		raddy = temptree->rad; /* radius and theta to the player's monster */
-		}
-
-	    if ((treeInRad >= raddy) && (treeOutRad <= raddy) && (y <= (temptree->height + 0.5)))
-		{
-		if (useTarg) /* theta to the target */
-		    {
-		    angle = computeAngle(temptree->z, targz, temptree->x, targx);
-		    }
-		else
-		    {
-		    angle = temptree->theta;
-		    }
-
-		if (angle < 0)
-		    angle += TWOPI;
-		else if (angle >= TWOPI)
-		    angle -= TWOPI;
-
-		if (theta < 0)
-		    theta += TWOPI;
-		else if (theta >= TWOPI)
-		    theta -= TWOPI;
-
-		angDiff = theta - angle;
-
-		if ((fabs(angDiff) < 0.31) || (fabs(angDiff + TWOPI) < 0.31) ||
-		    (fabs(angDiff - TWOPI) < 0.31))
-		    blocked = 1;
-		}
-	    }
-
-    return (blocked);
+    return 0;
     }
 
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
@@ -1087,7 +1053,8 @@ void updateProjectiles()
     int tankCounter, treeCounter;
     float maxX, maxZ, minX, minZ;
 
-    maxX = maxZ = minX = minZ = 0;
+    maxX = minX = Googelon.x;
+    maxZ = minZ = Googelon.z;
 
     /******************************************************************************/
     /* figure out the range of valid shells bounded by all monsters + PLANESIZE   */
@@ -1135,9 +1102,9 @@ void updateProjectiles()
 	/* is projectile still in play?   */
 	/**********************************/
 
-	px = fabs(pproj->x);
+	px = pproj->x;
 	py = pproj->y;
-	pz = fabs(pproj->z);
+	pz = pproj->z;
 
 	qx = pproj->x;
 	qy = pproj->y;
@@ -1152,7 +1119,10 @@ void updateProjectiles()
 	if ((pproj->type != PROJWATER) && (pproj->type != PROJFIRE) && (pproj->type != PROJSCAR))
     	    {
 	    if ((Googelon.monsterIsDead != 1) &&
-		(px <= Googelon.width) && (pz <= Googelon.width) &&
+		(px <= Googelon.x + Googelon.width) &&
+		(pz <= Googelon.z + Googelon.width) &&
+		(px >= Googelon.x - Googelon.width) &&
+		(pz >= Googelon.z - Googelon.width) &&
 		(py <= Googelon.height) && (py >= Googelon.bottom))
 		    {
 		    if ((pproj->mine != &Googelon) &&
@@ -1208,7 +1178,8 @@ void updateProjectiles()
 	else
 	    inPlay = 0;
 
-	if ((px <= PLANESIZE) && (pz <= PLANESIZE) && (py <= floor) &&
+	if ((px >= minX) && (pz >= minZ) &&
+	    (px <= maxX) && (pz <= maxZ) && (py <= floor) &&
 	    (pproj->type != PROJWATER) && (pproj->type != PROJSCAR))
 	    groundHit = 1;
 	else
@@ -1372,9 +1343,10 @@ void updatetrees(struct tree * allTrees, int itsChristmas)
 	y = temptree->y;
 	z = temptree->z;
 
-	temptree->rad = sqrt(x * x + z * z);
+	temptree->rad = sqrt((x - Googelon.x) * (x - Googelon.x) +
+	                     (z - Googelon.z) * (z - Googelon.z));
 
-	temptree->theta = computeAngle(z, 0, x, 0);
+	temptree->theta = computeAngle(z, Googelon.z, x, Googelon.x);
 
 
 	/*****************************/
@@ -1631,11 +1603,11 @@ static size_t buildDataEntityContacts(struct tank *source,
     if (count < capacity)
 	{
 	targetY = (player->height + player->bottom) * 0.5f;
-	visible = dataEntityLineOfSight(source, 0, targetY, 0);
+	visible = dataEntityLineOfSight(source, player->x, targetY, player->z);
 	audible = player->monsterMoving || player->beamOn || playerFired;
 	initializeContact(&contacts[count++], "player",
 		  playerEntityArchetype == NULL ? "neutral" :
-		  playerEntityArchetype->faction, 0, 0,
+		  playerEntityArchetype->faction, player->x, player->z,
 			  player->monsterIsDead != 1, visible, audible);
 	}
     targetNumber = 0;
@@ -1811,16 +1783,16 @@ static void updateConfiguredPlayerWeapon(void)
         }
     if (archetype->weapon == ENTITY_WEAPON_BEAM)
         {
-        updateBeam(&Googelon, targets, 0, 0, tanklist,
+        updateBeam(&Googelon, targets, Googelon.x, Googelon.z, tanklist,
                    allTreesOnPlanePtrs, numTreesOnPlane, &Googelon);
         Googelon.energyRemaining -= archetype->playerFireCost;
         return;
         }
     if (archetype->weapon == ENTITY_WEAPON_FIRE)
-        addProjectile(0,
+        addProjectile(Googelon.x,
                       PLANEY + archetype->verticalOffset +
                           archetype->muzzleHeight,
-                      0, PROJFIRE,
+                      Googelon.z, PROJFIRE,
                       0, -archetype->projectileSpeed, 0,
                       archetype->accuracy, &Googelon);
     else
@@ -1839,10 +1811,10 @@ static void updateConfiguredPlayerWeapon(void)
             projectileType = PROJTECHS;
         else
             projectileType = PROJTANK;
-        addProjectile(muzzleX,
+        addProjectile(Googelon.x + muzzleX,
                       PLANEY + archetype->verticalOffset +
                           archetype->muzzleHeight + muzzleY,
-                      muzzleZ, projectileType,
+                      Googelon.z + muzzleZ, projectileType,
                       xVelocity, yVelocity, zVelocity,
                       0, &Googelon);
 	playerWeaponReloadRemaining = archetype->fireInterval;
@@ -1913,13 +1885,15 @@ void updateTanks(struct tank * allTanks, float width, float height,
 	if (tanktype == DATAENTITY)
 	    {
 	    updateDataEntity(ttank, allTanks, m, targets);
-	    if (!dead &&
-		fabs(ttank->x) <= width && fabs(ttank->z) <= width &&
-		ttank->y <= height && ttank->y >= bottom)
+	    if (!dead && worldCylindersOverlap(
+		ttank->x, ttank->z, tankCollisionRadius(ttank),
+		tankCollisionBottom(ttank), tankCollisionTop(ttank),
+		m->x, m->z, width, bottom, height))
 		{
 		m->energyRemaining -= 0.75f;
 		ttank->damage--;
-		notifyDataEntityDamage(ttank, "player", "monster", 0, 0);
+		notifyDataEntityDamage(ttank, "player", "monster",
+		                           m->x, m->z);
 		}
 	    if (ttank->damage <= 0)
 		{
@@ -1964,15 +1938,16 @@ void updateTanks(struct tank * allTanks, float width, float height,
 	/* need to compute radius to player's monster */
 	/**********************************************/
 
-	rad = sqrt(tankx * tankx + tankz * tankz);
+	    rad = sqrt((tankx - m->x) * (tankx - m->x) +
+	               (tankz - m->z) * (tankz - m->z));
 
 	if (rad < radToNearestTarget)
 	    {
 	    radToNearestTarget	= rad;
 	    nearestTarget	= NULL;
 	    nearestMonster	= m;
-	    centerX		= 0;
-	    centerZ		= 0;
+	    centerX		= m->x;
+	    centerZ		= m->z;
 	    }
 
 
@@ -2520,7 +2495,7 @@ void addNewTank(struct targetInfo * targets, float startx, float startz, int sta
 		struct tree * treelist, int mainCounter, int firingDelay, struct monsterInfo * G)
     {
     float amount,amount2;
-    float xabs,zabs;
+    float heroScale;
     int attempts;
     int type,  side;
     int blocked;
@@ -2604,10 +2579,10 @@ if ((!netUp) || (newtype == MASERTANK))
     /* choose where vehicle will appear */
     /************************************/
 
-    maxX = 0;
-    maxZ = 0;
-    minX = 0;
-    minZ = 0;
+    maxX = G->x;
+    maxZ = G->z;
+    minX = G->x;
+    minZ = G->z;
 
 
     for(temptarget = targets->next;temptarget != NULL;temptarget = temptarget->next)
@@ -2627,18 +2602,6 @@ if ((!netUp) || (newtype == MASERTANK))
 	minX -= (PLANESIZE+1);
 	minZ -= (PLANESIZE+1);
 
-	if (fabs(maxX) > fabs(minX))
-	    xabs = fabs(maxX);
-	else
-	    xabs = fabs(minX);
-
-
-	if (fabs(maxZ) > fabs(minZ))
-	    zabs = fabs(maxZ);
-	else
-	    zabs = fabs(minZ);
-
-
     blocked = 1;
     attempts = 0;
 
@@ -2646,12 +2609,28 @@ if ((!netUp) || (newtype == MASERTANK))
 
     if (temptank != NULL)
 	{
+	temptank->type = newtype;
+	temptank->speed = TANKV;
+	temptank->damage = 1;
+	temptank->y = legacyTankSpawnY(newtype);
+	if (starttype != -1)
+	    {
+	    temptank->type = (char)starttype;
+	    temptank->x = startx;
+	    temptank->z = startz;
+	    temptank->y = legacyTankSpawnY(starttype);
+	    temptank->theta = 0.0f;
+	    temptank->rad = 0.0f;
+	    blocked = 0;
+	    }
 	while ((blocked) && (attempts < 1000))
 	    {
 	    attempts += 1;
 	    side = rand() % 4;
-	    amount = randy(xabs);
-	    amount2 = randy(zabs);
+	    amount = minX + (maxX - minX) *
+		(float)(rand() % 1001) / 1000.0f;
+	    amount2 = minZ + (maxZ - minZ) *
+		(float)(rand() % 1001) / 1000.0f;
 
 	    switch(side)
 		{
@@ -2672,12 +2651,11 @@ if ((!netUp) || (newtype == MASERTANK))
 			break;
 		}
 
-	    temptank->y = PLANEY;
-
 	    if (newtype == HERO)
 		{
-		temptank->x /= (2+randy(0.5));
-		temptank->z /= (2+randy(0.5));
+		heroScale = 2.0f + randy(0.5f);
+		temptank->x = G->x + (temptank->x - G->x) / heroScale;
+		temptank->z = G->z + (temptank->z - G->z) / heroScale;
 		}
 
 	    /***********************/
@@ -2711,15 +2689,16 @@ if ((!netUp) || (newtype == MASERTANK))
 	    /* need to compute radius to player's monster */
 	    /**********************************************/
 
-	    rad = sqrt(ttankx * ttankx + ttankz * ttankz);
+	    rad = sqrt((ttankx - G->x) * (ttankx - G->x) +
+	               (ttankz - G->z) * (ttankz - G->z));
 
 	    if (rad < radToNearestTarget)
 		{
 		radToNearestTarget  = rad;
 		nearestTarget	    = NULL;
 		nearestMonster	    = G;
-		centerX		    = 0;
-		centerZ		    = 0;
+		centerX		    = G->x;
+		centerZ		    = G->z;
 		}
 
 
@@ -2741,7 +2720,7 @@ if ((!netUp) || (newtype == MASERTANK))
 	/* set up specific vehicle attributes */
 	/**************************************/
 
-	if (attempts >= 1500)
+	if (blocked)
 	    {
 	    showError("Nowhere to put a new vehicle");
 	    afree(temptank, arena);
@@ -2962,34 +2941,30 @@ static const struct EntityArchetype *selectSpawnArchetype(
     return NULL;
     }
 
-static int configuredSpawnBlocked(float x, float z, float radius,
+static int configuredSpawnBlocked(float x, float z,
+                                  const struct EntityArchetype *archetype,
                                   struct tank *allTanks)
     {
     struct tree *tree;
     struct tank *tank;
-    float deltaX;
-    float deltaZ;
-    float otherRadius;
+    float bottom;
+    float top;
+
+    bottom = PLANEY + archetype->verticalOffset;
+    top = bottom + archetype->collisionHeight;
 
     for (tree = treelist->next; tree != NULL; tree = tree->next)
-        if (tree->intact)
-            {
-            deltaX = tree->x - x;
-            deltaZ = tree->z - z;
-            if (deltaX * deltaX + deltaZ * deltaZ <
-                (radius + 0.5f) * (radius + 0.5f))
-                return 1;
-            }
-    for (tank = allTanks->next; tank != NULL; tank = tank->next)
-        {
-        otherRadius = tank->type == DATAENTITY ?
-            tank->dataArchetype->collisionRadius : 0.3f;
-        deltaX = tank->x - x;
-        deltaZ = tank->z - z;
-        if (deltaX * deltaX + deltaZ * deltaZ <
-            (radius + otherRadius) * (radius + otherRadius))
+        if (tree->intact && worldCylindersOverlap(
+                x, z, archetype->collisionRadius, bottom, top,
+                tree->x, tree->z, TREEBLASTR,
+                tree->y, structureCollisionTop(tree)))
             return 1;
-        }
+    for (tank = allTanks->next; tank != NULL; tank = tank->next)
+        if (tank->damage > 0 && worldCylindersOverlap(
+                x, z, archetype->collisionRadius, bottom, top,
+                tank->x, tank->z, tankCollisionRadius(tank),
+                tankCollisionBottom(tank), tankCollisionTop(tank)))
+            return 1;
     return 0;
     }
 
@@ -3012,8 +2987,10 @@ static int addRandomConfiguredEntity(struct targetInfo *targetList,
     archetype = selectSpawnArchetype(allTanks, counter);
     if (archetype == NULL)
         return 0;
-    minX = minZ = -(PLANESIZE + 1);
-    maxX = maxZ = PLANESIZE + 1;
+    minX = Googelon.x - (PLANESIZE + 1);
+    maxX = Googelon.x + (PLANESIZE + 1);
+    minZ = Googelon.z - (PLANESIZE + 1);
+    maxZ = Googelon.z + (PLANESIZE + 1);
     for (target = targetList->next; target != NULL; target = target->next)
         {
         if (target->x - PLANESIZE - 1 < minX)
@@ -3034,10 +3011,10 @@ static int addRandomConfiguredEntity(struct targetInfo *targetList,
         else if (side == 1) x = minX;
         else if (side == 2) z = maxZ;
         else x = maxX;
-        if (!configuredSpawnBlocked(x, z, archetype->collisionRadius,
-                                    allTanks))
+        if (!configuredSpawnBlocked(x, z, archetype, allTanks))
             {
-            heading = (float)atan2((double)-x, (double)-z);
+            heading = (float)atan2((double)(Googelon.x - x),
+                                   (double)(Googelon.z - z));
             sprintf(id, "spawn-%d", currentTankNumber);
             return addConfiguredEntity(
                 archetype, id, "", x, z, heading, 1,
@@ -3368,9 +3345,6 @@ void setPlayConditions()
 
     xrot = xsaverot	    = 300;
     yrot = ysaverot	    = 0;
-
-    globalxshift	    = 0;
-    globalzshift	    = 0;
 
     if (!netUp && !client)
 	buildingBoomSoFarCounter = 0;
@@ -4508,7 +4482,7 @@ void updateDeadMonster(float x, float z, struct monsterInfo * thaMonster)
 
     thaMonster->monsterIsDead = 1;
 
-    if ((x==0) && (z==0)) /* its the player's monster that dies */
+    if (thaMonster == &Googelon) /* its the player's monster that dies */
 	view = OMNISCIENTVIEW;
 
     if (thaMonster->energyRemaining < 0)
@@ -4704,7 +4678,10 @@ void updateTargets()
 		    else
 			trad = mRad;
 
-		    if (ttree.intact && (trad < mRad))
+		    if (ttree.intact && (trad < mRad) &&
+		        worldVerticalIntervalsOverlap(
+			thaMonster.bottom, thaMonster.height,
+			ttree.y, structureCollisionTop(&ttree)))
 			{
 			obsangle = computeAngle(ttree.z,  tz, ttree.x,  tx);
 
@@ -4713,11 +4690,7 @@ void updateTargets()
 
 			if ((fabs(mAngle + PI - obsangle) < mAng) || (fabs(mAngle - PI - obsangle) < mAng))
 				{
-				if (thaMonster.monster != FLUTTER)
-				    blocked = 1;
-				else if ((buildingHeight(ttree.type, ttree.treeshape) > 0) ||
-				    ((ttree.type == 1) && (ttree.treeshape == 3) && (ttree.intact == 1)))
-				    blocked = 1;
+			blocked = 1;
 				}
 			}
 
@@ -4734,7 +4707,11 @@ void updateTargets()
 
 		    trad = sqrt((temptank->x - tx) * (temptank->x - tx) + (temptank->z - tz) * (temptank->z - tz));
 
-		    if (trad < thaMonster.width + tankCollisionRadius(temptank))
+		    if (trad < thaMonster.width + tankCollisionRadius(temptank) &&
+		        worldVerticalIntervalsOverlap(
+			thaMonster.bottom, thaMonster.height,
+			tankCollisionBottom(temptank),
+			tankCollisionTop(temptank)))
 			{
 			obsangle = computeAngle(temptank->z, tz, temptank->x, tx);
 
@@ -4743,10 +4720,7 @@ void updateTargets()
 
 			if ((fabs(mAngle + PI - obsangle) < .75) || (fabs(mAngle - PI - obsangle) < .75))
 			    {
-			    if ((temptank->y <= thaMonster.height) && (temptank->y >= thaMonster.bottom))
-				blocked = 1;
-			    if ((temptank->type == HERO) || (temptank->type == MECHAG))
-				blocked = 1;
+			    blocked = 1;
 			    }
 			}
 
@@ -4769,7 +4743,12 @@ void updateTargets()
 			{
 			rad = sqrt((temptarget2->x - tx) * (temptarget2->x - tx) + (temptarget2->z - tz) * (temptarget2->z - tz));
 
-			if (rad < mRad)
+			if (rad < thaMonster.width +
+			          temptarget2->monster.width &&
+			    worldVerticalIntervalsOverlap(
+				thaMonster.bottom, thaMonster.height,
+				temptarget2->monster.bottom,
+				temptarget2->monster.height))
 			    {
 			    obsangle = computeAngle(temptarget2->z, tz, temptarget2->x, tx);
 
@@ -4787,12 +4766,18 @@ void updateTargets()
 		/* cant move through player's monster */
 		/**************************************/
 
-		rad = sqrt(tx * tx + tz * tz);
+		rad = sqrt((tx - Googelon.x) * (tx - Googelon.x) +
+		           (tz - Googelon.z) * (tz - Googelon.z));
 
-		if ((rad < mRad) && monsterHasSolidCollision(&Googelon) &&
-		    (Googelon.monsterIsDead != 1))
+		if ((rad < thaMonster.width + Googelon.width) &&
+		    monsterHasSolidCollision(&Googelon) &&
+		    (Googelon.monsterIsDead != 1) &&
+		    worldVerticalIntervalsOverlap(
+			thaMonster.bottom, thaMonster.height,
+			Googelon.bottom, Googelon.height))
 		    {
-		    obsangle = computeAngle(-temptarget->z, 0, -temptarget->x, 0);
+		    obsangle = computeAngle(Googelon.z, tz,
+		                            Googelon.x, tx);
 
 		    if (obsangle < 0)
 			obsangle += TWOPI;
@@ -4875,17 +4860,13 @@ void updateTargets()
 
 void doUpdate()
     {
-    struct boom * tempboom;
     struct tree * temptree;
     struct tank * temptank;
     struct targetInfo * temptarget;
     struct targetInfo * temptarg;
-    struct projectile * temp;
-    struct tree ttree;
-    float rad;
-    float mAngle, obsangle;
+    float mAngle;
     float xv,  zv;
-    float mRad, mAng;
+    float nextX, nextZ;
     int blocked;
 
     if (playerWeaponReloadRemaining > 0)
@@ -4943,17 +4924,6 @@ void doUpdate()
     /* monster on the move            */
     /**********************************/
 
-    if (Googelon.monster == FLUTTER)
-	{
-	mRad = 1.2;
-	mAng = 1.0;
-	}
-    else
-	{
-	mRad = 0.8;
-	mAng = 0.8;
-	}
-
     if (Googelon.monsterGo || Googelon.monsterBack)
 	{
 	Googelon.monsterMoving = 1;
@@ -4967,139 +4937,63 @@ void doUpdate()
 	else if (Googelon.monsterBack)
 	    mAngle = (Googelon.headHorzRotate + 1800) * BIG_DEG_TO_RAD;
 
-
+	zv = cos(mAngle) * Googelon.speed;
+	xv = sin(mAngle) * Googelon.speed;
+	nextX = Googelon.x + xv;
+	nextZ = Googelon.z + zv;
 	blocked = 0;
 
 	if (monsterHasSolidCollision(&Googelon))
 	    {
-	    /****************************************************/
-	    /* cant move through trees until they are destroyed */
-	    /****************************************************/
-
 	    temptree = treelist->next;
 	    while ((temptree != NULL) && (!blocked))
 		{
-		ttree = *temptree;
-
-		if (ttree.intact && (ttree.rad < mRad))
-		    {
-		    obsangle = ttree.theta;
-		    if (obsangle < 0)
-			obsangle += TWOPI;
-
-		    if ((fabs(mAngle + PI - obsangle) < mAng) || (fabs(mAngle - PI - obsangle) < mAng))
-			{
-			if (Googelon.monster != FLUTTER)
-			    blocked = 1;
-			else if ((buildingHeight(ttree.type, ttree.treeshape) > 0) ||
-			    ((ttree.type == 1) && (ttree.treeshape == 3) && (ttree.intact == 1)))
-			    blocked = 1;
-			}
-		    }
-
+		if (temptree->intact &&
+		    worldCylindersOverlap(
+			nextX, nextZ, Googelon.width,
+			Googelon.bottom, Googelon.height,
+			temptree->x, temptree->z, TREEBLASTR,
+			temptree->y, structureCollisionTop(temptree)))
+		    blocked = 1;
 		temptree = temptree->next;
 		}
-
-	    /****************************************************/
-	    /* cant move through tanks until they are destroyed */
-	    /****************************************************/
 
 	    temptank = tanklist->next;
 	    while ((temptank != NULL) && !blocked)
 		{
-		rad = sqrt(temptank->x * temptank->x +
-		           temptank->z * temptank->z);
-		if (rad < Googelon.width + tankCollisionRadius(temptank))
-		    {
-		    obsangle = computeAngle(temptank->z, 0,
-		                            temptank->x, 0);
-		    if (obsangle < 0)
-			obsangle += TWOPI;
-
-		    if ((fabs(mAngle + PI - obsangle) < .75) || (fabs(mAngle - PI - obsangle) < .75))
-			{
-			if ((temptank->y <= Googelon.height) && (temptank->y >= Googelon.bottom))
-			    blocked = 1;
-			if ((temptank->type == HERO) || (temptank->type == MECHAG))
-			    blocked = 1;
-			}
-		    }
+		if (temptank->damage > 0 &&
+		    worldCylindersOverlap(
+			nextX, nextZ, Googelon.width,
+			Googelon.bottom, Googelon.height,
+			temptank->x, temptank->z,
+			tankCollisionRadius(temptank),
+			tankCollisionBottom(temptank),
+			tankCollisionTop(temptank)))
+		    blocked = 1;
 		temptank = temptank->next;
 		}
-
-	    /***********************************************************************************/
-	    /* cant move through other targets until they are destroyed or move out of the way */
-	    /***********************************************************************************/
 
 	    temptarget = targets->next;
 	    while ((temptarget != NULL) && (!blocked))
 		{
-		rad = sqrt(temptarget->x * temptarget->x + temptarget->z * temptarget->z);
-
-		if ((rad < mRad) &&
-		    monsterHasSolidCollision(&temptarget->monster) &&
-		    (temptarget->monster.monsterIsDead != 1))
-		    {
-		    obsangle = computeAngle(temptarget->z, 0, temptarget->x, 0);
-
-		    if (obsangle < 0)
-			obsangle += TWOPI;
-
-		    if ((fabs(mAngle + PI - obsangle) < mAng) || (fabs(mAngle - PI - obsangle) < mAng))
-			    blocked = 1;
-		    }
-
+		if (monsterHasSolidCollision(&temptarget->monster) &&
+		    temptarget->monster.monsterIsDead != 1 &&
+		    worldCylindersOverlap(
+			nextX, nextZ, Googelon.width,
+			Googelon.bottom, Googelon.height,
+			temptarget->x, temptarget->z,
+			temptarget->monster.width,
+			temptarget->monster.bottom,
+			temptarget->monster.height))
+		    blocked = 1;
 		temptarget = temptarget->next;
 		}
 	    }
 
-	/***************************************/
-	/* update position of everything else  */
-	/***************************************/
-
 	if (!blocked)
 	    {
-	    zv = cos(mAngle) * Googelon.speed;
-	    xv = sin(mAngle) * Googelon.speed;
-
-	    for(temptank = tanklist->next;temptank != NULL;temptank = temptank->next)
-		{
-		temptank->x -= xv;
-		temptank->z -= zv;
-		if (temptank->type == DATAENTITY)
-		    entityAgentTranslate(&temptank->dataAgent, -xv, -zv);
-		}
-	    for(tempboom = projectboom->next;tempboom != NULL;tempboom = tempboom->next)
-		{
-		tempboom->x -= xv;
-		tempboom->z -= zv;
-		}
-	    for(temp = projectFlight->next;temp != NULL;temp = temp->next)
-		{
-		temp->x -= xv;
-		temp->z -= zv;
-		}
-	    for(temptank = slaglist->next;temptank != NULL;temptank = temptank->next)
-		{
-		temptank->x -= xv;
-		temptank->z -= zv;
-		}
-	    for(temptree = treelist->next;temptree != NULL;temptree = temptree->next)
-		{
-		temptree->x -= xv;
-		temptree->z -= zv;
-		}
-	    for(temptarget = targets->next;temptarget != NULL;temptarget = temptarget->next)
-		    {
-		    temptarget->x -= xv;
-		    temptarget->z -= zv;
-
-		    temptarget->net_x -= xv;
-		    temptarget->net_z -= zv;
-		    }
-
-	    globalxshift -= xv;
-	    globalzshift -= zv;
+	    Googelon.x = nextX;
+	    Googelon.z = nextZ;
 	    }
 	}
 
@@ -5124,7 +5018,8 @@ void doUpdate()
 	allTreesEverywherePtrs[numTreesEverywhere]  = temptree;
 	numTreesEverywhere += 1;
 
-	if ((fabs(temptree->x) <= PLANESIZE) &&  (fabs(temptree->z) <= PLANESIZE))
+	if ((fabs(temptree->x - Googelon.x) <= PLANESIZE) &&
+	    (fabs(temptree->z - Googelon.z) <= PLANESIZE))
 	    {
 	    allTreesOnPlane[numTreesOnPlane]	    = *temptree;
 	    allTreesOnPlanePtrs[numTreesOnPlane]    = temptree;
@@ -5183,19 +5078,19 @@ void doUpdate()
 	turnBeamOnSinceLast();
 	switch (Googelon.monster)
 	    {
-	    case GOOGELON:	updateBeam(&Googelon, targets, 0, 0, tanklist, allTreesOnPlanePtrs, numTreesOnPlane, &Googelon);
+	    case GOOGELON:	updateBeam(&Googelon, targets, Googelon.x, Googelon.z, tanklist, allTreesOnPlanePtrs, numTreesOnPlane, &Googelon);
 				Googelon.energyRemaining -= 0.15;
 				break;
 
-	    case TECHS:		updateGun(0, 0, Googelon.headHorzRotate, Googelon.headVertRotate, mainCounter, &Googelon);
+	    case TECHS:		updateGun(Googelon.x, Googelon.z, Googelon.headHorzRotate, Googelon.headVertRotate, mainCounter, &Googelon);
 				Googelon.energyRemaining -= 0.09;
 				break;
 
-	    case VAPOUR:	updateVap(0, 0, mainCounter, &Googelon);
+	    case VAPOUR:	updateVap(Googelon.x, Googelon.z, mainCounter, &Googelon);
 				Googelon.energyRemaining -= 0.1;
 				break;
 
-	    case FLUTTER:	updateBeam(&Googelon, targets,0, 0, tanklist, allTreesOnPlanePtrs, numTreesOnPlane, &Googelon);
+	    case FLUTTER:	updateBeam(&Googelon, targets, Googelon.x, Googelon.z, tanklist, allTreesOnPlanePtrs, numTreesOnPlane, &Googelon);
 				Googelon.energyRemaining -= 0.15;
 				break;
 
@@ -5239,7 +5134,7 @@ void doUpdate()
 	}
     else
 	{
-	updateDeadMonster(0, 0, &Googelon);
+	updateDeadMonster(Googelon.x, Googelon.z, &Googelon);
 	}
 
     if (Googelon.monsterMoving)
@@ -5556,7 +5451,8 @@ void drawAMonster(float x, struct monsterInfo monster, float z,
     float aimYaw;
     float bodyHeading;
 
-    if ((fabs(x) <= PLANESIZE) && (fabs(z) <= PLANESIZE))
+    if ((fabs(x - Googelon.x) <= PLANESIZE) &&
+	(fabs(z - Googelon.z) <= PLANESIZE))
 	{
 	glPushMatrix();
 	    glTranslatef(x,  0,  z);
@@ -5727,18 +5623,24 @@ void doDrawing (int eyeball)
 
     glDisable(GL_DEPTH_TEST);
 
-    drawBattlefield(roadSystem, globalxshift, globalzshift, lod,
+    drawBattlefield(roadSystem, -Googelon.x, -Googelon.z, lod,
 		itsChristmas, view);
 
     if (lod != -1)
 	glEnable(GL_DEPTH_TEST);
+
+    /* Gameplay state remains in map-world coordinates.  Only the rendered
+       world is rebased around the camera/player. */
+    glPushMatrix();
+    glTranslatef(-Googelon.x, 0, -Googelon.z);
 
     /**********************************/
     /* draw the slagging vehicles     */
     /**********************************/
 
     if (slaglist->next != NULL)
-	drawSlagTanks(slaglist, mainCounter, lod);
+	drawSlagTanks(slaglist, mainCounter, lod,
+	              Googelon.x, Googelon.z);
 
 
     /******************************************************/
@@ -5767,12 +5669,14 @@ void doDrawing (int eyeball)
     /********************/
 
     if (treelist->next != NULL)
+	{
 	if (view == MAPVIEW)
 	    drawtrees(allTreesEverywhere, numTreesEverywhere, mainCounter,
-				lod, itsChristmas, view);
+			lod, itsChristmas, view, Googelon.x, Googelon.z);
 	else
 	    drawtrees(allTreesOnPlane, numTreesOnPlane, mainCounter,
-				lod, itsChristmas, view);
+			lod, itsChristmas, view, Googelon.x, Googelon.z);
+	}
 
 
 
@@ -5783,7 +5687,8 @@ void doDrawing (int eyeball)
     beamArchetype = monsterArchetype(&Googelon);
     if (Googelon.beamOn && beamArchetype != NULL &&
 	beamArchetype->weapon == ENTITY_WEAPON_BEAM)
-	drawBeam(0, 0, Googelon.headHorzRotate, Googelon.headVertRotate,
+	drawBeam(Googelon.x, Googelon.z,
+		 Googelon.headHorzRotate, Googelon.headVertRotate,
 		 beamArchetype, lod);
 
     for (temptarget = targets->next;temptarget != NULL;temptarget = temptarget->next)
@@ -5833,7 +5738,7 @@ void doDrawing (int eyeball)
     /* draw the player's monster      */
     /**********************************/
 
-    drawAMonster(0, Googelon, 0, 0,view);
+    drawAMonster(Googelon.x, Googelon, Googelon.z, 0,view);
 
     /**********************************/
     /* draw explosions                */
@@ -5855,6 +5760,8 @@ void doDrawing (int eyeball)
 	else
 	    drawBooms(projectboom, lod);
 	}
+
+    glPopMatrix();
 
     glDisable(GL_FOG);
 
@@ -5901,7 +5808,7 @@ textLineWidth = 1.01;
 
 	showText(targets, Googelon.energyRemaining,  Googelon.monsterScore,
 	    showframes, paused, pointerGrab, playerWeaponUsesReload(),
-	    playerWeaponReadiness());
+	    playerWeaponReadiness(), Googelon.x, Googelon.z);
 
 	if (mode == DEMOMODE)
 	    {
@@ -6437,7 +6344,7 @@ void id()
 	}
 
     if ((mode == DEMOMODE) && !Googelon.monsterIsDead && !paused)
-	Googelon = autopilot(0, 0, Googelon);
+	Googelon = autopilot(Googelon.x, Googelon.z, Googelon);
 
 
     for(temptarget = targets->next; temptarget != NULL; temptarget = temptarget->next)
@@ -6495,7 +6402,9 @@ void id()
     lastTankTheta = lastTankRad = 0;
 
     for(ttank = tanklist->next; (ttank != NULL) && (lastTankY <= NOTANKONPLANE); ttank = ttank->next)
-	if ((fabs(ttank->x) <= PLANESIZE) && (fabs(ttank->z) <= PLANESIZE) && (ttank->damage > 0)
+	if ((fabs(ttank->x - Googelon.x) <= PLANESIZE) &&
+	    (fabs(ttank->z - Googelon.z) <= PLANESIZE) &&
+	    (ttank->damage > 0)
   	    && (ttank->rad < 10))
 	    {
 	    lastTankY	    = ttank->y + 0.4;

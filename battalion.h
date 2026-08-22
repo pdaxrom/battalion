@@ -89,6 +89,7 @@
 
 #include "tk.h"
 #include "entity_behavior.h"
+#include "world_coordinates.h"
 
 
 #include <time.h>
@@ -433,6 +434,7 @@ struct monsterInfo
 	{
 	const struct EntityArchetype *dataArchetype;
 	float a[MAXTRIBUTES][5];    /* reserved by the fixed network record */
+	float x, y, z;              /* position in map-world coordinates */
 	float energyRemaining;	    /* amount of energy remaining */
 	float rot1,rot2;
 	float speed;		    /* movement speed */
@@ -685,7 +687,8 @@ GLuint makeOverviewLookat(void);
  *****************************************/
 
 void initFonts(const char *, const char *);
-void showText(struct targetInfo *, float, int, long, int, int, int, float);
+void showText(struct targetInfo *, float, int, long, int, int, int, float,
+	float, float);
 void showText2(long, int, int, int, int, int, int, int, int, int);
 void showText3(int);
 void showText4(void);
@@ -757,9 +760,9 @@ void drawHill1(int, int);
 void drawHill2(int, int);
 void drawHill3(int, int);
 
-void drawtrees(struct tree *, int, int, int, int,int);
+void drawtrees(struct tree *, int, int, int, int, int, float, float);
 
-void drawSlagTanks(struct tank *, int, int);
+void drawSlagTanks(struct tank *, int, int, float, float);
 void drawTanks(struct tank *, int, struct monsterInfo, struct targetInfo *, int, int,int);
 
 void drawMaser(float, float, float, int, float, float, float, float,

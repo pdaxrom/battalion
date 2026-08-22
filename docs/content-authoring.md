@@ -136,6 +136,11 @@ The engine uses:
 - `+Z` as forward when heading is zero;
 - radians for map actor headings.
 
+All gameplay positions are persistent map-world coordinates. Movement changes
+the moving object's coordinates, never the map, paths, contacts, projectiles,
+or other actors. Rendering applies the inverse player X/Z position as a camera
+transform, but that transform is not visible to gameplay code or asset data.
+
 Place a ground model's contact point at local `Y = 0` whenever practical.
 Use the entity's `vertical-offset` for intentional hovering or for adapting an
 existing origin. Keep the visual origin, collision envelope, muzzle offsets,
@@ -903,8 +908,8 @@ come from entity archetypes.
 Actor ids must be unique. A trigger target id or group must exist somewhere in
 the same map package. A path on `movement stationary` is valid data but cannot
 move the actor. Actor positions and every waypoint use map-world coordinates.
-The runtime rebases the actor, its current target, sensor contacts, queued
-events, and the complete path together when the player moves; no path point is
+The actor, its current target, sensor contacts, queued events, and the complete
+path retain those coordinates while the player moves; no path point is
 relative to the player or camera.
 
 ### Patrol and group alarm example
@@ -1067,6 +1072,8 @@ Before committing a new object, verify all of the following:
 - the descriptor references keys, never file paths;
 - the descriptor is listed once in `entities/catalog.txt`;
 - collision, muzzle, camera, and vertical offsets match the actual geometry;
+- collision bottom/top intervals match the object's real occupied height, so
+  an airborne object may pass above a lower solid without intersecting it;
 - stationary/ground/air and free/steered/phase capabilities are intentional;
 - hostility is defined in every required direction;
 - every sensor id used by a rule exists;

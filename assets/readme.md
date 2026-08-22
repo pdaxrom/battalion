@@ -129,6 +129,13 @@ The same choice can be made at launch with `--view 1` or `--view 5`.
 is a reusable archetype capability and contains no Vapour id check in movement
 code.
 
+Gameplay uses stable map-world X/Z coordinates. Moving the player updates only
+the player's position; maps, actors, paths, sensor contacts, shots, and effects
+are never translated around it. Collision combines the horizontal radius with
+the vertical occupied interval. Therefore a flying entity passes over a lower
+object when their height intervals do not overlap, while a tall structure can
+still block it.
+
 Verify the checked-in content with:
 
 ```sh
