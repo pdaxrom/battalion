@@ -18,6 +18,7 @@
 /**************************************************/
 
 #include "battalion.h"
+#include "camera_view.h"
 #include "map.h"
 #include "map_package.h"
 
@@ -5366,27 +5367,43 @@ void doUpdate()
 void goToMonsterView(int eyeball)
     {
     float aspect;
+    float cameraDistance;
     float cameraX;
     float cameraY;
+    float lookZ;
+    float nearClip;
     float lookY;
     float playerBottom;
     float playerHeight;
-
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    aspect = viewH > 0 ? (float)viewW / (float)viewH : 1.0f;
-    gluPerspective(90, aspect, 0.1, 15);
-    glMatrixMode(GL_MODELVIEW);
+    struct ChaseCameraFrame chaseFrame;
 
     playerBottom = Googelon.bottom;
     playerHeight = Googelon.height - Googelon.bottom;
+    cameraDistance = 1.4f;
+    nearClip = 0.1f;
+    cameraY = playerBottom + playerHeight * 0.75f + 0.20f;
+    lookY = cameraY - 0.05f;
+    lookZ = 0.4f;
     if (Googelon.monster == DATAENTITY && playerEntityArchetype != NULL)
 	{
 	playerBottom = PLANEY + playerEntityArchetype->verticalOffset;
 	playerHeight = playerEntityArchetype->collisionHeight;
+	if (chaseCameraFrame(playerBottom, playerHeight, &chaseFrame))
+	    {
+	    cameraDistance = chaseFrame.distance;
+	    nearClip = chaseFrame.nearClip;
+	    cameraY = chaseFrame.eyeY;
+	    lookY = chaseFrame.targetY;
+	    lookZ = chaseFrame.targetZ;
+	    }
 	}
-    cameraY = playerBottom + playerHeight * 0.75f + 0.20f;
-    lookY = cameraY - 0.05f;
+
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    aspect = viewH > 0 ? (float)viewW / (float)viewH : 1.0f;
+    gluPerspective(90, aspect, nearClip, 15);
+    glMatrixMode(GL_MODELVIEW);
+
     cameraX = 0.0f;
     if (eyeball == 0)
 	cameraX = 0.015f;
@@ -5394,16 +5411,16 @@ void goToMonsterView(int eyeball)
 	cameraX = -0.015f;
 
     switch(eyeball){
-	case 2: gluLookAt(0, cameraY, -1.4f,
-			  0, lookY, 0.4f, 0, 1, 0);
+	case 2: gluLookAt(0, cameraY, -cameraDistance,
+			  0, lookY, lookZ, 0, 1, 0);
 		break;
 
-	case 0: gluLookAt(cameraX, cameraY, -1.4f,
-			  cameraX, lookY, 0.4f, 0, 1, 0);
+	case 0: gluLookAt(cameraX, cameraY, -cameraDistance,
+			  cameraX, lookY, lookZ, 0, 1, 0);
 		break;
 
-	case 1: gluLookAt(cameraX, cameraY, -1.4f,
-			  cameraX, lookY, 0.4f, 0, 1, 0);
+	case 1: gluLookAt(cameraX, cameraY, -cameraDistance,
+			  cameraX, lookY, lookZ, 0, 1, 0);
 		break;
 
 	}

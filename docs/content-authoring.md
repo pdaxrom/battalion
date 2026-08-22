@@ -196,6 +196,12 @@ authored canonical assets and non-height-based props. Do not specify `height`
 and `scale` together: the descriptor is rejected rather than choosing an
 ambiguous precedence.
 
+The close chase camera selected with `1` uses the controllable entity's
+collision height. Small entities therefore move the camera closer
+automatically; a human-sized actor fills at least one third of the vertical
+view. Large entities retain the historical maximum chase distance. This
+changes only camera framing and never rescales the model.
+
 There are two valid export workflows:
 
 - preferred for imported actors: export consistently and declare the desired
