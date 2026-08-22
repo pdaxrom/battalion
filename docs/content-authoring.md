@@ -884,7 +884,10 @@ come from entity archetypes.
 
 Actor ids must be unique. A trigger target id or group must exist somewhere in
 the same map package. A path on `movement stationary` is valid data but cannot
-move the actor.
+move the actor. Actor positions and every waypoint use map-world coordinates.
+The runtime rebases the actor, its current target, sensor contacts, queued
+events, and the complete path together when the player moves; no path point is
+relative to the player or camera.
 
 ### Patrol and group alarm example
 

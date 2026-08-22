@@ -194,7 +194,9 @@ archetype and defines an instance id/group, position, heading, active state,
 optional patrol mode/waypoints, and zero or more trigger routes. A route sends
 an emitted event to a configured target actor id or group and carries the
 original perceived contact. Thus one guard can raise an alarm that activates or
-retargets any number of other configured actors.
+retargets any number of other configured actors. Actor positions and paths are
+authored in map-world coordinates; the runtime rebases the entire live agent
+state together as the player moves.
 
 A minimal actor looks like this:
 

@@ -41,6 +41,7 @@ int main(void)
     struct EntityWaypoint path[2];
     struct EntityAgent guard;
     struct EntityAgent receiver;
+    struct EntityAgent translated;
     struct EntityAgent phaseAgent;
     struct EntityAgent damageAgent;
     struct EntityArchetype phaseArchetype;
@@ -93,6 +94,29 @@ int main(void)
         {
         fprintf(stderr, "patrol failed: x=%g reaction=%d\n",
                 guard.x, guard.reaction);
+        return 1;
+        }
+
+    entityAgentInitialize(&translated, tank, 1.0f, 2.0f, 0.0f,
+                          path, 2, ENTITY_PATROL_LOOP);
+    translated.hasTarget = 1;
+    translated.targetX = 4.0f;
+    translated.targetZ = 5.0f;
+    translated.target.x = 4.0f;
+    translated.target.z = 5.0f;
+    entityAgentTranslate(&translated, -3.0f, 2.0f);
+    if (!nearValue(translated.x, -2.0f) ||
+        !nearValue(translated.z, 4.0f) ||
+        !nearValue(translated.homeX, -2.0f) ||
+        !nearValue(translated.homeZ, 4.0f) ||
+        !nearValue(translated.targetX, 1.0f) ||
+        !nearValue(translated.targetZ, 7.0f) ||
+        !nearValue(translated.target.x, 1.0f) ||
+        !nearValue(translated.target.z, 7.0f) ||
+        !nearValue(translated.waypointOffsetX, -3.0f) ||
+        !nearValue(translated.waypointOffsetZ, 2.0f))
+        {
+        fprintf(stderr, "agent coordinate translation failed\n");
         return 1;
         }
 

@@ -5047,6 +5047,8 @@ void doUpdate()
 		{
 		temptank->x -= xv;
 		temptank->z -= zv;
+		if (temptank->type == DATAENTITY)
+		    entityAgentTranslate(&temptank->dataAgent, -xv, -zv);
 		}
 	    for(tempboom = projectboom->next;tempboom != NULL;tempboom = tempboom->next)
 		{

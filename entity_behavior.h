@@ -67,6 +67,8 @@ struct EntityAgent
     {
     const struct EntityArchetype *archetype;
     const struct EntityWaypoint *waypoints;
+    float waypointOffsetX;
+    float waypointOffsetZ;
     size_t waypointCount;
     size_t waypointIndex;
     int waypointDirection;
@@ -107,6 +109,7 @@ int entityAgentQueueTrigger(struct EntityAgent *agent, const char *event,
                             const struct EntityContact *contact);
 void entityAgentNotifyDamage(struct EntityAgent *agent,
                              const struct EntityContact *source);
+void entityAgentTranslate(struct EntityAgent *agent, float x, float z);
 void entityAgentStep(struct EntityAgent *agent,
                      const struct EntityContact *contacts,
                      size_t contactCount);
