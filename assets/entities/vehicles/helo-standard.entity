@@ -6,6 +6,7 @@ controllable yes
 control-mode free
 model helo
 model-yaw-offset 180
+muzzle-node muzzle
 destroyed-model helo-slag
 idle-animation helo-rotors
 move-animation helo-rotors
@@ -27,8 +28,6 @@ weapon-color white
 weapon-range 6
 weapon-min-range 0.5
 projectile-speed 0.1
-muzzle-forward 0.45
-muzzle-height 0.2
 fire-interval 90
 accuracy 1000
 forget-range 14

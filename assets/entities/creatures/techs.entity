@@ -12,6 +12,7 @@ render-node hand-right
 render-node hand-left
 aim-yaw-node head
 aim-pitch-node head
+muzzle-node muzzle
 faction monster
 hostile-faction army
 movement ground
@@ -28,8 +29,6 @@ weapon-color orange
 weapon-range 4
 weapon-min-range 0
 projectile-speed 0.2
-muzzle-forward 0.3
-muzzle-height 0.2
 fire-interval 2
 accuracy 1000
 forget-range 12

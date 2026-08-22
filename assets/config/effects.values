@@ -11,8 +11,6 @@ value hero-vertical-source-radius 0.03
 value hero-vertical-target-radius 0.02
 
 value monster-beam-line-width 5.01
-value monster-beam-range 4.0
-value monster-beam-height 1.2
 value monster-beam-lines 4 25 40
 value monster-beam-jitter 0.04
 value monster-beam-green 0.5 0.5

@@ -9,6 +9,7 @@ move-animation tank-tracks
 animation-speed 0.05
 aim-yaw-node turret
 aim-pitch-node barrel
+muzzle-node muzzle
 destroyed-model tank-slag
 shadow-model tank-shadow
 faction army
@@ -27,8 +28,6 @@ weapon-color white
 weapon-range 6
 weapon-min-range 0.5
 projectile-speed 0.3
-muzzle-forward 0.24
-muzzle-height 0.195
 fire-interval 120
 accuracy 1000
 forget-range 12

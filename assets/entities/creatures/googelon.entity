@@ -13,6 +13,7 @@ render-node leg-left
 render-node leg-right
 aim-yaw-node head
 aim-pitch-node head
+muzzle-node muzzle
 idle-animation googelon-tail-sway
 move-animation googelon-tail-sway
 attack-animation googelon-tail-sway
@@ -33,8 +34,6 @@ weapon-color blue
 weapon-range 4
 weapon-min-range 0
 projectile-speed 0.1
-muzzle-forward 0
-muzzle-height 0.2
 fire-interval 1
 accuracy 1000
 forget-range 12

@@ -20,7 +20,8 @@ Without recompiling the game, an author can:
 - make any archetype controllable by the player;
 - select ground, air, or stationary movement and free or steered controls;
 - select an existing weapon capability and tune its ranges and timing;
-- define collision, health, scoring, random spawning, camera, and muzzle data;
+- define collision, health, scoring, random spawning, camera, and a GLB muzzle
+  node;
 - add proximity, vision, hearing, and damage sensors in any combination;
 - define enter, stay, exit, and externally triggered reactions;
 - emit events and route them to another actor or a group of actors;
@@ -143,7 +144,7 @@ transform, but that transform is not visible to gameplay code or asset data.
 
 Place a ground model's contact point at local `Y = 0` whenever practical.
 Use the entity's `vertical-offset` for intentional hovering or for adapting an
-existing origin. Keep the visual origin, collision envelope, muzzle offsets,
+existing origin. Keep the visual origin, collision envelope, muzzle node,
 and camera values consistent. A floating model with a correctly placed shadow
 usually means that the model origin or `vertical-offset` is wrong.
 
@@ -156,6 +157,58 @@ When an existing animated GLB cannot be re-exported immediately,
 movement, aiming, collision, or muzzle calculations. For example, `180` turns
 a model authored toward `-Z` to the engine's `+Z` convention. Prefer applying
 the transform in the source asset for newly authored models.
+
+### World units and canonical object sizes
+
+Battalion uses one world unit for ten metres. Author new models to that scale:
+one metre is `0.1` world unit and a 1.8-metre human is `0.18` world unit tall.
+This convention preserves the intended size relationship between independently
+authored content added to `assets/`.
+
+Size belongs to the asset, not to `kind`. The engine never silently enlarges an
+NPC, shrinks a vehicle, or assigns dimensions from an entity id. The rendered
+size is derived from the transformed GLB bounds and the descriptor's uniform
+`scale`; the physical size is authored explicitly with the collision fields.
+This lets a human, giant, miniature vehicle, or unusual creature use any
+capabilities without adding a type-specific rule to the engine.
+
+Recommended starting dimensions are:
+
+| Object | Visual size in world units | Typical collision envelope |
+| --- | --- | --- |
+| Adult human | height `0.17`-`0.20` | radius `0.04`-`0.06`, height `0.17`-`0.20` |
+| Car or light vehicle | length `0.35`-`0.50`, height `0.14`-`0.20` | radius `0.18`-`0.25`, height `0.14`-`0.20` |
+| Tank | length `0.45`-`0.65`, height `0.22`-`0.30` | radius `0.25`-`0.35`, height `0.22`-`0.30` |
+| Helicopter | length `0.60`-`0.90`, height `0.25`-`0.40` | radius `0.30`-`0.45`, height `0.25`-`0.40` |
+| One-storey building | height `0.30`-`0.45` | author from its actual footprint and height |
+| Giant creature | height `0.8`-`1.5` or more | author from its actual body volume |
+
+These are reference ranges, not type checks in the engine. A child, truck,
+mech, unusually large tank, or tiny creature may intentionally differ. Measure
+the model's rest-pose bounds after all node transforms: its rendered size is
+`GLB size * scale`. For new assets, prefer exporting at canonical size and
+leaving `scale 1`; use `scale` to adapt an existing asset, not to hide an
+unknown source unit.
+
+There are two valid export workflows:
+
+- preferred: export ten real metres as one GLB unit and use `scale 1`;
+- metre-based source: export one real metre as one GLB unit and use `scale 0.1`.
+
+Do not mix the workflows inside one model. Before registering the asset, check
+its transformed rest-pose bounding box. For example, a metre-based human whose
+GLB height is `1.8` becomes `0.18` world unit with `scale 0.1`; a canonically
+exported human whose GLB height is already `0.18` uses `scale 1`.
+
+Visual and physical dimensions are deliberately independent. `scale` changes
+the rendered model and all named attachment nodes, including `muzzle`. It does
+not change `collision-radius`, `collision-height`, `player-width`,
+`player-bottom`, or `player-height`. Update those fields explicitly whenever
+visual scale changes. An ordinary human NPC must therefore have a smaller
+visual model and collision envelope than a tank. A controllable entity's player
+envelope must describe the same physical body as its ordinary collision
+envelope; it is separate because player movement uses its own vertical
+interval.
 
 ### Supported geometry
 
@@ -516,8 +569,7 @@ scenario.
 | `lost-frames` | `180` | Steps to retain an unseen target; non-negative. |
 | `target-mode` | `nearest` | `nearest` or `all` sensor processing. |
 | `max-targets` | `1` | Contacts retained per step, from one through eight. |
-| `muzzle-forward` | `0` | Spawn offset in the aimed forward direction. |
-| `muzzle-height` | `0` | Spawn height relative to entity origin. |
+| `muzzle-node` | required when armed | Named GLB node whose origin and local `+Z` axis define weapon emission. |
 
 `target-mode all` applies sensor rules to up to `max-targets` contacts. The
 current movement and weapon controller still has one active target at a time;
@@ -526,6 +578,30 @@ the other contacts are useful for emitted events and group activation.
 An `attack` reaction is invalid with `weapon none`. New weapon names cannot be
 created in a descriptor; they must be registered as a reusable engine
 capability first.
+
+Every armed vehicle, NPC, creature, device, structure, or other entity must
+name a `muzzle-node`. The named node must exist in its normal GLB. There are no
+numeric muzzle offsets and no fallback: an armed descriptor without a valid
+node is rejected when assets are loaded.
+
+The node origin is the exact spawn point for shells, rockets, plasma, fire, and
+beams. Its local `+Z` axis is the firing direction. The engine evaluates the
+node after the current idle/move/attack animation, articulated yaw and pitch,
+the entity's uniform `scale`, `model-yaw-offset`, and world heading. Player and
+AI weapons use the same resulting transform.
+
+Parent `muzzle` to the last moving part that owns the weapon:
+
+- a tank cannon marker is a child of `barrel`, which is a child of `turret`;
+- a character marker is a child of the weapon, hand, head, or eye that emits
+  the shot;
+- a fixed turret marker is a child of its pitch node;
+- a non-articulated weapon marker may be a scene root, but it must still point
+  along local `+Z`.
+
+The marker needs no mesh. A transform-only glTF node is preferred. Aim-node
+rotation and animation inheritance then place every visible projectile at the
+actual barrel, hand, mouth, or eye without entity-specific engine code.
 
 ### Player-control directives
 
@@ -548,9 +624,8 @@ capability first.
 | `first-person-eye-height` | `0` | True first-person eye/cockpit height. Must be positive when controllable. |
 | `first-person-visible` | `no` | Draw the player's model in true first-person view. |
 
-For a controllable armed entity, `muzzle-forward` must be non-negative and
-`muzzle-height` must be positive. Pitch minimum must be below maximum and the
-default must lie inside the interval.
+For a controllable armed entity, `muzzle-node` is mandatory. Pitch minimum must
+be below maximum and the default must lie inside the interval.
 
 `control-mode free` gives camera-relative WASD movement. `control-mode steered`
 gives W/S forward and reverse with A/D hull turning, appropriate for tracked or
@@ -726,10 +801,13 @@ battalion-entity 1
 id rifle-guard
 kind npc
 model rifle-guard
+muzzle-node muzzle
 idle-animation rifle-guard-idle
 move-animation rifle-guard-walk
 attack-animation rifle-guard-fire
 animation-speed 0.05
+scale 1
+vertical-offset 0
 faction army
 hostile-faction monster
 movement ground
@@ -738,8 +816,8 @@ speed 0.025
 turn-rate 0.2
 health 3
 score 15
-collision-radius 0.2
-collision-height 0.9
+collision-radius 0.05
+collision-height 0.18
 weapon beam
 weapon-color red
 weapon-range 5
@@ -766,7 +844,10 @@ spawn-weight 0
 ```
 
 The route and patrol path belong to the map instance, not this reusable NPC
-archetype.
+archetype. This example assumes the rifle-guard GLB is a canonically exported
+1.8-metre human (`0.18` world unit tall). If the source GLB is authored in
+metres, set `scale 0.1`; the collision values remain world-unit values and do
+not inherit that scale.
 
 ### Steered vehicle with articulated weapon
 
@@ -780,6 +861,7 @@ shadow-model scout-tank-shadow
 move-animation scout-tank-tracks
 aim-yaw-node turret
 aim-pitch-node barrel
+muzzle-node muzzle
 animation-speed 0.05
 faction army
 hostile-faction monster
@@ -795,8 +877,6 @@ weapon shell
 weapon-range 7
 weapon-min-range 0.5
 projectile-speed 0.3
-muzzle-forward 0.3
-muzzle-height 0.2
 fire-interval 90
 accuracy 1000
 forget-range 14
@@ -828,7 +908,9 @@ first-person-visible no
 ```
 
 The tracks clip belongs inside the same complete tank GLB. Turret and barrel
-also remain in that GLB as correctly parented named nodes.
+also remain in that GLB as correctly parented named nodes. The transform-only
+`muzzle` node is placed at the barrel tip and parented to `barrel`; its local
+`+Z` axis follows the bore.
 
 ### Flying creature or vehicle
 
@@ -840,6 +922,7 @@ battalion-entity 1
 id scout-drone
 kind vehicle
 model scout-drone
+muzzle-node muzzle
 idle-animation scout-drone-rotors
 move-animation scout-drone-rotors
 attack-animation scout-drone-rotors
@@ -1082,7 +1165,12 @@ Before committing a new object, verify all of the following:
 - the model and every clip are present in `manifest.txt`;
 - the descriptor references keys, never file paths;
 - the descriptor is listed once in `entities/catalog.txt`;
-- collision, muzzle, camera, and vertical offsets match the actual geometry;
+- visual bounds use the canonical world scale and remain proportional to other
+  content;
+- collision and player envelopes match the scaled visual geometry;
+- every armed entity has a meshless `muzzle-node` at the actual emission point,
+  parented to the final aiming part and facing local `+Z`;
+- camera and vertical offsets match the actual geometry;
 - collision bottom/top intervals match the object's real occupied height, so
   an airborne object may pass above a lower solid without intersecting it;
 - stationary/ground/air and free/steered/phase capabilities are intentional;
@@ -1098,7 +1186,22 @@ Before committing a new object, verify all of the following:
 ### `An entity references missing assets`
 
 Check that normal/destroyed/shadow model keys exist, all animation keys resolve
-to real named clips, and both aim node names exist in the normal GLB.
+to real named clips, and all aim and muzzle node names exist in the normal GLB.
+
+### Armed entity is rejected or fires from the wrong place
+
+An armed descriptor must contain `muzzle-node`, and that exact lowercase node
+must exist in the normal GLB. Put the marker at the visible emission point and
+make its local `+Z` axis follow the shot. If the weapon articulates, parent the
+marker below the pitch/yaw hierarchy. Do not compensate with descriptor
+offsets; the format intentionally has none.
+
+### New human is as large as a tank
+
+Measure the exported rest-pose bounds. With one world unit equal to ten metres,
+a 1.8-metre human must be `0.18` unit tall after `scale`; a normal tank is about
+`0.22`-`0.30` unit tall and `0.45`-`0.65` unit long. Correct the export or
+`scale`, then explicitly correct both ordinary and player collision envelopes.
 
 ### Model loads but is white
 

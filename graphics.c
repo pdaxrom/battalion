@@ -2328,6 +2328,67 @@ static int externalEntityModelPose(
     return 1;
     }
 
+int configuredEntityMuzzlePose(const struct EntityArchetype *archetype,
+                               int moving, int attacking, int counter,
+                               float aimYaw, float aimPitch,
+                               float position[3], float direction[3])
+    {
+    struct tank entity;
+    const struct AssetManifestModel *model;
+    const struct AssetPose *pose;
+    float matrix[16];
+    float radians;
+    float sine;
+    float cosine;
+    float length;
+    float modelX;
+    float modelZ;
+    int node;
+
+    if (archetype == NULL || position == NULL || direction == NULL ||
+        archetype->muzzleNode[0] == '\0')
+        return 0;
+    memset(&entity, 0, sizeof(entity));
+    entity.dataArchetype = archetype;
+    entity.dataAgent.reaction = attacking ? ENTITY_REACTION_ATTACK :
+                                           ENTITY_REACTION_OBSERVE;
+    entity.walking = moving;
+    entity.aimYaw = aimYaw;
+    entity.aimPitch = aimPitch;
+    if (!externalEntityModelPose(&entity, counter, &model, &pose))
+        return 0;
+    node = assetModelFindNode(&model->model, archetype->muzzleNode);
+    if (node < 0 || !assetModelNodeWorldMatrix(&model->model, node, pose,
+                                               matrix))
+        return 0;
+
+    radians = archetype->modelYawOffset * DEG_TO_RAD;
+    sine = (float)sin((double)radians);
+    cosine = (float)cos((double)radians);
+    modelX = matrix[12];
+    modelZ = matrix[14];
+    position[0] = archetype->scale *
+        (cosine * modelX + sine * modelZ);
+    position[1] = archetype->scale * matrix[13];
+    position[2] = archetype->scale *
+        (-sine * modelX + cosine * modelZ);
+
+    modelX = matrix[8];
+    modelZ = matrix[10];
+    direction[0] = cosine * modelX + sine * modelZ;
+    direction[1] = matrix[9];
+    direction[2] = -sine * modelX + cosine * modelZ;
+    length = (float)sqrt((double)(direction[0] * direction[0] +
+                                  direction[1] * direction[1] +
+                                  direction[2] * direction[2]));
+    if (length <= 0.000001f)
+        return 0;
+    direction[0] /= length;
+    direction[1] /= length;
+    direction[2] /= length;
+    return 1;
+    }
+
 static void drawExternalEntity(const struct tank *tank, int counter,
                                int destroyed)
     {
@@ -2707,6 +2768,12 @@ void drawTanks(struct tank * allTanks,  int counter, struct monsterInfo G,
     struct tank cTank;
     struct tank * temptank;
     float angle2;
+    float muzzleLocal[3];
+    float muzzleDirection[3];
+    float muzzleWorld[3];
+    float muzzleRadians;
+    float muzzleSine;
+    float muzzleCosine;
     int monsterIsDead;
     float height, bottom;
     float xloc,  zloc;
@@ -2948,11 +3015,31 @@ void drawTanks(struct tank * allTanks,  int counter, struct monsterInfo G,
 		if (cTank.type == DATAENTITY && cTank.maserCount > 0 &&
 		    cTank.dataArchetype->weapon == ENTITY_WEAPON_BEAM &&
 		    cTank.dataAgent.hasTarget)
-		    drawMaser(cTank.x, cTank.y + cTank.dataArchetype->muzzleHeight,
-		              cTank.z, DATAENTITY,
-		              cTank.dataAgent.targetX, cTank.dataAgent.targetZ,
-		              PLANEY + 1.2, PLANEY, 0, 0, 0, wid, view, detail,
-		              paletteColor(cTank.dataArchetype->weaponColor));
+		    {
+		    if (configuredEntityMuzzlePose(
+			    cTank.dataArchetype, cTank.walking, 1, counter,
+			    cTank.aimYaw, cTank.aimPitch,
+			    muzzleLocal, muzzleDirection))
+			{
+			muzzleRadians = angle2 * DEG_TO_RAD;
+			muzzleSine = (float)sin((double)muzzleRadians);
+			muzzleCosine = (float)cos((double)muzzleRadians);
+			muzzleWorld[0] = cTank.x +
+			    muzzleCosine * muzzleLocal[0] +
+			    muzzleSine * muzzleLocal[2];
+			muzzleWorld[1] = cTank.y + muzzleLocal[1];
+			muzzleWorld[2] = cTank.z -
+			    muzzleSine * muzzleLocal[0] +
+			    muzzleCosine * muzzleLocal[2];
+			drawMaser(
+			    muzzleWorld[0], muzzleWorld[1], muzzleWorld[2],
+			    DATAENTITY, cTank.dataAgent.targetX,
+			    cTank.dataAgent.targetZ, cTank.dataAgent.targetY,
+			    cTank.dataAgent.targetY, 0, 0, 0,
+			    wid, view, detail,
+			    paletteColor(cTank.dataArchetype->weaponColor));
+			}
+		    }
 
   		} 
 	    }  
@@ -3110,18 +3197,14 @@ void drawBooms(struct boom * boomers, int detail)
 /* draw googelon/Flutter's energy beam                           */
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
-void drawBeam(float x, float z, int horz, int vert,
-	const struct EntityArchetype *archetype, int detail)
+void drawBeam(const struct EntityArchetype *archetype, int detail,
+	const float muzzleOrigin[3], const float muzzleDirection[3])
     {
     float loc1[3],  loc2[3],  loc3[3];
     float c[4] = {0, 0, 0, 0};
     const float *col;
     float R;
     float beamRange;
-    float beamHeight;
-    float beamForward;
-    float directionX;
-    float directionZ;
     float jitter;
     const struct AssetValue *beamLines;
     const struct AssetValue *beamGreen;
@@ -3133,21 +3216,15 @@ void drawBeam(float x, float z, int horz, int vert,
     glGetIntegerv(GL_SHADE_MODEL, &shadeNow);
 
     glGetFloatv(GL_LINE_WIDTH, &lineWidthNow);
-    beamRange = effectScalar("monster-beam-range");
-    beamHeight = effectScalar("monster-beam-height");
-    beamForward = 0.0f;
-    if (archetype != NULL)
-	{
-	beamRange = archetype->weaponRange;
-	beamHeight = archetype->verticalOffset + archetype->muzzleHeight;
-	beamForward = archetype->muzzleForward;
-	}
+    if (archetype == NULL || muzzleOrigin == NULL ||
+		muzzleDirection == NULL)
+	return;
+    beamRange = archetype->weaponRange;
     jitter = effectScalar("monster-beam-jitter");
     beamLines = requiredEffectValue("monster-beam-lines", 3);
     beamGreen = requiredEffectValue("monster-beam-green", 2);
     
-    col = paletteColor(archetype == NULL ? "blue" :
-	               archetype->weaponColor);
+    col = paletteColor(archetype->weaponColor);
 
 	    
     /**********************************/
@@ -3157,36 +3234,14 @@ void drawBeam(float x, float z, int horz, int vert,
     /* if line widths are integral Mesa chokes in a large window */
     glLineWidth(effectScalar("monster-beam-line-width"));
 
-    if (vert < 175)
-	R = beamRange;
-    else
-	R = beamHeight / (cos((900 - vert) * BIG_DEG_TO_RAD));
-
-    if (R < 0)
-	R = 0;
-    if (R > beamRange)
-	R = beamRange;
-
-    if (vert < 0)
-	loc3[1] = PLANEY + beamHeight +
-	    R * sin(fabs(vert * BIG_DEG_TO_RAD));
-    else
-	loc3[1] = PLANEY + beamHeight -
-	    R * sin(fabs(vert * BIG_DEG_TO_RAD));
-
-    directionX = -cos((900 + horz) * BIG_DEG_TO_RAD);
-    directionZ = sin((900 + horz) * BIG_DEG_TO_RAD);
-    loc1[0] = x + beamForward * directionX;
-    loc1[2] = z + beamForward * directionZ;
-    loc1[1] = PLANEY + beamHeight;
-
-/* this doesnt really work ... beam has xz value of 4 no matter what y is (> plane)
- * so beam will be longer than 4 as it gets higher up in the sky
- */
+    R = beamRange;
+	loc1[0] = muzzleOrigin[0];
+	loc1[1] = muzzleOrigin[1];
+	loc1[2] = muzzleOrigin[2];
+	loc3[0] = loc1[0] + R * muzzleDirection[0];
+    loc3[1] = loc1[1] + R * muzzleDirection[1];
+    loc3[2] = loc1[2] + R * muzzleDirection[2];
  
-    loc3[0] = loc1[0] + R * directionX;
-    loc3[2] = loc1[2] + R * directionZ;
-
     if (loc3[1] < PLANEY)
 	loc3[1] = PLANEY;
 

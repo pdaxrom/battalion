@@ -542,10 +542,11 @@ int different(char *, char *);
 
 float centerText(char *,  float);
 
-void updateGun(float, float, int, int, int,struct monsterInfo *);
-void updateVap(float, float, int,struct monsterInfo *);
 void updatetrees(struct tree *, int);
-void updateBeam(struct monsterInfo *, struct targetInfo *, float, float, struct tank *, struct tree **, int, struct monsterInfo *);
+void updateBeam(struct monsterInfo *, struct targetInfo *,
+		struct tank *, struct tree **, int, struct monsterInfo *,
+		const struct EntityArchetype *, const float [3],
+		const float [3]);
 void updateTanks(struct tank *, float, float, float, int, int, struct tank *, 
 		float, int, int, struct monsterInfo *, struct targetInfo *);
 void updateSlagTanks(struct tank *);
@@ -714,6 +715,8 @@ void drawConfiguredPlayerEntity(const struct EntityArchetype *, int, int,
 				int, int, float, float);
 int configuredPlayerEntityBounds(const struct EntityArchetype *, int, int,
 				 int, float, float, float [3], float [3]);
+int configuredEntityMuzzlePose(const struct EntityArchetype *, int, int,
+			       int, float, float, float [3], float [3]);
 const struct EntityArchetype *selectedPlayerArchetype(void);
 int playerWeaponUsesReload(void);
 float playerWeaponReadiness(void);
@@ -772,8 +775,8 @@ void drawMaser(float, float, float, int, float, float, float, float,
 void drawHeroWeapon(float, float, float, float, float, float *, float, float);
 
 void drawBooms(struct boom *, int);
-void drawBeam(float, float, int, int,
-              const struct EntityArchetype *, int);
+void drawBeam(const struct EntityArchetype *, int,
+              const float [3], const float [3]);
 
 void drawRoads(struct road *,  float,  float, int, int, int);
 void drawProjectiles(struct projectile *, int, struct fireType*, int, int, int,

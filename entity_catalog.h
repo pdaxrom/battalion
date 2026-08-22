@@ -102,6 +102,7 @@ struct EntityArchetype
     char attackAnimation[ENTITY_NAME_SIZE];
     char aimYawNode[ENTITY_NAME_SIZE];
     char aimPitchNode[ENTITY_NAME_SIZE];
+    char muzzleNode[ENTITY_NAME_SIZE];
     char weaponColor[ENTITY_NAME_SIZE];
     char renderNodes[ENTITY_MAX_RENDER_NODES][ENTITY_NAME_SIZE];
     size_t renderNodeCount;
@@ -156,8 +157,6 @@ struct EntityArchetype
     float aimPitchMin;
     float aimPitchMax;
     float firstPersonEyeHeight;
-    float muzzleForward;
-    float muzzleHeight;
     };
 
 struct EntityCatalog

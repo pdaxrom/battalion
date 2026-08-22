@@ -154,6 +154,25 @@ parts, with descriptor-defined pitch limits and steering rate. The standard
 tank therefore turns its hull with A/D while the turret and barrel aim
 independently.
 
+All armed archetypes also require a named GLB `muzzle-node`, regardless of
+whether they are vehicles, NPCs, creatures, devices, or structures. The
+node's origin is the weapon emission point and its local `+Z` axis is the shot
+direction after animation and articulated aiming. Numeric muzzle offsets are
+not part of the entity format and there is no fallback for a missing node.
+
+Canonical content scale is one world unit per ten metres. A 1.8-metre human is
+therefore `0.18` unit tall, while a typical tank is roughly `0.22`-`0.30` unit
+tall and `0.45`-`0.65` unit long. `scale` affects the visual hierarchy and its
+attachment nodes only; collision and player envelopes must be authored
+explicitly to match. The complete sizing table and workflow are in
+`content-authoring.md`.
+
+Entity `kind` never supplies an implicit size. Prefer canonical GLBs with
+`scale 1`; a source asset exported in metres uses `scale 0.1`. In either case,
+verify transformed GLB bounds and write collision/player dimensions in world
+units. This is what keeps a newly added human smaller than a tank without any
+hardcoded human-or-vehicle branch in the engine.
+
 The descriptor's `vertical-offset` is only the model-origin height relative to
 `PLANEY`. An actor's `collision-height` extends above that model origin. For a
 controllable player, `player-bottom` and `player-height` are the lower and upper

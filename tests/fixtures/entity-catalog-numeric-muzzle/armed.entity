@@ -1,0 +1,9 @@
+battalion-entity 1
+id obsolete-offset-weapon
+kind vehicle
+model test-model
+faction test
+weapon shell
+muzzle-node muzzle
+muzzle-forward 0.3
+muzzle-height 0.2

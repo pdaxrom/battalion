@@ -6,6 +6,7 @@ control-mode free
 shortcut 8
 network-code 1
 model vapour
+muzzle-node muzzle
 idle-animation vapour-cloud
 move-animation vapour-cloud
 attack-animation vapour-cloud
@@ -27,8 +28,6 @@ weapon-color orange
 weapon-range 1
 weapon-min-range 0
 projectile-speed 0.0005
-muzzle-forward 0
-muzzle-height 0.12
 fire-interval 2
 accuracy 10000
 forget-range 12

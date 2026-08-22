@@ -144,6 +144,8 @@ static int testExportedTank(void)
     struct AssetPose movingPose;
     char error[160];
     int treadNode;
+    int muzzleNode;
+    float muzzleMatrix[16];
     int result;
 
     assetModelInitialize(&model);
@@ -161,7 +163,7 @@ static int testExportedTank(void)
              model.meshes[2].vertexCount == 30 &&
              model.meshes[3].vertexCount == 36 &&
              model.meshes[4].vertexCount == 36 &&
-             model.nodeCount == 29 &&
+             model.nodeCount == 30 &&
              model.sceneRootCount == 1 &&
              model.sceneRoots[0] == 0 &&
              model.nodes[0].mesh == -1 &&
@@ -171,6 +173,8 @@ static int testExportedTank(void)
              model.nodes[0].children[2] == 3 &&
              model.nodes[3].childCount == 1 &&
              model.nodes[3].children[0] == 4 &&
+             model.nodes[4].childCount == 1 &&
+             model.nodes[4].children[0] == 29 &&
              model.animationCount == 1 &&
              model.animations[0].trackCount == 24 &&
              strcmp(model.animations[0].name, "tracks") == 0 &&
@@ -179,13 +183,21 @@ static int testExportedTank(void)
              assetModelFindNode(&model, "upper-hull") == 2 &&
              assetModelFindNode(&model, "turret") == 3 &&
              assetModelFindNode(&model, "barrel") == 4 &&
+             assetModelFindNode(&model, "muzzle") == 29 &&
              assetModelFindNode(&model, "tread-left-00") == 5 &&
              assetModelFindNode(&model, "tread-right-11") == 28;
     treadNode = assetModelFindNode(&model, "tread-left-00");
+    muzzleNode = assetModelFindNode(&model, "muzzle");
     if (result)
         result = assetPoseSample(&model, 0, 0.0f, 1, &startPose) &&
                  assetPoseSample(&model, 0, 0.3f, 1, &movingPose) &&
                  treadNode >= 0 &&
+                 muzzleNode >= 0 &&
+                 assetModelNodeWorldMatrix(&model, muzzleNode, &startPose,
+                                           muzzleMatrix) &&
+                 nearValue(muzzleMatrix[12], 0.0f) &&
+                 nearValue(muzzleMatrix[13], 0.195f) &&
+                 nearValue(muzzleMatrix[14], 0.24f) &&
                  (!nearValue(startPose.nodes[treadNode].translation[1],
                              movingPose.nodes[treadNode].translation[1]) ||
                   !nearValue(startPose.nodes[treadNode].translation[2],
@@ -385,7 +397,9 @@ static int testExportedHelicopter(void)
 	     model.meshes[0].vertexCount == 324 &&
 	     model.meshes[1].vertexCount == 72 &&
 	     model.meshes[2].vertexCount == 36 &&
-	     model.nodeCount == 3 &&
+	     model.nodeCount == 4 &&
+	     model.sceneRootCount == 4 &&
+	     assetModelFindNode(&model, "muzzle") == 3 &&
 	     nearValue(model.nodes[2].translation[0], 0.04f) &&
 	     nearValue(model.nodes[2].translation[2], 0.375f) &&
 	     model.animationCount == 1 &&
@@ -425,22 +439,35 @@ static int testAnimatedVapour(void)
     {
     struct AssetModel model;
     struct AssetPose pose;
+    float muzzleMatrix[16];
     char error[160];
+    int muzzleNode;
     int result;
 
     assetModelInitialize(&model);
     assetPoseInitialize(&pose);
     result = assetModelLoadGLB("assets/models/monsters/vapour.glb",
                                &model, error, sizeof(error)) &&
-             model.meshCount == 1 && model.nodeCount == 45 &&
+             model.meshCount == 1 && model.nodeCount == 46 &&
              model.meshes[0].blend &&
              nearValue(model.meshes[0].vertices[0].color[3], 0.2f) &&
-             model.sceneRootCount == 45 && model.animationCount == 1 &&
+             model.sceneRootCount == 46 && model.animationCount == 1 &&
              model.animations[0].name != NULL &&
              strcmp(model.animations[0].name, "cloud") == 0 &&
              model.animations[0].trackCount == 90 &&
              assetPoseSample(&model, 0, 0.8f, 1, &pose) &&
-             pose.nodeCount == 45;
+             pose.nodeCount == 46;
+    muzzleNode = assetModelFindNode(&model, "muzzle");
+    if (result)
+        result = muzzleNode == 45 &&
+                 assetModelNodeWorldMatrix(&model, muzzleNode, &pose,
+                                           muzzleMatrix) &&
+                 nearValue(muzzleMatrix[12], 0.0f) &&
+                 nearValue(muzzleMatrix[13], -0.88f) &&
+                 nearValue(muzzleMatrix[14], 0.0f) &&
+                 nearValue(muzzleMatrix[8], 0.0f) &&
+                 nearValue(muzzleMatrix[9], -1.0f) &&
+                 nearValue(muzzleMatrix[10], 0.0f);
     if (!result)
         fprintf(stderr, "animated Vapour asset is invalid: %s\n", error);
     assetPoseDestroy(&pose);
@@ -591,7 +618,8 @@ static int testCreatureAimNodes(void)
     for (index = 0; index < 3; index++)
         {
         if (!assetModelLoadGLB(paths[index], &model, error, sizeof(error)) ||
-            assetModelFindNode(&model, "head") < 0)
+            assetModelFindNode(&model, "head") < 0 ||
+            assetModelFindNode(&model, "muzzle") < 0)
             {
             fprintf(stderr, "creature aim node missing in %s: %s\n",
                     paths[index], error);

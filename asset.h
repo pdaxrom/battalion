@@ -100,6 +100,9 @@ int assetModelPoseBounds(const struct AssetModel *model,
 int assetModelNodePoseBounds(const struct AssetModel *model, int node,
                              const struct AssetPose *pose,
                              float minimum[3], float maximum[3]);
+int assetModelNodeWorldMatrix(const struct AssetModel *model, int node,
+                              const struct AssetPose *pose,
+                              float matrix[16]);
 int assetModelLoadGLB(const char *path, struct AssetModel *model,
                       char *error, size_t errorSize);
 

@@ -12,6 +12,7 @@ render-node wing-left
 render-node wing-right
 aim-yaw-node head
 aim-pitch-node head
+muzzle-node muzzle
 idle-animation flutter-wing-flap
 move-animation flutter-wing-flap
 attack-animation flutter-wing-flap
@@ -32,8 +33,6 @@ weapon-color orange
 weapon-range 4
 weapon-min-range 0
 projectile-speed 0.1
-muzzle-forward 0
-muzzle-height 0.2
 fire-interval 1
 accuracy 1000
 forget-range 12

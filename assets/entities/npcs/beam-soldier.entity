@@ -5,6 +5,7 @@ kind npc
 controllable yes
 control-mode free
 model hero-beam
+muzzle-node muzzle
 idle-animation hero-beam-walk
 move-animation hero-beam-walk
 attack-animation hero-beam-fire
@@ -25,8 +26,6 @@ weapon-color red
 weapon-range 5
 weapon-min-range 0.25
 projectile-speed 0.1
-muzzle-forward 0
-muzzle-height 0.75
 fire-interval 1
 accuracy 20
 forget-range 12

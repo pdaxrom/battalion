@@ -167,43 +167,12 @@ struct monsterInfo resetMonsterParameters(struct monsterInfo Googelon)
 
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
-/* techs is firing a projectile                                  */
-/*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
-
-void updateGun(float xhead, float zhead, int horz, int vert, int counter, struct monsterInfo *m)
-    {
-    float x, y, z;
-    
-    if (counter % 2)
-	{
-	x = 0.2* -cos((900+horz) * BIG_DEG_TO_RAD);
-	y = 0.2*  cos((900+vert) * BIG_DEG_TO_RAD);
-	z = 0.2*  sin((900+horz) * BIG_DEG_TO_RAD);
-
-	addProjectile(xhead, PLANEY+1.2, zhead, PROJTECHS, x, y, z, 1000, m);
-	}
-    }
-
-/*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
-/*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
-/* the vapour is leaving a fire trail                            */
-/*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
-
-void updateVap(float x,  float z, int counter, struct monsterInfo *m)
-    {
-    if (counter % 2)
-	addProjectile( x, PLANEY+0.12, z, PROJFIRE, 0, -0.0005, 0, 10000, m);
-    }
-
-
-/*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
-/*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 /* googelon/flutter is firing their energy beam                  */
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
 static void beamDamageSource(struct EntityContact *contact,
 	struct monsterInfo *player, struct targetInfo *targetList,
-	struct monsterInfo *owner, float x, float z)
+	struct monsterInfo *owner, float x, float y, float z)
     {
     struct targetInfo *target;
     int number;
@@ -211,6 +180,7 @@ static void beamDamageSource(struct EntityContact *contact,
     memset(contact, 0, sizeof(*contact));
     strcpy(contact->faction, "monster");
     contact->x = x;
+    contact->y = y;
     contact->z = z;
     contact->active = 1;
     contact->visible = 1;
@@ -233,10 +203,12 @@ static void beamDamageSource(struct EntityContact *contact,
     strcpy(contact->id, "beam-source");
     }
 
-void updateBeam(struct monsterInfo * g,  struct targetInfo * t, float x, float z, struct tank * allTanks,  
-		struct tree ** allTreePtrs, int numTrees, struct monsterInfo * m)
+void updateBeam(struct monsterInfo * g, struct targetInfo * t,
+		struct tank * allTanks,
+		struct tree ** allTreePtrs, int numTrees, struct monsterInfo * m,
+		const struct EntityArchetype *archetype,
+		const float muzzleOrigin[3], const float muzzleDirection[3])
     {
-    const struct EntityArchetype *archetype;
     struct targetInfo * temptarget;
     struct tank * ttank, * temptank;
     struct tree * ttree;
@@ -249,61 +221,25 @@ void updateBeam(struct monsterInfo * g,  struct targetInfo * t, float x, float z
     float tankx,  tanky,  tankz;
     float beamx,  beamy,  beamz;
     float height;
-    float beamHeight;
-    float beamForward;
     float beamRange;
-    float directionX;
-    float directionZ;
     float R;
     struct EntityContact damageSource;
     int itsDead;
     int i;
-    int horz, vert;
-    
-    
-    horz = m->headHorzRotate;
-    vert = m->headVertRotate;
-
-    beamRange = 4.0f;
-    beamHeight = 1.2f;
-    beamForward = 0.0f;
-    if (m->monster == DATAENTITY)
-	{
-	archetype = m->dataArchetype;
-	if (archetype == NULL)
-	    archetype = selectedPlayerArchetype();
-	if (archetype != NULL)
-	    {
-	    beamRange = archetype->weaponRange;
-	    beamHeight = archetype->verticalOffset + archetype->muzzleHeight;
-	    beamForward = archetype->muzzleForward;
-	    }
-	}
-
+    if (archetype == NULL || muzzleOrigin == NULL ||
+		muzzleDirection == NULL)
+	return;
+    beamRange = archetype->weaponRange;
 
     doSound(MONSTERBEAM);
-        
-    if (vert < 175)
-	R = beamRange;
-    else
-	R = beamHeight / (cos((900 - vert) * BIG_DEG_TO_RAD));
-	
-    directionX = -cos((900 + horz) * BIG_DEG_TO_RAD);
-    directionZ = sin((900 + horz) * BIG_DEG_TO_RAD);
 
-    loc1[0] = x + beamForward * directionX;
-    loc1[1] = PLANEY + beamHeight;
-    loc1[2] = z + beamForward * directionZ;
-
-    loc3[0] = loc1[0] + R * directionX;
-    loc3[2] = loc1[2] + R * directionZ;
-
-    if (vert < 0)
-	loc3[1] = PLANEY + beamHeight +
-	    R * sin(fabs(vert * BIG_DEG_TO_RAD));
-    else
-	loc3[1] = PLANEY + beamHeight -
-	    R * sin(fabs(vert * BIG_DEG_TO_RAD));
+    R = beamRange;
+    loc1[0] = muzzleOrigin[0];
+	loc1[1] = muzzleOrigin[1];
+	loc1[2] = muzzleOrigin[2];
+	loc3[0] = loc1[0] + R * muzzleDirection[0];
+    loc3[1] = loc1[1] + R * muzzleDirection[1];
+    loc3[2] = loc1[2] + R * muzzleDirection[2];
 
     /**********************************/
     /* does beam touch ground         */
@@ -439,7 +375,8 @@ void updateBeam(struct monsterInfo * g,  struct targetInfo * t, float x, float z
 	    ttank->damage -= 1;
 	    if (ttank->type == DATAENTITY)
 		{
-		beamDamageSource(&damageSource, g, t, m, x, z);
+		beamDamageSource(&damageSource, g, t, m,
+			muzzleOrigin[0], muzzleOrigin[1], muzzleOrigin[2]);
 		entityAgentNotifyDamage(&ttank->dataAgent, &damageSource);
 		}
 

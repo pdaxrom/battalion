@@ -64,6 +64,7 @@ static int manifestContainsAnimation(const char *key)
 int main(void)
     {
     struct EntityCatalog catalog;
+    struct EntityCatalog invalidCatalog;
     const struct EntityArchetype *tank;
     const struct EntityArchetype *helicopter;
     const struct EntityArchetype *soldier;
@@ -104,9 +105,8 @@ int main(void)
         tank->controlMode != ENTITY_CONTROL_STEERED ||
         strcmp(tank->aimYawNode, "turret") != 0 ||
         strcmp(tank->aimPitchNode, "barrel") != 0 ||
+        strcmp(tank->muzzleNode, "muzzle") != 0 ||
         tank->firstPersonEyeHeight != 0.28f ||
-        tank->muzzleForward < 0.239f || tank->muzzleForward > 0.241f ||
-        tank->muzzleHeight < 0.194f || tank->muzzleHeight > 0.196f ||
         tank->projectileSpeed < 0.299f || tank->aimPitchDefault != 0.0f ||
         tank->firstPersonVisible ||
         tank->targetMode != ENTITY_TARGET_ALL ||
@@ -154,10 +154,14 @@ int main(void)
         monster->renderNodeCount != 5 ||
         monster->health != 8 || monster->spawnWeight != 0 ||
         monster->animationSpeed != 1.0f ||
-        monster->muzzleHeight != 0.2f ||
+        strcmp(monster->muzzleNode, "muzzle") != 0 ||
         flutter->animationSpeed != 1.0f ||
         flutter->health != 8 || flutter->spawnWeight != 0 ||
-        flutter->muzzleHeight != 0.2f ||
+        strcmp(flutter->muzzleNode, "muzzle") != 0 ||
+        strcmp(helicopter->muzzleNode, "muzzle") != 0 ||
+        strcmp(soldier->muzzleNode, "muzzle") != 0 ||
+        strcmp(vapour->muzzleNode, "muzzle") != 0 ||
+        strcmp(techs->muzzleNode, "muzzle") != 0 ||
         strcmp(monster->renderNodes[0], "body") != 0 ||
         vapour->weapon != ENTITY_WEAPON_FIRE ||
         vapour->health != 8 || vapour->spawnWeight != 0 ||
@@ -179,5 +183,27 @@ int main(void)
         return 1;
         }
     entityCatalogDestroy(&catalog);
+
+    entityCatalogInitialize(&invalidCatalog);
+    if (entityCatalogLoad("tests/fixtures/entity-catalog-missing-muzzle",
+                          "catalog.txt", &invalidCatalog,
+                          error, sizeof(error)))
+        {
+        fprintf(stderr, "armed entity without muzzle-node was accepted\n");
+        entityCatalogDestroy(&invalidCatalog);
+        return 1;
+        }
+    entityCatalogDestroy(&invalidCatalog);
+
+    entityCatalogInitialize(&invalidCatalog);
+    if (entityCatalogLoad("tests/fixtures/entity-catalog-numeric-muzzle",
+                          "catalog.txt", &invalidCatalog,
+                          error, sizeof(error)))
+        {
+        fprintf(stderr, "obsolete numeric muzzle directives were accepted\n");
+        entityCatalogDestroy(&invalidCatalog);
+        return 1;
+        }
+    entityCatalogDestroy(&invalidCatalog);
     return 0;
     }

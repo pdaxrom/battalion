@@ -1,0 +1,2 @@
+battalion-entities 1
+entity armed.entity

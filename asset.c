@@ -104,6 +104,38 @@ static void boundsNodeMatrix(const struct AssetNode *node,
     matrix[14] = pose != NULL ? pose->translation[2] : node->translation[2];
     }
 
+static int findNodeWorldMatrix(const struct AssetModel *model,
+                               int currentNode, int wantedNode,
+                               const struct AssetPose *pose,
+                               const float parentMatrix[16], size_t depth,
+                               float result[16])
+    {
+    const struct AssetNode *node;
+    const struct AssetNodePose *nodePose;
+    float localMatrix[16];
+    float worldMatrix[16];
+    size_t child;
+
+    if (currentNode < 0 || currentNode >= (int)model->nodeCount ||
+        depth >= model->nodeCount)
+        return 0;
+    node = &model->nodes[currentNode];
+    nodePose = pose != NULL && pose->nodeCount == model->nodeCount ?
+        &pose->nodes[currentNode] : NULL;
+    boundsNodeMatrix(node, nodePose, localMatrix);
+    boundsMultiplyMatrix(worldMatrix, parentMatrix, localMatrix);
+    if (currentNode == wantedNode)
+        {
+        memcpy(result, worldMatrix, sizeof(worldMatrix));
+        return 1;
+        }
+    for (child = 0; child < node->childCount; child++)
+        if (findNodeWorldMatrix(model, node->children[child], wantedNode,
+                                pose, worldMatrix, depth + 1, result))
+            return 1;
+    return 0;
+    }
+
 static void includeBoundsPosition(struct AssetBounds *bounds,
                                   const float position[3])
     {
@@ -282,4 +314,22 @@ int assetModelNodePoseBounds(const struct AssetModel *model, int node,
     boundsIdentityMatrix(identity);
     includeBoundsNode(model, node, pose, identity, 0, &bounds);
     return copyAssetBounds(&bounds, minimum, maximum);
+    }
+
+int assetModelNodeWorldMatrix(const struct AssetModel *model, int node,
+                              const struct AssetPose *pose,
+                              float matrix[16])
+    {
+    float identity[16];
+    size_t root;
+
+    if (model == NULL || matrix == NULL || node < 0 ||
+        node >= (int)model->nodeCount)
+        return 0;
+    boundsIdentityMatrix(identity);
+    for (root = 0; root < model->sceneRootCount; root++)
+        if (findNodeWorldMatrix(model, model->sceneRoots[root], node, pose,
+                                identity, 0, matrix))
+            return 1;
+    return 0;
     }

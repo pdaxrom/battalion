@@ -1,0 +1,6 @@
+battalion-entity 1
+id armed-without-marker
+kind npc
+model test-model
+faction test
+weapon shell

@@ -298,7 +298,8 @@ static int entityAssetsAvailable(const struct EntityArchetype *archetype)
         assetModelDisplayList(archetype->shadowModel) == 0)
         return 0;
     if (!assetModelHasNode(archetype->model, archetype->aimYawNode) ||
-        !assetModelHasNode(archetype->model, archetype->aimPitchNode))
+        !assetModelHasNode(archetype->model, archetype->aimPitchNode) ||
+        !assetModelHasNode(archetype->model, archetype->muzzleNode))
         return 0;
     for (node = 0; node < archetype->renderNodeCount; node++)
         if (!assetModelHasNode(archetype->model,
@@ -1473,13 +1474,14 @@ void updatetrees(struct tree * allTrees, int itsChristmas)
 
 static void initializeContact(struct EntityContact *contact,
                               const char *id, const char *faction,
-                              float x, float z, int active,
+                              float x, float y, float z, int active,
                               int visible, int audible)
     {
     memset(contact, 0, sizeof(*contact));
     strcpy(contact->id, id);
     strcpy(contact->faction, faction);
     contact->x = x;
+    contact->y = y;
     contact->z = z;
     contact->active = active;
     contact->visible = visible;
@@ -1491,7 +1493,7 @@ static void notifyDataEntityDamage(struct tank *tank, const char *id,
     {
     struct EntityContact source;
 
-    initializeContact(&source, id, faction, x, z, 1, 1, 1);
+    initializeContact(&source, id, faction, x, PLANEY, z, 1, 1, 1);
     entityAgentNotifyDamage(&tank->dataAgent, &source);
     }
 
@@ -1607,7 +1609,7 @@ static size_t buildDataEntityContacts(struct tank *source,
 	audible = player->monsterMoving || player->beamOn || playerFired;
 	initializeContact(&contacts[count++], "player",
 		  playerEntityArchetype == NULL ? "neutral" :
-		  playerEntityArchetype->faction, player->x, player->z,
+		  playerEntityArchetype->faction, player->x, targetY, player->z,
 			  player->monsterIsDead != 1, visible, audible);
 	}
     targetNumber = 0;
@@ -1619,7 +1621,7 @@ static size_t buildDataEntityContacts(struct tank *source,
 	visible = dataEntityLineOfSight(source, target->x, targetY,
 					target->z);
 	initializeContact(&contacts[count++], id, "monster",
-			  target->x, target->z,
+			  target->x, targetY, target->z,
 			  target->monster.monsterIsDead != 1, visible,
 			  target->monster.monsterMoving ||
 			  target->monster.beamOn);
@@ -1634,7 +1636,7 @@ static size_t buildDataEntityContacts(struct tank *source,
 		       dataEntityRecentlyFired(tank);
 	    initializeContact(&contacts[count++], tank->dataId,
 			      tank->dataArchetype->faction,
-			      tank->x, tank->z, tank->damage > 0,
+			      tank->x, targetY, tank->z, tank->damage > 0,
 			      visible, audible);
 	    }
     return count;
@@ -1675,18 +1677,152 @@ static void damageDataEntityTarget(struct tank *source,
         }
     }
 
+static int configuredMuzzleWorld(
+    const struct EntityArchetype *archetype, int moving, int attacking,
+    int counter, float entityX, float entityY, float entityZ,
+    float bodyHeading, float aimYaw, float aimPitch,
+    float origin[3], float direction[3])
+    {
+    float localOrigin[3];
+    float localDirection[3];
+    float radians;
+    float sine;
+    float cosine;
+
+    if (!configuredEntityMuzzlePose(archetype, moving, attacking, counter,
+                                    aimYaw, aimPitch,
+                                    localOrigin, localDirection))
+        return 0;
+    radians = bodyHeading * DEG_TO_RAD;
+    sine = (float)sin((double)radians);
+    cosine = (float)cos((double)radians);
+    origin[0] = entityX + cosine * localOrigin[0] +
+                sine * localOrigin[2];
+    origin[1] = entityY + localOrigin[1];
+    origin[2] = entityZ - sine * localOrigin[0] +
+                cosine * localOrigin[2];
+    direction[0] = cosine * localDirection[0] +
+                   sine * localDirection[2];
+    direction[1] = localDirection[1];
+    direction[2] = -sine * localDirection[0] +
+                   cosine * localDirection[2];
+    return 1;
+    }
+
+static int configuredPlayerMuzzleWorld(float origin[3], float direction[3])
+    {
+    float bodyHeading;
+    float aimYaw;
+
+    if (playerEntityArchetype == NULL)
+        return 0;
+    bodyHeading = Googelon.headHorzRotate * 0.1f;
+    aimYaw = 0.0f;
+    if (playerEntityArchetype->controlMode == ENTITY_CONTROL_STEERED)
+        {
+        bodyHeading = playerBodyHeading * 0.1f;
+        aimYaw = (Googelon.headHorzRotate - playerBodyHeading) * 0.1f;
+        }
+    return configuredMuzzleWorld(
+        playerEntityArchetype, Googelon.monsterMoving, Googelon.beamOn,
+        mainCounter, Googelon.x,
+        PLANEY + playerEntityArchetype->verticalOffset, Googelon.z,
+        bodyHeading, aimYaw, Googelon.headVertRotate * 0.1f,
+        origin, direction);
+    }
+
+static void updateMonsterProjectileFromAsset(
+    float x, float z, int counter, const struct monsterInfo *state,
+    struct monsterInfo *owner)
+    {
+    const struct EntityArchetype *archetype;
+    float origin[3];
+    float direction[3];
+    int projectileType;
+
+    archetype = monsterArchetype(state);
+    if (archetype == NULL || archetype->weapon == ENTITY_WEAPON_NONE ||
+        counter % archetype->fireInterval != 0 ||
+        !configuredMuzzleWorld(
+            archetype, state->monsterMoving, state->beamOn, counter,
+            x, PLANEY + archetype->verticalOffset, z,
+            state->headHorzRotate * 0.1f, 0.0f,
+            state->headVertRotate * 0.1f, origin, direction))
+        return;
+    if (archetype->weapon == ENTITY_WEAPON_ROCKET)
+        projectileType = PROJROCKET;
+    else if (archetype->weapon == ENTITY_WEAPON_PLASMA)
+        projectileType = PROJTECHS;
+    else if (archetype->weapon == ENTITY_WEAPON_FIRE)
+        projectileType = PROJFIRE;
+    else if (archetype->weapon == ENTITY_WEAPON_SHELL)
+        projectileType = PROJTANK;
+    else
+        return;
+    addProjectile(origin[0], origin[1], origin[2], projectileType,
+                  direction[0] * archetype->projectileSpeed,
+                  direction[1] * archetype->projectileSpeed,
+                  direction[2] * archetype->projectileSpeed,
+                  archetype->accuracy, owner);
+    }
+
+static void aimDataEntityAtTarget(struct tank *tank)
+    {
+    const struct EntityArchetype *archetype;
+    float origin[3];
+    float direction[3];
+    float deltaX;
+    float deltaY;
+    float deltaZ;
+    float horizontal;
+    float bodyHeading;
+    float targetHeading;
+    float aimYaw;
+    float aimPitch;
+
+    archetype = tank->dataArchetype;
+    tank->aimYaw = 0.0f;
+    tank->aimPitch = archetype->aimPitchDefault;
+    if (!tank->dataAgent.hasTarget)
+        return;
+    deltaX = tank->dataAgent.targetX - tank->x;
+    deltaZ = tank->dataAgent.targetZ - tank->z;
+    horizontal = (float)sqrt((double)(deltaX * deltaX + deltaZ * deltaZ));
+    if (horizontal <= 0.0001f)
+        return;
+    bodyHeading = tank->theta * RAD_TO_SMALL_DEG;
+    targetHeading = (float)(atan2((double)deltaX, (double)deltaZ) /
+                                  DEG_TO_RAD);
+    aimYaw = targetHeading - bodyHeading;
+    while (aimYaw > 180.0f)
+        aimYaw -= 360.0f;
+    while (aimYaw < -180.0f)
+        aimYaw += 360.0f;
+    if (archetype->aimYawNode[0] != '\0')
+        tank->aimYaw = aimYaw;
+    if (archetype->aimPitchNode[0] == '\0' ||
+        !configuredMuzzleWorld(archetype, tank->walking, 1, mainCounter,
+                               tank->x, tank->y, tank->z, bodyHeading,
+                               tank->aimYaw, 0.0f, origin, direction))
+        return;
+    deltaY = tank->dataAgent.targetY - origin[1];
+    aimPitch = (float)(-atan2((double)deltaY, (double)horizontal) /
+                             DEG_TO_RAD);
+    if (aimPitch < archetype->aimPitchMin)
+        aimPitch = archetype->aimPitchMin;
+    if (aimPitch > archetype->aimPitchMax)
+        aimPitch = archetype->aimPitchMax;
+    tank->aimPitch = aimPitch;
+    }
+
 static void fireDataEntity(struct tank *tank, struct tank *allTanks,
                            struct monsterInfo *player,
                            struct targetInfo *targetList)
     {
     const struct EntityArchetype *archetype;
-    float deltaX;
-    float deltaZ;
-    float distance;
-    float velocityX;
-    float velocityZ;
-    float spawnX;
-    float spawnZ;
+    float origin[3];
+    float direction[3];
+    float bodyHeading;
     int projectileType;
 
     archetype = tank->dataArchetype;
@@ -1700,32 +1836,25 @@ static void fireDataEntity(struct tank *tank, struct tank *allTanks,
         doSound(TANKMASER);
         return;
         }
-    if (archetype->weapon == ENTITY_WEAPON_FIRE)
-        {
-        addProjectile(tank->x, tank->y + 0.12f, tank->z, PROJFIRE,
-                      0, -archetype->projectileSpeed, 0,
-                      archetype->accuracy, NULL);
+    bodyHeading = tank->theta * RAD_TO_SMALL_DEG;
+    if (!configuredMuzzleWorld(archetype, tank->walking, 1, mainCounter,
+                               tank->x, tank->y, tank->z, bodyHeading,
+                               tank->aimYaw, tank->aimPitch,
+                               origin, direction))
         return;
-        }
-    deltaX = tank->dataAgent.targetX - tank->x;
-    deltaZ = tank->dataAgent.targetZ - tank->z;
-    distance = (float)sqrt((double)(deltaX * deltaX + deltaZ * deltaZ));
-    if (distance <= 0.0001f)
-        return;
-    velocityX = deltaX * archetype->projectileSpeed / distance;
-    velocityZ = deltaZ * archetype->projectileSpeed / distance;
     if (archetype->weapon == ENTITY_WEAPON_ROCKET)
         projectileType = PROJROCKET;
     else if (archetype->weapon == ENTITY_WEAPON_PLASMA)
         projectileType = PROJTECHS;
+    else if (archetype->weapon == ENTITY_WEAPON_FIRE)
+        projectileType = PROJFIRE;
     else
         projectileType = PROJTANK;
-    spawnX = tank->x + deltaX * archetype->muzzleForward / distance;
-    spawnZ = tank->z + deltaZ * archetype->muzzleForward / distance;
-    addProjectile(spawnX,
-                  tank->y + archetype->muzzleHeight,
-                  spawnZ, projectileType,
-                  velocityX, 0, velocityZ, archetype->accuracy, NULL);
+    addProjectile(origin[0], origin[1], origin[2], projectileType,
+                  direction[0] * archetype->projectileSpeed,
+                  direction[1] * archetype->projectileSpeed,
+                  direction[2] * archetype->projectileSpeed,
+                  archetype->accuracy, NULL);
     }
 
 static void updateDataEntity(struct tank *tank, struct tank *allTanks,
@@ -1755,22 +1884,21 @@ static void updateDataEntity(struct tank *tank, struct tank *allTanks,
             (tank->z - tank->dataAgent.targetZ)));
     else
         tank->rad = 0;
+    aimDataEntityAtTarget(tank);
     fireDataEntity(tank, allTanks, player, targetList);
     }
 
 static void updateConfiguredPlayerWeapon(void)
     {
     const struct EntityArchetype *archetype;
-    float xVelocity;
-    float yVelocity;
-    float zVelocity;
-    float muzzleX;
-    float muzzleY;
-    float muzzleZ;
+    float origin[3];
+    float direction[3];
     int projectileType;
 
     archetype = playerEntityArchetype;
     if (archetype == NULL || archetype->weapon == ENTITY_WEAPON_NONE)
+        return;
+    if (!configuredPlayerMuzzleWorld(origin, direction))
         return;
     if (archetype->weapon != ENTITY_WEAPON_BEAM &&
         archetype->weapon != ENTITY_WEAPON_FIRE)
@@ -1783,43 +1911,49 @@ static void updateConfiguredPlayerWeapon(void)
         }
     if (archetype->weapon == ENTITY_WEAPON_BEAM)
         {
-        updateBeam(&Googelon, targets, Googelon.x, Googelon.z, tanklist,
-                   allTreesOnPlanePtrs, numTreesOnPlane, &Googelon);
+        updateBeam(&Googelon, targets, tanklist,
+                   allTreesOnPlanePtrs, numTreesOnPlane, &Googelon,
+                   archetype, origin, direction);
         Googelon.energyRemaining -= archetype->playerFireCost;
         return;
         }
-    if (archetype->weapon == ENTITY_WEAPON_FIRE)
-        addProjectile(Googelon.x,
-                      PLANEY + archetype->verticalOffset +
-                          archetype->muzzleHeight,
-                      Googelon.z, PROJFIRE,
-                      0, -archetype->projectileSpeed, 0,
-                      archetype->accuracy, &Googelon);
+    if (archetype->weapon == ENTITY_WEAPON_ROCKET)
+        projectileType = PROJROCKET;
+    else if (archetype->weapon == ENTITY_WEAPON_PLASMA)
+        projectileType = PROJTECHS;
+    else if (archetype->weapon == ENTITY_WEAPON_FIRE)
+        projectileType = PROJFIRE;
     else
-        {
-        entityAimDirection(Googelon.headHorzRotate,
-                           Googelon.headVertRotate,
-                           archetype->projectileSpeed,
-                           &xVelocity, &yVelocity, &zVelocity);
-        entityAimDirection(Googelon.headHorzRotate,
-                           Googelon.headVertRotate,
-                           archetype->muzzleForward,
-                           &muzzleX, &muzzleY, &muzzleZ);
-        if (archetype->weapon == ENTITY_WEAPON_ROCKET)
-            projectileType = PROJROCKET;
-        else if (archetype->weapon == ENTITY_WEAPON_PLASMA)
-            projectileType = PROJTECHS;
-        else
-            projectileType = PROJTANK;
-        addProjectile(Googelon.x + muzzleX,
-                      PLANEY + archetype->verticalOffset +
-                          archetype->muzzleHeight + muzzleY,
-                      Googelon.z + muzzleZ, projectileType,
-                      xVelocity, yVelocity, zVelocity,
-                      0, &Googelon);
+        projectileType = PROJTANK;
+    addProjectile(origin[0], origin[1], origin[2], projectileType,
+                  direction[0] * archetype->projectileSpeed,
+                  direction[1] * archetype->projectileSpeed,
+                  direction[2] * archetype->projectileSpeed,
+                  archetype->accuracy, &Googelon);
+    if (archetype->weapon != ENTITY_WEAPON_FIRE)
 	playerWeaponReloadRemaining = archetype->fireInterval;
-        }
     Googelon.energyRemaining -= archetype->playerFireCost;
+    }
+
+static void updateMonsterBeamFromAsset(
+    struct monsterInfo *gameMonster, struct targetInfo *targetList,
+    float x, float z, struct tank *allTanks, struct tree **allTreePtrs,
+    int numTrees, struct monsterInfo *source)
+    {
+    const struct EntityArchetype *archetype;
+    float origin[3];
+    float direction[3];
+
+    archetype = monsterArchetype(source);
+    if (archetype == NULL || !configuredMuzzleWorld(
+        archetype, source->monsterMoving, source->beamOn, mainCounter,
+        x, PLANEY + archetype->verticalOffset, z,
+        source->headHorzRotate * 0.1f, 0.0f,
+        source->headVertRotate * 0.1f, origin, direction))
+        return;
+    updateBeam(gameMonster, targetList, allTanks,
+               allTreePtrs, numTrees, source,
+               archetype, origin, direction);
     }
 
 void updateTanks(struct tank * allTanks, float width, float height,
@@ -4603,23 +4737,34 @@ void updateTargets()
 
 	if (thaMonster.beamOn)
 	    switch (thaMonster.monster){
-		case GOOGELON:	    updateBeam(&Googelon, targets, temptarget->x, temptarget->z, tanklist, allTreesEverywherePtrs,
-					    numTreesEverywhere, &thaMonster);
+		case GOOGELON:	    updateMonsterBeamFromAsset(
+						&Googelon, targets, temptarget->x,
+						temptarget->z, tanklist,
+						allTreesEverywherePtrs,
+						numTreesEverywhere, &thaMonster);
 
 				    thaMonster.energyRemaining -= 0.15;
 				    break;
 
-		case TECHS:	    updateGun(temptarget->x, temptarget->z, thaMonster.headHorzRotate,
-					thaMonster.headVertRotate, mainCounter, &(temptarget->monster));
+		case TECHS:	    updateMonsterProjectileFromAsset(
+					temptarget->x, temptarget->z,
+					mainCounter, &thaMonster,
+					&(temptarget->monster));
 				    thaMonster.energyRemaining -= 0.09;
 				    break;
 
-		case VAPOUR:	    updateVap(temptarget->x, temptarget->z, mainCounter, &(temptarget->monster));
+		case VAPOUR:	    updateMonsterProjectileFromAsset(
+					temptarget->x, temptarget->z,
+					mainCounter, &thaMonster,
+					&(temptarget->monster));
 				    thaMonster.energyRemaining -= 0.1;
 				    break;
 
-		case FLUTTER:	    updateBeam(&Googelon, targets, temptarget->x, temptarget->z, tanklist, allTreesEverywherePtrs,
-					    numTreesEverywhere, &thaMonster);
+		case FLUTTER:	    updateMonsterBeamFromAsset(
+						&Googelon, targets, temptarget->x,
+						temptarget->z, tanklist,
+						allTreesEverywherePtrs,
+						numTreesEverywhere, &thaMonster);
 
 				    thaMonster.energyRemaining -= 0.15;
 				    break;
@@ -4800,23 +4945,34 @@ void updateTargets()
 
 	if (thaMonster.beamOn)
 	    switch (thaMonster.monster){
-		case GOOGELON:	    updateBeam(&Googelon, targets, temptarget->x, temptarget->z, tanklist, allTreesEverywherePtrs,
-					    numTreesEverywhere, &thaMonster);
+		case GOOGELON:	    updateMonsterBeamFromAsset(
+						&Googelon, targets, temptarget->x,
+						temptarget->z, tanklist,
+						allTreesEverywherePtrs,
+						numTreesEverywhere, &thaMonster);
 
 				    thaMonster.energyRemaining -= 0.15;
 				    break;
 
-		case TECHS:	    updateGun(temptarget->x, temptarget->z, thaMonster.headHorzRotate,
-					thaMonster.headVertRotate, mainCounter, &(temptarget->monster));
+		case TECHS:	    updateMonsterProjectileFromAsset(
+					temptarget->x, temptarget->z,
+					mainCounter, &thaMonster,
+					&(temptarget->monster));
 				    thaMonster.energyRemaining -= 0.09;
 				    break;
 
-		case VAPOUR:	    updateVap(temptarget->x, temptarget->z, mainCounter, &(temptarget->monster));
+		case VAPOUR:	    updateMonsterProjectileFromAsset(
+					temptarget->x, temptarget->z,
+					mainCounter, &thaMonster,
+					&(temptarget->monster));
 				    thaMonster.energyRemaining -= 0.1;
 				    break;
 
-		case FLUTTER:	    updateBeam(&Googelon, targets, temptarget->x, temptarget->z, tanklist, allTreesEverywherePtrs,
-					    numTreesEverywhere, &thaMonster);
+		case FLUTTER:	    updateMonsterBeamFromAsset(
+						&Googelon, targets, temptarget->x,
+						temptarget->z, tanklist,
+						allTreesEverywherePtrs,
+						numTreesEverywhere, &thaMonster);
 
 				    thaMonster.energyRemaining -= 0.15;
 				    break;
@@ -5076,19 +5232,33 @@ void doUpdate()
 	turnBeamOnSinceLast();
 	switch (Googelon.monster)
 	    {
-	    case GOOGELON:	updateBeam(&Googelon, targets, Googelon.x, Googelon.z, tanklist, allTreesOnPlanePtrs, numTreesOnPlane, &Googelon);
+	    case GOOGELON:	updateMonsterBeamFromAsset(
+				    &Googelon, targets, Googelon.x,
+				    Googelon.z, tanklist,
+				    allTreesOnPlanePtrs,
+				    numTreesOnPlane, &Googelon);
 				Googelon.energyRemaining -= 0.15;
 				break;
 
-	    case TECHS:		updateGun(Googelon.x, Googelon.z, Googelon.headHorzRotate, Googelon.headVertRotate, mainCounter, &Googelon);
+	    case TECHS:		updateMonsterProjectileFromAsset(
+				    Googelon.x, Googelon.z,
+				    mainCounter, &Googelon,
+				    &Googelon);
 				Googelon.energyRemaining -= 0.09;
 				break;
 
-	    case VAPOUR:	updateVap(Googelon.x, Googelon.z, mainCounter, &Googelon);
+	    case VAPOUR:	updateMonsterProjectileFromAsset(
+				    Googelon.x, Googelon.z,
+				    mainCounter, &Googelon,
+				    &Googelon);
 				Googelon.energyRemaining -= 0.1;
 				break;
 
-	    case FLUTTER:	updateBeam(&Googelon, targets, Googelon.x, Googelon.z, tanklist, allTreesOnPlanePtrs, numTreesOnPlane, &Googelon);
+	    case FLUTTER:	updateMonsterBeamFromAsset(
+				    &Googelon, targets, Googelon.x,
+				    Googelon.z, tanklist,
+				    allTreesOnPlanePtrs,
+				    numTreesOnPlane, &Googelon);
 				Googelon.energyRemaining -= 0.15;
 				break;
 
@@ -5562,6 +5732,9 @@ void drawAMonster(float x, struct monsterInfo monster, float z,
 void doDrawing (int eyeball)
     {
     const struct EntityArchetype *beamArchetype;
+    float beamOrigin[3];
+    float beamDirection[3];
+    int hasBeamMuzzle;
     GLenum glErrorVal;
     GLint tmp[4];
     struct targetInfo * temptarget;
@@ -5685,19 +5858,37 @@ void doDrawing (int eyeball)
     beamArchetype = monsterArchetype(&Googelon);
     if (Googelon.beamOn && beamArchetype != NULL &&
 	beamArchetype->weapon == ENTITY_WEAPON_BEAM)
-	drawBeam(Googelon.x, Googelon.z,
-		 Googelon.headHorzRotate, Googelon.headVertRotate,
-		 beamArchetype, lod);
+	{
+	hasBeamMuzzle = Googelon.monster == DATAENTITY ?
+	    configuredPlayerMuzzleWorld(beamOrigin, beamDirection) :
+	    configuredMuzzleWorld(
+		beamArchetype, Googelon.monsterMoving, Googelon.beamOn,
+		mainCounter, Googelon.x,
+		PLANEY + beamArchetype->verticalOffset, Googelon.z,
+		Googelon.headHorzRotate * 0.1f, 0.0f,
+		Googelon.headVertRotate * 0.1f,
+		beamOrigin, beamDirection);
+	if (hasBeamMuzzle)
+	    drawBeam(beamArchetype, lod, beamOrigin, beamDirection);
+	}
 
     for (temptarget = targets->next;temptarget != NULL;temptarget = temptarget->next)
 	{
 	beamArchetype = monsterArchetype(&temptarget->monster);
 	if (temptarget->monster.beamOn && beamArchetype != NULL &&
 	    beamArchetype->weapon == ENTITY_WEAPON_BEAM)
-	    drawBeam(temptarget->x, temptarget->z,
-			temptarget->monster.headHorzRotate,
-			temptarget->monster.headVertRotate,
-			beamArchetype, lod);
+	    {
+	    hasBeamMuzzle = configuredMuzzleWorld(
+		beamArchetype, temptarget->monster.monsterMoving,
+		temptarget->monster.beamOn, mainCounter,
+		temptarget->x, PLANEY + beamArchetype->verticalOffset,
+		temptarget->z,
+		temptarget->monster.headHorzRotate * 0.1f, 0.0f,
+		temptarget->monster.headVertRotate * 0.1f,
+		beamOrigin, beamDirection);
+	    if (hasBeamMuzzle)
+		drawBeam(beamArchetype, lod, beamOrigin, beamDirection);
+	    }
 	}
 
 

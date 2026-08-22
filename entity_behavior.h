@@ -39,6 +39,7 @@ struct EntityContact
     char id[ENTITY_NAME_SIZE];
     char faction[ENTITY_NAME_SIZE];
     float x;
+    float y;
     float z;
     int active;
     int visible;
@@ -87,6 +88,7 @@ struct EntityAgent
     float homeX;
     float homeZ;
     float targetX;
+    float targetY;
     float targetZ;
     int hasTarget;
     struct EntityContact target;

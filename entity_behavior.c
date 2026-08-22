@@ -146,6 +146,7 @@ static void applyReaction(struct EntityAgent *agent,
             {
             agent->target = *contact;
             agent->targetX = contact->x;
+            agent->targetY = contact->y;
             agent->targetZ = contact->z;
             agent->hasTarget = 1;
             }
@@ -231,6 +232,7 @@ void entityAgentNotifyDamage(struct EntityAgent *agent,
     agent->damaged = 1;
     agent->damageSource = *source;
     agent->targetX = source->x;
+    agent->targetY = source->y;
     agent->targetZ = source->z;
     }
 
@@ -407,6 +409,7 @@ static int processSensors(struct EntityAgent *agent,
         {
         agent->target = *nearest;
         agent->targetX = nearest->x;
+        agent->targetY = nearest->y;
         agent->targetZ = nearest->z;
         agent->hasTarget = 1;
         }
@@ -584,6 +587,7 @@ void entityAgentStep(struct EntityAgent *agent,
             {
             agent->target = *target;
             agent->targetX = target->x;
+            agent->targetY = target->y;
             agent->targetZ = target->z;
             }
         if (target != NULL && !target->active)
