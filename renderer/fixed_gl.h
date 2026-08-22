@@ -58,6 +58,7 @@ typedef double GLclampd;
 #define GL_POLYGON_SMOOTH                0x0b41
 #define GL_POLYGON_STIPPLE               0x0b42
 #define GL_TEXTURE_2D                    0x0de1
+#define GL_TEXTURE_BINDING_2D            0x8069
 #define GL_COLOR_MATERIAL                0x0b57
 #define GL_AUTO_NORMAL                   0x0d80
 

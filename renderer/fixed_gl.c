@@ -654,6 +654,7 @@ void glGetIntegerv(GLenum name, GLint *value)
       case GL_RED_BITS: *value=8; break;
       case GL_STEREO: *value=GL_FALSE; break;
       case GL_SHADE_MODEL: *value=(GLint)state.shadeModel; break;
+      case GL_TEXTURE_BINDING_2D: *value=(GLint)state.boundTexture; break;
       default: *value=0; break;
     }
 }

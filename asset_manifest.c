@@ -134,6 +134,8 @@ void assetManifestDestroy(struct AssetManifest *manifest)
         {
         free(manifest->textures[index].key);
         free(manifest->textures[index].path);
+        if (manifest->textures[index].rendererTexture != 0)
+            glDeleteTextures(1, &manifest->textures[index].rendererTexture);
         }
     for (index = 0; index < manifest->animationCount; index++)
         {
@@ -322,8 +324,10 @@ static int appendTexture(struct AssetManifest *manifest, const char *dataPath,
         setError(error, errorSize, "Out of memory copying manifest texture");
         return 0;
         }
+    glGenTextures(1, &entry->rendererTexture);
     entry->displayList = glGenLists(1);
     glNewList(entry->displayList, GL_COMPILE);
+    glBindTexture(GL_TEXTURE_2D, entry->rendererTexture);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image.width, image.height, 0,
                  GL_RGBA, GL_UNSIGNED_BYTE, (const GLvoid *)image.pixels);
     glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S,
@@ -339,6 +343,8 @@ static int appendTexture(struct AssetManifest *manifest, const char *dataPath,
     assetImageDestroy(&image);
     if (entry->displayList == 0)
         {
+        if (entry->rendererTexture != 0)
+            glDeleteTextures(1, &entry->rendererTexture);
         free(entry->key);
         free(entry->path);
         setEntryError(error, errorSize,

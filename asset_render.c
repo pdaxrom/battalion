@@ -103,8 +103,12 @@ static void nodeMatrix(const struct AssetNode *node,
 static void prepareTextures(struct AssetModel *model)
     {
     struct AssetTexture *texture;
+    GLint savedTexture;
     size_t textureIndex;
 
+    if (model->textureCount == 0)
+        return;
+    glGetIntegerv(GL_TEXTURE_BINDING_2D, &savedTexture);
     for (textureIndex = 0; textureIndex < model->textureCount; textureIndex++)
         {
         texture = &model->textures[textureIndex];
@@ -126,6 +130,7 @@ static void prepareTextures(struct AssetModel *model)
                         texture->linear ? GL_LINEAR : GL_NEAREST);
         glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
         }
+    glBindTexture(GL_TEXTURE_2D, (GLuint)savedTexture);
     }
 
 static void drawMeshPart(const struct AssetMesh *mesh,
@@ -211,10 +216,12 @@ static void drawMesh(const struct AssetModel *model,
     {
     struct AssetMeshPart fallbackPart;
     const struct AssetMeshPart *part;
+    GLint savedTexture;
     GLboolean texturing;
     size_t partIndex;
 
     texturing = glIsEnabled(GL_TEXTURE_2D);
+    glGetIntegerv(GL_TEXTURE_BINDING_2D, &savedTexture);
     fallbackPart.firstVertex = 0;
     fallbackPart.vertexCount = mesh->vertexCount;
     fallbackPart.texture = -1;
@@ -231,10 +238,19 @@ static void drawMesh(const struct AssetModel *model,
                           model->textures[part->texture].rendererTexture);
             glEnable(GL_TEXTURE_2D);
             }
-        else
+        else if (model->textureCount > 0)
             glDisable(GL_TEXTURE_2D);
+        else
+            {
+            glBindTexture(GL_TEXTURE_2D, (GLuint)savedTexture);
+            if (texturing)
+                glEnable(GL_TEXTURE_2D);
+            else
+                glDisable(GL_TEXTURE_2D);
+            }
         drawMeshPart(mesh, part, matrix, pose, palette);
         }
+    glBindTexture(GL_TEXTURE_2D, (GLuint)savedTexture);
     if (texturing)
         glEnable(GL_TEXTURE_2D);
     else

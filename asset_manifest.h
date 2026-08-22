@@ -31,6 +31,7 @@ struct AssetManifestTexture
     char *path;
     int linear;
     int repeat;
+    unsigned int rendererTexture;
     unsigned int displayList;
     };
 
