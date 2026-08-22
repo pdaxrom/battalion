@@ -996,6 +996,45 @@ static int projectilePathHitsStructure(const struct tree *structure,
     return 0;
     }
 
+static int dataEntityLineOfSight(const struct tank *source,
+	float targetX, float targetY, float targetZ)
+    {
+    const struct tree *structure;
+    float sourceY;
+
+    sourceY = source->y + source->dataArchetype->collisionHeight * 0.5f;
+    for (structure = treelist->next; structure != NULL;
+	 structure = structure->next)
+	{
+	/* A structure containing either endpoint is not an intervening
+	   occluder.  The existing projectile footprint is also the legacy
+	   structure footprint used by perception. */
+	if ((fabs(structure->x - source->x) < TREEBLASTR &&
+	     fabs(structure->z - source->z) < TREEBLASTR) ||
+	    (fabs(structure->x - targetX) < TREEBLASTR &&
+	     fabs(structure->z - targetZ) < TREEBLASTR))
+	    continue;
+	if (projectilePathHitsStructure(structure,
+		source->x, sourceY, source->z,
+		targetX, targetY, targetZ))
+	    return 0;
+	}
+    return 1;
+    }
+
+static int dataEntityRecentlyFired(const struct tank *tank)
+    {
+    int threshold;
+
+    if (tank->dataArchetype->weapon == ENTITY_WEAPON_NONE ||
+	 tank->dataAgent.cooldown <= 0)
+	return 0;
+    threshold = tank->dataArchetype->fireInterval - 3;
+    if (threshold < 1)
+	threshold = 1;
+    return tank->dataAgent.cooldown >= threshold;
+    }
+
 static int projectileDestroysStructure(int projectileType,
 	const struct tree *structure)
     {
@@ -1507,31 +1546,60 @@ static size_t buildDataEntityContacts(struct tank *source,
     struct tank *tank;
     size_t count;
     int targetNumber;
+    int audible;
+    int visible;
+    int playerFired;
+    float targetY;
     char id[ENTITY_NAME_SIZE];
 
     count = 0;
+    playerFired = 0;
+    if (playerEntityArchetype != NULL &&
+	playerEntityArchetype->weapon != ENTITY_WEAPON_NONE &&
+	playerWeaponReloadRemaining > 0)
+	{
+	int threshold;
+
+	threshold = playerEntityArchetype->fireInterval - 3;
+	if (threshold < 1)
+	    threshold = 1;
+	playerFired = playerWeaponReloadRemaining >= threshold;
+	}
     if (count < capacity)
-        initializeContact(&contacts[count++], "player", "monster", 0, 0,
-                          player->monsterIsDead != 1, 1,
-                          player->monsterMoving || player->beamOn);
+	{
+	targetY = (player->height + player->bottom) * 0.5f;
+	visible = dataEntityLineOfSight(source, 0, targetY, 0);
+	audible = player->monsterMoving || player->beamOn || playerFired;
+	initializeContact(&contacts[count++], "player", "monster", 0, 0,
+			  player->monsterIsDead != 1, visible, audible);
+	}
     targetNumber = 0;
     for (target = targetList->next; target != NULL && count < capacity;
          target = target->next)
-        {
-        sprintf(id, "target-%d", targetNumber++);
-        initializeContact(&contacts[count++], id, "monster",
-                          target->x, target->z,
-                          target->monster.monsterIsDead != 1, 1,
-                          target->monster.monsterMoving ||
-                          target->monster.beamOn);
+	{
+	sprintf(id, "target-%d", targetNumber++);
+	targetY = (target->monster.height + target->monster.bottom) * 0.5f;
+	visible = dataEntityLineOfSight(source, target->x, targetY,
+					target->z);
+	initializeContact(&contacts[count++], id, "monster",
+			  target->x, target->z,
+			  target->monster.monsterIsDead != 1, visible,
+			  target->monster.monsterMoving ||
+			  target->monster.beamOn);
         }
     for (tank = allTanks->next; tank != NULL && count < capacity;
          tank = tank->next)
-        if (tank != source && tank->type == DATAENTITY)
-            initializeContact(&contacts[count++], tank->dataId,
-                              tank->dataArchetype->faction,
-                              tank->x, tank->z, tank->damage > 0, 1,
-                              tank->walking || tank->maserCount > 0);
+	if (tank != source && tank->type == DATAENTITY)
+	    {
+	    targetY = tank->y + tank->dataArchetype->collisionHeight * 0.5f;
+	    visible = dataEntityLineOfSight(source, tank->x, targetY, tank->z);
+	    audible = tank->walking || tank->maserCount > 0 ||
+		       dataEntityRecentlyFired(tank);
+	    initializeContact(&contacts[count++], tank->dataId,
+			      tank->dataArchetype->faction,
+			      tank->x, tank->z, tank->damage > 0,
+			      visible, audible);
+	    }
     return count;
     }
 

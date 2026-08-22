@@ -159,10 +159,31 @@ in through their descriptor without an engine id check.
 
 An entity may declare multiple named perception sensors. The current sensor
 types are `proximity`, forward `vision`, `hearing`, and `damage`. Each sensor
-has its own range, cone angle, and faction filter. `on-sensor` rules map sensor
-hits to local reactions such as observe, alert, investigate, pursue, attack,
-flee, activate, or deactivate, and may emit a named event. `on-trigger` rules
-apply those same reactions when an event arrives from another actor.
+has its own range, cone angle, and faction filter. Vision is blocked by intact
+world structures; hearing reacts to moving or recently firing contacts and is
+not blocked by those structures.
+
+Sensor rules can distinguish zone lifecycle transitions. `on-enter` fires once
+when a contact enters a zone, `on-stay` fires on later simulation steps while
+it remains selected by the zone, and `on-exit` fires once when it leaves.
+`on-sensor` remains a backwards-compatible rule that fires for both enter and
+stay. Each rule maps the transition to a local reaction such as observe, alert,
+investigate, pursue, attack, flee, activate, or deactivate, and may emit a
+named event:
+
+```text
+sensor sight vision 8 120 hostile
+on-enter sight attack base-alarm
+on-exit sight investigate target-lost
+on-trigger base-alarm activate none
+on-trigger base-alarm attack none
+```
+
+Multiple rules may consume the same trigger. `activate` and `deactivate` are
+state commands, so an inactive actor can first be activated and then assigned
+an attack or movement reaction by the same event. Trigger delivery is
+two-phase: all actors finish the current simulation step before routed events
+are queued for the next one, making behavior independent of actor list order.
 
 Map package version 2 adds generic `actors`. Every actor references an entity
 archetype and defines an instance id/group, position, heading, active state,
