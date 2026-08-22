@@ -98,7 +98,7 @@ SOURCES := \
 	map_package.c
 
 SOURCES += asset.c asset_gltf.c asset_animation.c asset_render.c \
-	asset_manifest.c asset_tga.c asset_values.c stroke_font_asset.c \
+	asset_manifest.c asset_bindings.c asset_tga.c asset_values.c stroke_font_asset.c \
 	audio_catalog.c
 
 PLATFORM_CPPFLAGS :=
@@ -285,6 +285,7 @@ ASSET_CATALOG_TEST := $(TEST_BUILD_DIR)/asset-catalog-test
 ASSET_VALUES_TEST := $(TEST_BUILD_DIR)/asset-values-test
 STROKE_FONT_TEST := $(TEST_BUILD_DIR)/stroke-font-test
 AUDIO_CATALOG_TEST := $(TEST_BUILD_DIR)/audio-catalog-test
+ASSET_BINDINGS_TEST := $(TEST_BUILD_DIR)/asset-bindings-test
 NO_EMBEDDED_ASSETS_TEST := $(TEST_BUILD_DIR)/no-embedded-assets-test
 
 $(MAP_TEST): tests/map_test.c map.c map.h map_package.c map_package.h Makefile | $(TEST_BUILD_DIR)
@@ -305,19 +306,23 @@ $(STROKE_FONT_TEST): tests/stroke_font_test.c stroke_font_asset.c stroke_font_as
 $(AUDIO_CATALOG_TEST): tests/audio_catalog_test.c audio_catalog.c audio_catalog.h Makefile | $(TEST_BUILD_DIR)
 	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< audio_catalog.c -o $@
 
+$(ASSET_BINDINGS_TEST): tests/asset_bindings_test.c asset_bindings.c asset_bindings.h Makefile | $(TEST_BUILD_DIR)
+	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< asset_bindings.c -o $@
+
 $(NO_EMBEDDED_ASSETS_TEST): tests/no_embedded_assets_test.c Makefile | $(TEST_BUILD_DIR)
 	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< -o $@
 
 $(TEST_BUILD_DIR):
 	mkdir -p $@
 
-test: c89-check $(MAP_TEST) $(ASSET_TEST) $(ASSET_CATALOG_TEST) $(ASSET_VALUES_TEST) $(STROKE_FONT_TEST) $(AUDIO_CATALOG_TEST) $(NO_EMBEDDED_ASSETS_TEST)
+test: c89-check $(MAP_TEST) $(ASSET_TEST) $(ASSET_CATALOG_TEST) $(ASSET_VALUES_TEST) $(STROKE_FONT_TEST) $(AUDIO_CATALOG_TEST) $(ASSET_BINDINGS_TEST) $(NO_EMBEDDED_ASSETS_TEST)
 	./$(MAP_TEST)
 	./$(ASSET_TEST)
 	./$(ASSET_CATALOG_TEST)
 	./$(ASSET_VALUES_TEST)
 	./$(STROKE_FONT_TEST)
 	./$(AUDIO_CATALOG_TEST)
+	./$(ASSET_BINDINGS_TEST)
 	./$(NO_EMBEDDED_ASSETS_TEST)
 
 clean:

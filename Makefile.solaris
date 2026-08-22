@@ -29,10 +29,10 @@
 COREOBJS = battalion.o map.o audio.o net.o graphics.o camera.o text.o \
 	update.o tk_x11.o font.o dynamic_primitives.o map_package.o
 ASSETOBJS = asset.o asset_gltf.o asset_animation.o asset_render.o \
-	asset_manifest.o asset_tga.o asset_values.o stroke_font_asset.o \
+	asset_manifest.o asset_bindings.o asset_tga.o asset_values.o stroke_font_asset.o \
 	audio_catalog.o
 OBJS = $(COREOBJS) $(ASSETOBJS)
-HDRS = battalion.h tk.h asset.h asset_animation.h asset_manifest.h \
+HDRS = battalion.h tk.h asset.h asset_animation.h asset_bindings.h asset_manifest.h \
 	asset_render.h asset_tga.h asset_values.h map.h map_package.h \
 	dynamic_primitives.h stroke_font_asset.h audio_catalog.h
 

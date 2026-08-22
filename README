@@ -79,9 +79,11 @@ are written to build/<platform>-<graphics>-<audio>/ so configurations do
 not reuse incompatible object files.
 
 Game content is external and required at runtime. The `assets/manifest.txt`
-file declares models, textures, and animation clips. Models are Khronos glTF
-2.0 binary files under `assets/models`; textures are under `assets/textures`.
-The normal game build does not compile the old C model factories as a fallback.
+file declares models, textures, animation clips, and auxiliary files. Stable
+engine render slots are mapped to those replaceable catalog entries by
+`assets/config/render.bindings`. Models are Khronos glTF 2.0 binary files under
+`assets/models`; textures are under `assets/textures`. The normal game build
+does not compile the old C model factories as a fallback.
 
 Battlefields are versioned JSON packages under `assets/maps`. The old split
 `road/tree/tank.data` representation and its fallback loader have been removed;

@@ -17,6 +17,7 @@
 
 #include "asset.h"
 #include "asset_animation.h"
+#include "asset_bindings.h"
 #include "asset_manifest.h"
 #include "asset_render.h"
 #include "asset_values.h"
@@ -113,6 +114,7 @@
     GLuint treeWood, roadtex, officeLogo;
 
     static struct AssetManifest externalAssets;
+    static struct AssetBindings externalBindings;
     static struct AssetValues externalAnimationValues;
     static struct AssetValues externalEffectValues;
     static struct AssetValues externalPaletteValues;
@@ -229,6 +231,67 @@ static GLuint requiredTexture(const char *key)
 	exit(1);
 	}
     return texture->displayList;
+    }
+
+static const char *requiredBinding(int type, const char *slot)
+    {
+    const char *key;
+
+    key = assetBindingsFind(&externalBindings, type, slot);
+    if (key == NULL)
+	{
+	fprintf(stderr, "Required render binding is missing: %s\n", slot);
+	showError("Required render binding is missing from assets");
+	exit(1);
+	}
+    return key;
+    }
+
+static const struct AssetManifestModel *requiredBoundModelEntry(
+    const char *slot)
+    {
+    return requiredModelEntry(requiredBinding(ASSET_BINDING_MODEL, slot));
+    }
+
+static GLuint requiredBoundModel(const char *slot)
+    {
+    return requiredModel(requiredBinding(ASSET_BINDING_MODEL, slot));
+    }
+
+static GLuint requiredBoundTexture(const char *slot)
+    {
+    return requiredTexture(requiredBinding(ASSET_BINDING_TEXTURE, slot));
+    }
+
+static int requiredBoundAnimation(const char *slot,
+                                  const struct AssetManifestModel **model,
+                                  size_t *clip, int *loop)
+    {
+    const char *key;
+
+    key = requiredBinding(ASSET_BINDING_ANIMATION, slot);
+    return assetManifestFindAnimation(&externalAssets, key, model, clip, loop);
+    }
+
+static const struct AssetManifestFile *requiredBoundFile(const char *slot)
+    {
+    const char *key;
+    const struct AssetManifestFile *file;
+
+    key = requiredBinding(ASSET_BINDING_FILE, slot);
+    file = assetManifestFindFile(&externalAssets, key);
+    if (file == NULL)
+	{
+	fprintf(stderr, "Required bound file is missing: %s\n", slot);
+	showError("Required file binding is missing from assets");
+	exit(1);
+	}
+    return file;
+    }
+
+const char *assetFilePath(const char *slot)
+    {
+    return requiredBoundFile(slot)->path;
     }
 
 static int requiredNode(const struct AssetManifestModel *entry,
@@ -349,12 +412,14 @@ static int hasPrefix(const char *text, const char *prefix)
 void makeObjects(char * dataPath)
     {
     char assetError[256];
+    char bindingsPath[MAXPATH];
     char valuesPath[MAXPATH];
     char fontPath[MAXPATH];
     char uiPath[MAXPATH];
     const struct AssetManifestFile *valuesFile;
 
     assetManifestInitialize(&externalAssets);
+    assetBindingsInitialize(&externalBindings);
     assetValuesInitialize(&externalAnimationValues);
     assetValuesInitialize(&externalEffectValues);
     assetValuesInitialize(&externalPaletteValues);
@@ -392,7 +457,24 @@ void makeObjects(char * dataPath)
 	exit(1);
 	}
 
-    valuesFile = assetManifestFindFile(&externalAssets, "animation-values");
+    valuesFile = assetManifestFindFile(&externalAssets, "render-bindings");
+    if (valuesFile == NULL ||
+        strlen(dataPath) + strlen(valuesFile->path) + 1 > sizeof(bindingsPath))
+        {
+        showError("Render binding asset path is missing or too long");
+        exit(1);
+        }
+    strcpy(bindingsPath, dataPath);
+    strcat(bindingsPath, valuesFile->path);
+    if (!assetBindingsLoad(bindingsPath, &externalBindings,
+                           assetError, sizeof(assetError)))
+        {
+        fprintf(stderr, "Could not load render bindings: %s\n", assetError);
+        showError("Cannot load render bindings");
+        exit(1);
+        }
+
+    valuesFile = requiredBoundFile("config-animation");
     if (valuesFile == NULL ||
         strlen(dataPath) + strlen(valuesFile->path) + 1 > sizeof(valuesPath))
         {
@@ -409,7 +491,7 @@ void makeObjects(char * dataPath)
         exit(1);
         }
 
-    valuesFile = assetManifestFindFile(&externalAssets, "effect-values");
+    valuesFile = requiredBoundFile("config-effects");
     if (valuesFile == NULL ||
         strlen(dataPath) + strlen(valuesFile->path) + 1 > sizeof(valuesPath))
         {
@@ -426,7 +508,7 @@ void makeObjects(char * dataPath)
         exit(1);
         }
 
-    valuesFile = assetManifestFindFile(&externalAssets, "palette-values");
+    valuesFile = requiredBoundFile("config-palette");
     if (valuesFile == NULL ||
         strlen(dataPath) + strlen(valuesFile->path) + 1 > sizeof(valuesPath))
         {
@@ -444,170 +526,170 @@ void makeObjects(char * dataPath)
         }
     applyExternalPalette();
 
-    leftScreen = requiredTexture("screen-left");
-    rightScreen = requiredTexture("screen-right");
-    treeWood = requiredTexture("tree-wood");
-    roadtex = requiredTexture("road");
-    officeLogo = requiredTexture("office-logo");
+    leftScreen = requiredBoundTexture("display-left");
+    rightScreen = requiredBoundTexture("display-right");
+    treeWood = requiredBoundTexture("tree-bark");
+    roadtex = requiredBoundTexture("road-surface");
+    officeLogo = requiredBoundTexture("office-sign");
 
-#define LOAD_MODEL(variable, key) variable = requiredModel(key)
-    LOAD_MODEL(plaintank, "tank");
-    LOAD_MODEL(slagtank, "tank-slag");
-    LOAD_MODEL(masertank, "tank-maser");
-    LOAD_MODEL(slagmasertank, "tank-maser-slag");
-    LOAD_MODEL(launchertank, "tank-launcher");
-    LOAD_MODEL(slaglaunchertank, "tank-launcher-slag");
-    LOAD_MODEL(fighterBody, "fighter-body");
+#define LOAD_MODEL(variable, slot) variable = requiredBoundModel(slot)
+    LOAD_MODEL(plaintank, "vehicle-tank-standard");
+    LOAD_MODEL(slagtank, "vehicle-tank-standard-destroyed");
+    LOAD_MODEL(masertank, "vehicle-tank-maser");
+    LOAD_MODEL(slagmasertank, "vehicle-tank-maser-destroyed");
+    LOAD_MODEL(launchertank, "vehicle-tank-launcher");
+    LOAD_MODEL(slaglaunchertank, "vehicle-tank-launcher-destroyed");
+    LOAD_MODEL(fighterBody, "vehicle-fighter-body");
     LOAD_MODEL(watershellObj, "projectile-water");
-    LOAD_MODEL(tankShadow, "tank-shadow");
-    LOAD_MODEL(planeShadow, "plane-shadow");
-    LOAD_MODEL(fighterShadow, "fighter-shadow");
-    LOAD_MODEL(titleObj, "title-high");
-    LOAD_MODEL(titleObjOO, "title-medium");
-    LOAD_MODEL(titleObjOOO, "title-low");
-    LOAD_MODEL(planeDotsObj, "plane-dots-high");
-    LOAD_MODEL(planeDotsObjD0, "plane-dots-low");
-    LOAD_MODEL(strip1Obj, "strip-1-high");
-    LOAD_MODEL(strip1ObjD0, "strip-1-low");
-    LOAD_MODEL(strip2Obj, "strip-2-high");
-    LOAD_MODEL(strip2ObjD0, "strip-2-low");
-    LOAD_MODEL(strip3Obj, "strip-3-high");
-    LOAD_MODEL(strip3ObjD0, "strip-3-low");
-    LOAD_MODEL(building1Obj, "building-1-high");
-    LOAD_MODEL(building1ObjD0, "building-1-low");
-    LOAD_MODEL(building2Obj, "building-2-high");
-    LOAD_MODEL(building2ObjD0, "building-2-low");
-    LOAD_MODEL(building5Obj, "building-5-high");
-    LOAD_MODEL(building5ObjD0, "building-5-low");
-    LOAD_MODEL(building7Obj, "building-7");
-    LOAD_MODEL(building9Obj, "building-9");
-    LOAD_MODEL(building9ObjOO, "building-9-alternate");
-    LOAD_MODEL(building10Obj, "building-10");
-    LOAD_MODEL(building12Obj, "building-12-high");
-    LOAD_MODEL(building12ObjD0, "building-12-low");
-    LOAD_MODEL(building14Obj, "building-14");
-    LOAD_MODEL(building19Obj, "building-19-high");
-    LOAD_MODEL(building19ObjD0, "building-19-low");
-    LOAD_MODEL(building20Obj, "building-20-high");
-    LOAD_MODEL(building20ObjD0, "building-20-low");
-    LOAD_MODEL(building21Obj, "building-21-high");
-    LOAD_MODEL(building21ObjD0, "building-21-low");
-    LOAD_MODEL(building31Obj, "building-31");
-    LOAD_MODEL(building32Obj, "building-32");
-    LOAD_MODEL(lowDPlane, "plane-ground-low");
-    LOAD_MODEL(highDPlane, "plane-ground-high");
-    LOAD_MODEL(bigPlane, "plane-ground-large");
-    LOAD_MODEL(building0Models[0][0], "building-0-white-low");
-    LOAD_MODEL(building0Models[0][1], "building-0-white-high");
-    LOAD_MODEL(building0Models[1][0], "building-0-grey-low");
-    LOAD_MODEL(building0Models[1][1], "building-0-grey-high");
-    LOAD_MODEL(building4Models[0], "building-4-vector");
-    LOAD_MODEL(building4Models[1], "building-4-low");
-    LOAD_MODEL(building4Models[2], "building-4-high");
-    LOAD_MODEL(building6Low, "building-6-low");
-    LOAD_MODEL(building8Models[0], "building-8-low");
-    LOAD_MODEL(building8Models[1], "building-8-high");
-    LOAD_MODEL(building11Models[0], "building-11-low");
-    LOAD_MODEL(building11Models[1], "building-11-high");
-    LOAD_MODEL(building22Obj, "building-22-dark");
-    LOAD_MODEL(building23Obj, "building-23-light");
-    LOAD_MODEL(building24Obj, "building-24-white");
-    LOAD_MODEL(building25Obj, "building-25");
-    LOAD_MODEL(building28Low, "building-28-low");
-    LOAD_MODEL(building29Models[0], "building-29");
-    LOAD_MODEL(building29Models[1], "building-29-xmas");
-    LOAD_MODEL(building30Models[0], "building-30-low");
-    LOAD_MODEL(building30Models[1], "building-30-high");
-    LOAD_MODEL(building34Obj, "building-34");
-    LOAD_MODEL(building36Obj, "building-36");
-    LOAD_MODEL(waterModels[0][0], "water-square");
-    LOAD_MODEL(waterModels[0][1], "water-square-xmas");
-    LOAD_MODEL(waterModels[1][0], "water-triangle");
-    LOAD_MODEL(waterModels[1][1], "water-triangle-xmas");
-    LOAD_MODEL(hillCenterModels[0], "hill-center");
-    LOAD_MODEL(hillCenterModels[1], "hill-center-xmas");
-    LOAD_MODEL(hillSideModels[0][0], "hill-side-0");
-    LOAD_MODEL(hillSideModels[0][1], "hill-side-0-xmas");
-    LOAD_MODEL(hillSideModels[1][0], "hill-side-1");
-    LOAD_MODEL(hillSideModels[1][1], "hill-side-1-xmas");
-    LOAD_MODEL(hillSideModels[2][0], "hill-side-2");
-    LOAD_MODEL(hillSideModels[2][1], "hill-side-2-xmas");
-    LOAD_MODEL(hillCornerModels[0][0], "hill-corner-0");
-    LOAD_MODEL(hillCornerModels[0][1], "hill-corner-0-xmas");
-    LOAD_MODEL(hillCornerModels[1][0], "hill-corner-1");
-    LOAD_MODEL(hillCornerModels[1][1], "hill-corner-1-xmas");
-    LOAD_MODEL(hillInsideModels[0][0], "hill-inside-0");
-    LOAD_MODEL(hillInsideModels[0][1], "hill-inside-0-xmas");
-    LOAD_MODEL(hillInsideModels[1][0], "hill-inside-1");
-    LOAD_MODEL(hillInsideModels[1][1], "hill-inside-1-xmas");
-    LOAD_MODEL(effectSphereLow, "sphere-low");
-    LOAD_MODEL(effectSphereHigh, "sphere-high");
-    LOAD_MODEL(fireModel, "fire");
-    LOAD_MODEL(shadowRectangle, "shadow-rectangle");
-    LOAD_MODEL(directionArrow, "direction-arrow");
+    LOAD_MODEL(tankShadow, "shadow-tank");
+    LOAD_MODEL(planeShadow, "shadow-plane");
+    LOAD_MODEL(fighterShadow, "shadow-fighter");
+    LOAD_MODEL(titleObj, "ui-title-high");
+    LOAD_MODEL(titleObjOO, "ui-title-medium");
+    LOAD_MODEL(titleObjOOO, "ui-title-low");
+    LOAD_MODEL(planeDotsObj, "vehicle-plane-dots-high");
+    LOAD_MODEL(planeDotsObjD0, "vehicle-plane-dots-low");
+    LOAD_MODEL(strip1Obj, "building-strip-1-high");
+    LOAD_MODEL(strip1ObjD0, "building-strip-1-low");
+    LOAD_MODEL(strip2Obj, "building-strip-2-high");
+    LOAD_MODEL(strip2ObjD0, "building-strip-2-low");
+    LOAD_MODEL(strip3Obj, "building-strip-3-high");
+    LOAD_MODEL(strip3ObjD0, "building-strip-3-low");
+    LOAD_MODEL(building1Obj, "building-type-1-high");
+    LOAD_MODEL(building1ObjD0, "building-type-1-low");
+    LOAD_MODEL(building2Obj, "building-type-2-high");
+    LOAD_MODEL(building2ObjD0, "building-type-2-low");
+    LOAD_MODEL(building5Obj, "building-type-5-high");
+    LOAD_MODEL(building5ObjD0, "building-type-5-low");
+    LOAD_MODEL(building7Obj, "building-type-7");
+    LOAD_MODEL(building9Obj, "building-type-9");
+    LOAD_MODEL(building9ObjOO, "building-type-9-alternate");
+    LOAD_MODEL(building10Obj, "building-type-10");
+    LOAD_MODEL(building12Obj, "building-type-12-high");
+    LOAD_MODEL(building12ObjD0, "building-type-12-low");
+    LOAD_MODEL(building14Obj, "building-type-14");
+    LOAD_MODEL(building19Obj, "building-type-19-high");
+    LOAD_MODEL(building19ObjD0, "building-type-19-low");
+    LOAD_MODEL(building20Obj, "building-type-20-high");
+    LOAD_MODEL(building20ObjD0, "building-type-20-low");
+    LOAD_MODEL(building21Obj, "building-type-21-high");
+    LOAD_MODEL(building21ObjD0, "building-type-21-low");
+    LOAD_MODEL(building31Obj, "building-type-31");
+    LOAD_MODEL(building32Obj, "building-type-32");
+    LOAD_MODEL(lowDPlane, "terrain-ground-low");
+    LOAD_MODEL(highDPlane, "terrain-ground-high");
+    LOAD_MODEL(bigPlane, "terrain-ground-large");
+    LOAD_MODEL(building0Models[0][0], "building-type-0-white-low");
+    LOAD_MODEL(building0Models[0][1], "building-type-0-white-high");
+    LOAD_MODEL(building0Models[1][0], "building-type-0-grey-low");
+    LOAD_MODEL(building0Models[1][1], "building-type-0-grey-high");
+    LOAD_MODEL(building4Models[0], "building-cooling-vector");
+    LOAD_MODEL(building4Models[1], "building-cooling-low");
+    LOAD_MODEL(building4Models[2], "building-cooling-high");
+    LOAD_MODEL(building6Low, "building-fast-food-low");
+    LOAD_MODEL(building8Models[0], "building-hangar-low");
+    LOAD_MODEL(building8Models[1], "building-hangar-high");
+    LOAD_MODEL(building11Models[0], "building-smokestacks-low");
+    LOAD_MODEL(building11Models[1], "building-smokestacks-high");
+    LOAD_MODEL(building22Obj, "building-office-tower-dark");
+    LOAD_MODEL(building23Obj, "building-office-tower-light");
+    LOAD_MODEL(building24Obj, "building-office-tower-white");
+    LOAD_MODEL(building25Obj, "building-satellite-dish");
+    LOAD_MODEL(building28Low, "building-fast-food-alternate-low");
+    LOAD_MODEL(building29Models[0], "building-fountain");
+    LOAD_MODEL(building29Models[1], "building-fountain-xmas");
+    LOAD_MODEL(building30Models[0], "building-hangar-alternate-low");
+    LOAD_MODEL(building30Models[1], "building-hangar-alternate-high");
+    LOAD_MODEL(building34Obj, "building-office-smallest");
+    LOAD_MODEL(building36Obj, "building-office-small");
+    LOAD_MODEL(waterModels[0][0], "terrain-water-square");
+    LOAD_MODEL(waterModels[0][1], "terrain-water-square-xmas");
+    LOAD_MODEL(waterModels[1][0], "terrain-water-triangle");
+    LOAD_MODEL(waterModels[1][1], "terrain-water-triangle-xmas");
+    LOAD_MODEL(hillCenterModels[0], "terrain-hill-center");
+    LOAD_MODEL(hillCenterModels[1], "terrain-hill-center-xmas");
+    LOAD_MODEL(hillSideModels[0][0], "terrain-hill-side-0");
+    LOAD_MODEL(hillSideModels[0][1], "terrain-hill-side-0-xmas");
+    LOAD_MODEL(hillSideModels[1][0], "terrain-hill-side-1");
+    LOAD_MODEL(hillSideModels[1][1], "terrain-hill-side-1-xmas");
+    LOAD_MODEL(hillSideModels[2][0], "terrain-hill-side-2");
+    LOAD_MODEL(hillSideModels[2][1], "terrain-hill-side-2-xmas");
+    LOAD_MODEL(hillCornerModels[0][0], "terrain-hill-corner-0");
+    LOAD_MODEL(hillCornerModels[0][1], "terrain-hill-corner-0-xmas");
+    LOAD_MODEL(hillCornerModels[1][0], "terrain-hill-corner-1");
+    LOAD_MODEL(hillCornerModels[1][1], "terrain-hill-corner-1-xmas");
+    LOAD_MODEL(hillInsideModels[0][0], "terrain-hill-inside-0");
+    LOAD_MODEL(hillInsideModels[0][1], "terrain-hill-inside-0-xmas");
+    LOAD_MODEL(hillInsideModels[1][0], "terrain-hill-inside-1");
+    LOAD_MODEL(hillInsideModels[1][1], "terrain-hill-inside-1-xmas");
+    LOAD_MODEL(effectSphereLow, "effect-sphere-low");
+    LOAD_MODEL(effectSphereHigh, "effect-sphere-high");
+    LOAD_MODEL(fireModel, "effect-fire");
+    LOAD_MODEL(shadowRectangle, "effect-shadow-rectangle");
+    LOAD_MODEL(directionArrow, "ui-direction-arrow");
 #undef LOAD_MODEL
 
-    if (!assetManifestFindAnimation(
-	&externalAssets, "helo-rotors", &externalHeloModels[0],
+    if (!requiredBoundAnimation(
+	"vehicle-helicopter", &externalHeloModels[0],
 	&externalHeloClips[0], &externalHeloLoops[0]) ||
-	!assetManifestFindAnimation(
-	&externalAssets, "helo-slag-rotors", &externalHeloModels[1],
+	!requiredBoundAnimation(
+	"vehicle-helicopter-destroyed", &externalHeloModels[1],
 	&externalHeloClips[1], &externalHeloLoops[1]))
 	{
 	showError("Required helo-rotors animation is missing from external assets");
 	exit(1);
 	}
 
-    if (!assetManifestFindAnimation(
-        &externalAssets, "airplane-propellers", &externalAirplaneModel,
+    if (!requiredBoundAnimation(
+        "vehicle-airplane", &externalAirplaneModel,
         &externalAirplaneClip, &externalAirplaneLoop) ||
-        !assetManifestFindAnimation(
-        &externalAssets, "googelon-tail-sway", &externalGoogelonModel,
+        !requiredBoundAnimation(
+        "monster-googelon", &externalGoogelonModel,
         &externalGoogelonClip, &externalGoogelonLoop) ||
-        !assetManifestFindAnimation(
-        &externalAssets, "flutter-wing-flap", &externalFlutterModel,
+        !requiredBoundAnimation(
+        "monster-flutter", &externalFlutterModel,
         &externalFlutterClip, &externalFlutterLoop))
         {
         showError("Required compound model animation is missing");
         exit(1);
         }
-    if (!assetManifestFindAnimation(
-            &externalAssets, "techs-death", &externalTechsModel,
+    if (!requiredBoundAnimation(
+            "monster-techs-death", &externalTechsModel,
             &externalTechsDeathClip, &externalTechsDeathLoop) ||
-        !assetManifestFindAnimation(
-            &externalAssets, "boom-high-explode", &externalBoomModels[0],
+        !requiredBoundAnimation(
+            "effect-boom-high", &externalBoomModels[0],
             &externalBoomClips[0], &externalBoomLoops[0]) ||
-        !assetManifestFindAnimation(
-            &externalAssets, "boom-low-explode", &externalBoomModels[1],
+        !requiredBoundAnimation(
+            "effect-boom-low", &externalBoomModels[1],
             &externalBoomClips[1], &externalBoomLoops[1]))
         {
         showError("Required death animation is missing");
         exit(1);
         }
-    externalHunterModel = requiredModelEntry("hunter");
-    externalPineTreeModel = requiredModelEntry("pine-tree");
-    externalRoundTreeModel = requiredModelEntry("round-tree");
-    externalRoadModels[0] = requiredModelEntry("road-type-0");
-    externalRoadModels[1] = requiredModelEntry("road-type-1");
-    externalRoadModels[2] = requiredModelEntry("road-type-2");
-    externalRoadModels[3] = requiredModelEntry("road-type-3");
-    externalBuilding26Model = requiredModelEntry("building-26");
-    externalBuilding37Model = requiredModelEntry("building-37");
+    externalHunterModel = requiredBoundModelEntry("vehicle-hunter");
+    externalPineTreeModel = requiredBoundModelEntry("tree-pine");
+    externalRoundTreeModel = requiredBoundModelEntry("tree-round");
+    externalRoadModels[0] = requiredBoundModelEntry("road-type-0");
+    externalRoadModels[1] = requiredBoundModelEntry("road-type-1");
+    externalRoadModels[2] = requiredBoundModelEntry("road-type-2");
+    externalRoadModels[3] = requiredBoundModelEntry("road-type-3");
+    externalBuilding26Model = requiredBoundModelEntry("building-drive-in-screen");
+    externalBuilding37Model = requiredBoundModelEntry("building-office-logo");
 
-    if (!assetManifestFindAnimation(
-        &externalAssets, "hero-typhoon-walk", &externalHeroModels[0],
+    if (!requiredBoundAnimation(
+        "monster-hero-typhoon-walk", &externalHeroModels[0],
         &externalHeroWalkClips[0], &externalHeroWalkLoops[0]) ||
-        !assetManifestFindAnimation(
-        &externalAssets, "hero-typhoon-fire", &externalHeroModels[0],
+        !requiredBoundAnimation(
+        "monster-hero-typhoon-fire", &externalHeroModels[0],
         &externalHeroFireClips[0], &externalHeroFireLoops[0]) ||
-        !assetManifestFindAnimation(
-        &externalAssets, "hero-beam-walk", &externalHeroModels[1],
+        !requiredBoundAnimation(
+        "monster-hero-beam-walk", &externalHeroModels[1],
         &externalHeroWalkClips[1], &externalHeroWalkLoops[1]) ||
-        !assetManifestFindAnimation(
-        &externalAssets, "hero-beam-fire", &externalHeroModels[1],
+        !requiredBoundAnimation(
+        "monster-hero-beam-fire", &externalHeroModels[1],
         &externalHeroFireClips[1], &externalHeroFireLoops[1]) ||
-        !assetManifestFindAnimation(
-        &externalAssets, "mecha-eye-scan", &externalMechaModel,
+        !requiredBoundAnimation(
+        "monster-mecha", &externalMechaModel,
         &externalMechaClip, &externalMechaLoop))
         {
         showError("Required hero animation is missing");
@@ -649,46 +731,46 @@ void makeObjects(char * dataPath)
     requiredNode(externalBuilding37Model, "body");
     requiredNode(externalBuilding37Model, "logo");
 
-    if (!assetManifestFindAnimation(
-        &externalAssets, "building-6-sign-spin", &externalBuilding6Model,
+    if (!requiredBoundAnimation(
+        "building-fast-food-sign", &externalBuilding6Model,
         &externalBuilding6Clip, &externalBuilding6Loop) ||
-        !assetManifestFindAnimation(
-        &externalAssets, "building-28-sign-spin", &externalBuilding28Model,
+        !requiredBoundAnimation(
+        "building-fast-food-alternate-sign", &externalBuilding28Model,
         &externalBuilding28Clip, &externalBuilding28Loop) ||
-        !assetManifestFindAnimation(
-        &externalAssets, "building-33-collapse", &externalBuilding33Model,
+        !requiredBoundAnimation(
+        "building-hero-entrance", &externalBuilding33Model,
         &externalBuilding33Clip, &externalBuilding33Loop) ||
-        !assetManifestFindAnimation(
-        &externalAssets, "power-tower-collapse", &externalPowerTowerModel,
+        !requiredBoundAnimation(
+        "building-power-tower", &externalPowerTowerModel,
         &externalPowerTowerClip, &externalPowerTowerLoop))
         {
         showError("Required structure animation is missing");
         exit(1);
         }
 
-    if (!assetManifestFindAnimation(
-	&externalAssets, "projectile-standard-low-spin",
+    if (!requiredBoundAnimation(
+	"projectile-standard-low",
 	&externalProjectileModels[0], &externalProjectileClips[0],
 	&externalProjectileLoops[0]) ||
-	!assetManifestFindAnimation(
-	&externalAssets, "projectile-standard-high-spin",
+	!requiredBoundAnimation(
+	"projectile-standard-high",
 	&externalProjectileModels[1], &externalProjectileClips[1],
 	&externalProjectileLoops[1]) ||
-	!assetManifestFindAnimation(
-	&externalAssets, "projectile-standard-low-xmas-spin",
+	!requiredBoundAnimation(
+	"projectile-standard-low-xmas",
 	&externalProjectileModels[2], &externalProjectileClips[2],
 	&externalProjectileLoops[2]) ||
-	!assetManifestFindAnimation(
-	&externalAssets, "projectile-standard-high-xmas-spin",
+	!requiredBoundAnimation(
+	"projectile-standard-high-xmas",
 	&externalProjectileModels[3], &externalProjectileClips[3],
 	&externalProjectileLoops[3]) ||
-	!assetManifestFindAnimation(
-	&externalAssets, "projectile-techs-spin",
+	!requiredBoundAnimation(
+	"projectile-techs",
 	&externalSpecialProjectileModels[0],
 	&externalSpecialProjectileClips[0],
 	&externalSpecialProjectileLoops[0]) ||
-	!assetManifestFindAnimation(
-	&externalAssets, "projectile-hero-spin",
+	!requiredBoundAnimation(
+	"projectile-hero",
 	&externalSpecialProjectileModels[1],
 	&externalSpecialProjectileClips[1],
 	&externalSpecialProjectileLoops[1]))
@@ -696,7 +778,7 @@ void makeObjects(char * dataPath)
 	showError("Required projectile animation is missing from external assets");
 	exit(1);
 	}
-    valuesFile = assetManifestFindFile(&externalAssets, "stroke-font");
+    valuesFile = requiredBoundFile("font-stroke");
     if (valuesFile == NULL ||
         strlen(dataPath) + strlen(valuesFile->path) + 1 > sizeof(fontPath))
         {
@@ -705,7 +787,7 @@ void makeObjects(char * dataPath)
         }
     strcpy(fontPath, dataPath);
     strcat(fontPath, valuesFile->path);
-    valuesFile = assetManifestFindFile(&externalAssets, "ui-values");
+    valuesFile = requiredBoundFile("ui-layout");
     if (valuesFile == NULL ||
         strlen(dataPath) + strlen(valuesFile->path) + 1 > sizeof(uiPath))
         {

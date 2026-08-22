@@ -8,7 +8,7 @@ filesystems.
 assets/
   manifest.txt       versioned runtime asset catalog
   audio/             backend-neutral audio catalog
-  config/            renderer-neutral runtime controller values
+  config/            render bindings and renderer-neutral controller values
   fonts/             external stroke-font glyphs and metrics
   maps/              versioned JSON battlefield packages
   models/            Khronos glTF 2.0 binary models and animation clips
@@ -31,6 +31,11 @@ undeclared model, texture, or animation is an error; the normal executable has
 no compiled C geometry or texture fallback. `make test` also rejects duplicate,
 uppercase, and orphan model or texture entries.
 
+`config/render.bindings` maps stable engine roles to replaceable manifest keys.
+Models, textures, animation clips, configuration files, the stroke font, and
+the historical SGI help document are selected through this file instead of
+hardcoded paths or catalog keys in gameplay source.
+
 The GLB loader supports triangle, line, and point primitives; indexed and
 non-indexed positions; normals, UVs and vertex colours; material base colours;
 scene-node hierarchies; named nodes; and named translation, rotation, and scale
@@ -51,6 +56,9 @@ complete SGI stroke font lives in `fonts/stroke.font` rather than compiled C
 tables. `audio/catalog.txt` maps semantic sound and music names to the files
 and mixer slots used by the historical SGI, Sun and OSS backends; audio file
 names and music sequence lengths are no longer compiled into `audio.c`.
+Beams, particles, impact scars, and HUD rectangles are runtime primitives
+because their vertices depend on live per-frame state; their reusable visual
+parameters and layout remain external in `config/`.
 
 Verify the checked-in content with:
 

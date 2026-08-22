@@ -14,6 +14,8 @@ file palette-values config/palette.values
 file ui-values config/ui.values
 file stroke-font fonts/stroke.font
 file audio-catalog audio/catalog.txt
+file render-bindings config/render.bindings
+file sgi-showcase battalion.sho
 
 model tank models/vehicles/tank.glb
 model tank-slag models/vehicles/tank-slag.glb

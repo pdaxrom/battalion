@@ -24,12 +24,24 @@ and orphan model or texture files fail validation. Paths are relative to
 `assets/`. There is no normal-build fallback to compiled C geometry or texture
 arrays. This policy is the same on every supported platform.
 
+`assets/config/render.bindings` is the versioned bridge between stable engine
+roles and replaceable manifest entries. It maps model, texture, animation, and
+auxiliary-file slots without putting catalog keys or paths in gameplay code.
+For example, `building-satellite-dish` selects the current satellite-dish GLB,
+and `help-sgi-showcase` selects the historical Showcase document. Replacing a
+model does not require changing or recompiling the engine.
+
 Renderer colours, HUD rectangles, the complete stroke font, effect parameters,
 and gameplay animation controller values are external assets as well. Audio
 file variants, mixer slots, and music ordering live in
 `assets/audio/catalog.txt`. `make test` rejects any return of immediate-mode
 model geometry or direct model, texture, sound, and music paths to gameplay
 source files.
+
+Transient geometry whose vertices are produced from live state each frame is
+renderer output rather than authored content. Beams, impact scars, particles,
+and HUD rectangles therefore remain runtime primitives; their reusable widths,
+radii, colours, density, and layout values are external configuration assets.
 
 The checked-in GLB files are the canonical source assets. The one-time legacy
 converter and the old C model factories have been removed, so geometry is not

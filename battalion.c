@@ -124,6 +124,35 @@ char dataPath[MAXPATH];
 char fullPath[MAXPATH];
 char scorefullPath[MAXPATH];
 
+static int selectAssetRoot(const char *root)
+    {
+    char candidate[MAXPATH];
+    char manifestPath[MAXPATH];
+    FILE *manifestFile;
+    size_t length;
+
+    if (root == NULL)
+        return 0;
+    length = strlen(root);
+    if (length == 0 || length + strlen("/manifest.txt") + 1 >
+        sizeof(candidate))
+        return 0;
+    strcpy(candidate, root);
+    if (candidate[length - 1] != '/')
+        strcat(candidate, "/");
+    if (strlen(candidate) + strlen("manifest.txt") + 1 >
+        sizeof(manifestPath))
+        return 0;
+    strcpy(manifestPath, candidate);
+    strcat(manifestPath, "manifest.txt");
+    manifestFile = fopen(manifestPath, "rb");
+    if (manifestFile == NULL)
+        return 0;
+    fclose(manifestFile);
+    strcpy(dataPath, candidate);
+    return 1;
+    }
+
 /*****************/
 /* monster stuff */
 /*****************/
@@ -2533,7 +2562,6 @@ void initialization()
     {
     struct passwd *passwd;
     struct tm* theTime;
-    FILE * roadFile;
     FILE * hiScoreFile;
     float garb1, garb2;
     int i, garb3;
@@ -2820,45 +2848,11 @@ void initialization()
     /* find where all the data files are stored */
     /********************************************/
 
-    roadFile = NULL;
     dataPtr = getenv("BATTALIONDATADIR");
-    if (dataPtr != NULL)
+    if (!selectAssetRoot(dataPtr) && !selectAssetRoot("./assets"))
 	{
-	strcpy(dataPath, dataPtr);
-	if (dataPath[strlen(dataPath)-1] != '/')
-	    strcat(dataPath, "/");
-
-	strcpy(fullPath, dataPath);
-	strcat(fullPath, "battalion.sho");
-	roadFile = fopen(fullPath, "rb");
-	}
-
-    if (roadFile != NULL)
-	{
-	fclose(roadFile);
-	}
-    else
-	{
-/* since the Indizone version is missing Techs' sound we can't use this.
-
-	roadFile = fopen("/usr/demos/IndiZone/.data/battalion/battalion.sho", "rb");
-	if (roadFile != NULL)
-	    {
-	    strcpy(dataPath,  "/usr/demos/IndiZone/.data/battalion/");
-	    fclose(roadFile);
-	    }
-	else
-*/
-	    {
-	    roadFile = fopen("./assets/battalion.sho", "rb");
-	    if (roadFile != NULL)
-		{
-		strcpy(dataPath, "./assets/");
-		fclose(roadFile);
-		}
-	    else
-		showError("Could not find the data files\n");
-	    }
+	showError("Could not find assets/manifest.txt\n");
+	exit(1);
 	}
 
     /************************************/
@@ -3477,9 +3471,30 @@ GLenum processKey(int key, GLenum mask)
 #ifdef SGIVERSION
 	case TK_h:
 	case TK_H:
+			    {
+			    const char *showcaseFile;
+			    char showcasePath[MAXPATH];
+			    pid_t child;
+
 			    if (mode3D)
 				goto1d();
-			    system("showcase -bfv assets/battalion.sho");
+			    showcaseFile = assetFilePath("help-sgi-showcase");
+			    if (strlen(dataPath) + strlen(showcaseFile) + 1 >
+				sizeof(showcasePath))
+				{
+				showError("Showcase asset path is too long");
+				break;
+				}
+			    strcpy(showcasePath, dataPath);
+			    strcat(showcasePath, showcaseFile);
+			    child = fork();
+			    if (child == 0)
+				{
+				execlp("showcase", "showcase", "-bfv",
+				       showcasePath, (char *)0);
+				_exit(127);
+				}
+			    }
 			    break;
 #endif
 

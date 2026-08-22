@@ -31,7 +31,9 @@ static int auditSources(void)
     };
     static const char *forbidden[] = {
         "glBegin(", "glVertex", "\"models/", "\"textures/",
-        "\"sounds/", "\"music/", "strokeFont["
+        "\"sounds/", "\"music/", "strokeFont[", "battalion.sho",
+        "requiredModel(\"", "requiredModelEntry(\"",
+        "requiredTexture(\"", "system("
     };
     size_t source;
     size_t pattern;

@@ -691,6 +691,7 @@ void showScores(int, struct score*, struct score*, struct score*, struct score*,
  *****************************************/
 
 void makeObjects(char *);
+const char *assetFilePath(const char *);
 
 void shadow (float,  float,  float,  float);
 
