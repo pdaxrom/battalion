@@ -227,6 +227,7 @@ static void initializeArchetype(struct EntityArchetype *entry)
     entry->lostFrames = 180;
     entry->maxActive = 0;
     entry->scale = 1.0f;
+    entry->modelYawOffset = 0.0f;
     entry->speed = 0.03f;
     entry->turnRate = 0.2f;
     entry->collisionRadius = 0.25f;
@@ -505,6 +506,8 @@ static int assignDirective(struct EntityArchetype *entry,
                entry->networkCode >= 0;
     if (strcmp(directive, "scale") == 0)
         return parseFloat(value, &entry->scale);
+    if (strcmp(directive, "model-yaw-offset") == 0)
+        return parseFloat(value, &entry->modelYawOffset);
     if (strcmp(directive, "vertical-offset") == 0)
         return parseFloat(value, &entry->verticalOffset);
     if (strcmp(directive, "speed") == 0)
@@ -630,7 +633,8 @@ static int validArchetype(const struct EntityArchetype *entry,
         entry->health < 1 || entry->score < 0 || entry->fireInterval < 1 ||
         entry->lostFrames < 0 || entry->spawnWeight < 0 ||
         entry->spawnAfter < 0 || entry->maxActive < 0 ||
-        entry->scale <= 0.0f || entry->speed < 0.0f ||
+        entry->scale <= 0.0f || entry->modelYawOffset < -360.0f ||
+        entry->modelYawOffset > 360.0f || entry->speed < 0.0f ||
         entry->turnRate <= 0.0f || entry->collisionRadius <= 0.0f ||
         entry->collisionHeight <= 0.0f || entry->weaponRange < 0.0f ||
         entry->weaponMinRange < 0.0f ||

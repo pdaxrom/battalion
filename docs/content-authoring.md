@@ -146,6 +146,12 @@ Apply intentional object transforms before export unless the transform is part
 of a node hierarchy or animation. Test orientation in game; do not rely only
 on a DCC application's camera convention.
 
+When an existing animated GLB cannot be re-exported immediately,
+`model-yaw-offset` may correct its visual forward axis without changing
+movement, aiming, collision, or muzzle calculations. For example, `180` turns
+a model authored toward `-Z` to the engine's `+Z` convention. Prefer applying
+the transform in the source asset for newly authored models.
+
 ### Supported geometry
 
 The loader supports:
@@ -448,6 +454,7 @@ one source model without drawing every optional subtree at once.
 | `faction` | required | This archetype's faction. |
 | `hostile-faction` | none | Repeat up to eight times to declare enemies. |
 | `network-code` | none | Optional numeric wire id for multiplayer. It does not select behavior or rendering. |
+| `model-yaw-offset` | `0` | Visual yaw correction in degrees; gameplay forward remains `+Z`. |
 
 Hostility is directional. If `guards` lists `raiders`, that does not make
 `raiders` hostile to `guards` unless their descriptor says so too.

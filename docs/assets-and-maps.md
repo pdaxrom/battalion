@@ -156,6 +156,8 @@ so short ground vehicles, humanoids, tall monsters, and hovering aircraft do
 not require type-specific camera or placement code. View 1 remains the original
 close third-person camera, while view 5 is first-person. First-person eye height and
 player-model visibility are also authored per entity.
+`model-yaw-offset` is a data-side correction for imported models whose visual
+forward axis does not match the engine's `+Z`; it does not alter physics or aim.
 
 `collision-mode` is either `solid` (the default) or `phase`. A phased player or
 phased actor passes through structures, vehicles, and other actors;

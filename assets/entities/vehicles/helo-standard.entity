@@ -5,6 +5,7 @@ kind vehicle
 controllable yes
 control-mode free
 model helo
+model-yaw-offset 180
 destroyed-model helo-slag
 idle-animation helo-rotors
 move-animation helo-rotors

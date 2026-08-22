@@ -144,6 +144,7 @@ int main(void)
         flutter == NULL ||
         vapour == NULL || techs == NULL ||
         !helicopter->controllable || !soldier->controllable ||
+        helicopter->modelYawOffset != 180.0f ||
         !monster->controllable || !vapour->controllable ||
         helicopter->movement != ENTITY_MOVEMENT_AIR ||
         soldier->kind != ENTITY_KIND_NPC ||

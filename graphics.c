@@ -2294,6 +2294,7 @@ static void drawExternalEntity(const struct tank *tank, int counter,
     archetype = tank->dataArchetype;
     if (archetype == NULL)
         return;
+    glRotatef(archetype->modelYawOffset, 0, 1, 0);
     if (destroyed && archetype->destroyedModel[0] != '\0')
         {
         model = assetManifestFindModel(&externalAssets,

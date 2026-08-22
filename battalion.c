@@ -204,6 +204,14 @@ static int monsterHasSolidCollision(const struct monsterInfo *monster)
            archetype->collisionMode == ENTITY_COLLISION_SOLID;
     }
 
+static float tankCollisionRadius(const struct tank *tank)
+    {
+    if (tank != NULL && tank->type == DATAENTITY &&
+        tank->dataArchetype != NULL)
+        return tank->dataArchetype->collisionRadius;
+    return 0.3f;
+    }
+
 /*********/
 /* files */
 /*********/
@@ -4726,7 +4734,7 @@ void updateTargets()
 
 		    trad = sqrt((temptank->x - tx) * (temptank->x - tx) + (temptank->z - tz) * (temptank->z - tz));
 
-		    if (trad < thaMonster.width)
+		    if (trad < thaMonster.width + tankCollisionRadius(temptank))
 			{
 			obsangle = computeAngle(temptank->z, tz, temptank->x, tx);
 
@@ -4999,9 +5007,12 @@ void doUpdate()
 	    temptank = tanklist->next;
 	    while ((temptank != NULL) && !blocked)
 		{
-		if (temptank->rad < Googelon.width)
+		rad = sqrt(temptank->x * temptank->x +
+		           temptank->z * temptank->z);
+		if (rad < Googelon.width + tankCollisionRadius(temptank))
 		    {
-		    obsangle = temptank->theta;
+		    obsangle = computeAngle(temptank->z, 0,
+		                            temptank->x, 0);
 		    if (obsangle < 0)
 			obsangle += TWOPI;
 

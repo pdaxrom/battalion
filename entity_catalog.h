@@ -131,6 +131,7 @@ struct EntityArchetype
     int shortcut;
     int networkCode;
     float scale;
+    float modelYawOffset;
     float verticalOffset;
     float speed;
     float turnRate;
