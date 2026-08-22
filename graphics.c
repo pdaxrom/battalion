@@ -20,6 +20,7 @@
 #include "asset_manifest.h"
 #include "asset_render.h"
 #include "asset_values.h"
+#include "dynamic_primitives.h"
 
     /*************/
     /* colours   */
@@ -125,6 +126,7 @@
 
     static struct AssetManifest externalAssets;
     static struct AssetValues externalAnimationValues;
+    static struct AssetValues externalEffectValues;
     static const struct AssetManifestModel *externalHeloModels[2];
     static size_t externalHeloClips[2];
     static int externalHeloLoops[2];
@@ -173,6 +175,7 @@
     static struct AssetPose externalPineTreePose;
     static const struct AssetManifestModel *externalRoundTreeModel;
     static struct AssetPose externalRoundTreePose;
+    static const struct AssetManifestModel *externalRoadModels[4];
     static const struct AssetManifestModel *externalBuilding26Model;
     static struct AssetPose externalBuilding26Pose;
     static const struct AssetManifestModel *externalBuilding37Model;
@@ -276,6 +279,27 @@ static float animationScalar(const char *key)
     return requiredAnimationValue(key, 1)->components[0];
     }
 
+static const struct AssetValue *requiredEffectValue(const char *key,
+                                                    size_t components)
+    {
+    const struct AssetValue *value;
+
+    value = assetValuesFind(&externalEffectValues, key);
+    if (value == NULL || value->componentCount != components)
+        {
+        fprintf(stderr, "Required effect value is missing or invalid: %s\n",
+                key);
+        showError("Required effect value is missing from assets");
+        exit(1);
+        }
+    return value;
+    }
+
+static float effectScalar(const char *key)
+    {
+    return requiredEffectValue(key, 1)->components[0];
+    }
+
 static int hasPrefix(const char *text, const char *prefix)
     {
     return strncmp(text, prefix, strlen(prefix)) == 0;
@@ -289,6 +313,7 @@ void makeObjects(char * dataPath)
 
     assetManifestInitialize(&externalAssets);
     assetValuesInitialize(&externalAnimationValues);
+    assetValuesInitialize(&externalEffectValues);
     assetPoseInitialize(&externalHeloPoses[0]);
     assetPoseInitialize(&externalHeloPoses[1]);
     assetPoseInitialize(&externalProjectilePoses[0]);
@@ -337,6 +362,23 @@ void makeObjects(char * dataPath)
         {
         fprintf(stderr, "Could not load animation values: %s\n", assetError);
         showError("Cannot load animation values");
+        exit(1);
+        }
+
+    valuesFile = assetManifestFindFile(&externalAssets, "effect-values");
+    if (valuesFile == NULL ||
+        strlen(dataPath) + strlen(valuesFile->path) + 1 > sizeof(valuesPath))
+        {
+        showError("Effect value asset path is missing or too long");
+        exit(1);
+        }
+    strcpy(valuesPath, dataPath);
+    strcat(valuesPath, valuesFile->path);
+    if (!assetValuesLoad(valuesPath, &externalEffectValues,
+                         assetError, sizeof(assetError)))
+        {
+        fprintf(stderr, "Could not load effect values: %s\n", assetError);
+        showError("Cannot load effect values");
         exit(1);
         }
 
@@ -483,6 +525,10 @@ void makeObjects(char * dataPath)
     externalHunterModel = requiredModelEntry("hunter");
     externalPineTreeModel = requiredModelEntry("pine-tree");
     externalRoundTreeModel = requiredModelEntry("round-tree");
+    externalRoadModels[0] = requiredModelEntry("road-type-0");
+    externalRoadModels[1] = requiredModelEntry("road-type-1");
+    externalRoadModels[2] = requiredModelEntry("road-type-2");
+    externalRoadModels[3] = requiredModelEntry("road-type-3");
     externalBuilding26Model = requiredModelEntry("building-26");
     externalBuilding37Model = requiredModelEntry("building-37");
 
@@ -529,6 +575,13 @@ void makeObjects(char * dataPath)
     requiredNode(externalRoundTreeModel, "round-trunk");
     requiredNode(externalRoundTreeModel, "round-crown");
     requiredNode(externalRoundTreeModel, "round-shadow");
+    requiredNode(externalRoadModels[0], "surface");
+    requiredNode(externalRoadModels[0], "marker");
+    requiredNode(externalRoadModels[1], "surface");
+    requiredNode(externalRoadModels[1], "marker");
+    requiredNode(externalRoadModels[2], "surface");
+    requiredNode(externalRoadModels[2], "marker");
+    requiredNode(externalRoadModels[3], "surface");
     requiredNode(externalBuilding26Model, "body");
     requiredNode(externalBuilding26Model, "screen");
     requiredNode(externalBuilding37Model, "body");
@@ -2141,6 +2194,9 @@ void drawMaser(float sourceX, float sourceY, float sourceZ,
 
     {
     float beamLoc1[3],  beamLoc2[3];
+    float *beamColor;
+    const struct AssetValue *innerWidths;
+    const struct AssetValue *outerWidths;
     GLfloat lineWidthNow;
 
     beamLoc1[0] = sourceX;
@@ -2152,32 +2208,27 @@ void drawMaser(float sourceX, float sourceY, float sourceZ,
     beamLoc2[2] = mZ + r3;
 
     glGetFloatv(GL_LINE_WIDTH, &lineWidthNow);
+    innerWidths = requiredEffectValue("maser-inner-width", 2);
+    outerWidths = requiredEffectValue("maser-outer-width", 2);
 
     /* if line widths are integral Mesa chokes in a large window */
     if ((view == MONSTERVIEW) || (view == ARMYVIEW))
-	glLineWidth(width * 0.0057);
+	glLineWidth(width * innerWidths->components[0]);
     else
-	glLineWidth(width * 0.0029);
+	glLineWidth(width * innerWidths->components[1]);
     
-    
-    glColor3fv(colorwhite);
+    dynamicDrawLine3(beamLoc1, beamLoc2, colorwhite, colorwhite);
 
-    glBegin(GL_LINES);
-	glVertex3fv(beamLoc1);
-	glVertex3fv(beamLoc2);
-
-    glEnd();
-
-
+    beamColor = colorwhite;
     switch(shooter)
 	{
-	case MASERTANK:	    glColor3fv(colormaserblue);
+	case MASERTANK:	    beamColor = colormaserblue;
 			    break;
 			    
-	case CHH:	    glColor3fv(colormaseryellow);
+	case CHH:	    beamColor = colormaseryellow;
 			    break;
 			    
-	case MECHAG:	    glColor3fv(colorred);
+	case MECHAG:	    beamColor = colorred;
 			    break;
 			    
 	default:	    showError("Invalid Vehicle Type (drawMaser)");
@@ -2189,15 +2240,11 @@ void drawMaser(float sourceX, float sourceY, float sourceZ,
     
     /* if line widths are integral Mesa chokes in a large window */
     if ((view == MONSTERVIEW) || (view == ARMYVIEW))
-	glLineWidth(width * 0.011);
+	glLineWidth(width * outerWidths->components[0]);
     else
-	glLineWidth(width * 0.0057);
+	glLineWidth(width * outerWidths->components[1]);
 
-    glBegin(GL_LINES);
-
-	glVertex3fv(beamLoc1);
-	glVertex3fv(beamLoc2);
-    glEnd();
+    dynamicDrawLine3(beamLoc1, beamLoc2, beamColor, beamColor);
 	
     glDisable(GL_BLEND);
 
@@ -2448,12 +2495,17 @@ void drawTanks(struct tank * allTanks,  int counter, struct monsterInfo G,
 void drawHeroWeapon(float targetx, float targetz, float x, float y,
 		    float z, float * color, float height, float bottom)
     {
-    float loc1[3],  loc2[3];
+    float vertices[4][3];
+    float colors[4][3];
     float rad,  angle,  r;
     float midPoint;
+    float sourceRadius;
+    float targetRadius;
+    float verticalSourceRadius;
+    float verticalTargetRadius;
     GLboolean backNow;
-    
     GLint shadeNow;
+    int vertex;
     
     glGetIntegerv(GL_SHADE_MODEL, &shadeNow);
     backNow = glIsEnabled(GL_CULL_FACE);
@@ -2463,7 +2515,11 @@ void drawHeroWeapon(float targetx, float targetz, float x, float y,
     if (rad == 0)
 	rad = NEARZERO;
 	
-    r = 0.16 / rad;
+    r = effectScalar("hero-angle-radius") / rad;
+    sourceRadius = effectScalar("hero-source-radius");
+    targetRadius = effectScalar("hero-target-radius");
+    verticalSourceRadius = effectScalar("hero-vertical-source-radius");
+    verticalTargetRadius = effectScalar("hero-vertical-target-radius");
     
     if (z == 0)
 	z = NEARZERO;
@@ -2479,50 +2535,39 @@ void drawHeroWeapon(float targetx, float targetz, float x, float y,
     
     glShadeModel(GL_SMOOTH);
     glDisable(GL_CULL_FACE);
-    
-    glBegin(GL_QUADS);
-	glColor3fv(color);
- 	loc1[0] = (rad - 0.22) * sin(angle + r);
-	loc1[1] = y;
-	loc1[2] = (rad - 0.22) * cos(angle + r);
-	glVertex3fv(loc1);
-	    
- 	loc1[0] = (rad - 0.22) * sin(angle - r);
-	loc1[2] = (rad - 0.22) * cos(angle - r);
-	glVertex3fv(loc1);
-	    
-	glColor3fv(colorwhite);	
-	loc2[0] = targetx - 0.04;
-	loc2[2] = targetz - 0.04;
-	loc2[1] = midPoint;
-	glVertex3fv(loc2);
-	    
-	loc2[0] = targetx + 0.04;
-	loc2[2] = targetz + 0.04;
-	glVertex3fv(loc2);
-    glEnd();
+
+    vertices[0][0] = (rad - sourceRadius) * sin(angle + r);
+    vertices[0][1] = y;
+    vertices[0][2] = (rad - sourceRadius) * cos(angle + r);
+    vertices[1][0] = (rad - sourceRadius) * sin(angle - r);
+    vertices[1][1] = y;
+    vertices[1][2] = (rad - sourceRadius) * cos(angle - r);
+    vertices[2][0] = targetx - targetRadius;
+    vertices[2][1] = midPoint;
+    vertices[2][2] = targetz - targetRadius;
+    vertices[3][0] = targetx + targetRadius;
+    vertices[3][1] = midPoint;
+    vertices[3][2] = targetz + targetRadius;
+    for (vertex = 0; vertex < 4; vertex++)
+	memcpy(colors[vertex], vertex < 2 ? color : colorwhite,
+	       3 * sizeof(float));
+    dynamicDrawQuad3(vertices, colors);
 
     /* make beam viewable from side */
 
-    glBegin(GL_QUADS);
-	glColor3fv(color);
- 	loc1[0] = (rad - 0.22) * sin(angle);
-	loc1[1] = y + 0.03;
-	loc1[2] = (rad - 0.22) * cos(angle);
-	glVertex3fv(loc1);
-	    
-	loc1[1] = y - 0.03;
-	glVertex3fv(loc1);
-	    
-	glColor3fv(colorwhite);	
-	loc2[0] = targetx;
-	loc2[2] = targetz;
-	loc2[1] = midPoint - 0.02;
-	glVertex3fv(loc2);
-	    
-	loc2[1] = midPoint + 0.02;
-	glVertex3fv(loc2);
-    glEnd();
+    vertices[0][0] = (rad - sourceRadius) * sin(angle);
+    vertices[0][1] = y + verticalSourceRadius;
+    vertices[0][2] = (rad - sourceRadius) * cos(angle);
+    vertices[1][0] = vertices[0][0];
+    vertices[1][1] = y - verticalSourceRadius;
+    vertices[1][2] = vertices[0][2];
+    vertices[2][0] = targetx;
+    vertices[2][1] = midPoint - verticalTargetRadius;
+    vertices[2][2] = targetz;
+    vertices[3][0] = targetx;
+    vertices[3][1] = midPoint + verticalTargetRadius;
+    vertices[3][2] = targetz;
+    dynamicDrawQuad3(vertices, colors);
 	
     if (backNow)
 	glEnable(GL_CULL_FACE);
@@ -2598,6 +2643,11 @@ void drawBeam(float x, float z, int horz, int vert, int monsterName,
     float c[4] = {0, 0, 0, 0};
     float * col;
     float R;
+    float beamRange;
+    float beamHeight;
+    float jitter;
+    const struct AssetValue *beamLines;
+    const struct AssetValue *beamGreen;
     register int i, nlines;
     GLfloat lineWidthNow;
 
@@ -2606,6 +2656,11 @@ void drawBeam(float x, float z, int horz, int vert, int monsterName,
     glGetIntegerv(GL_SHADE_MODEL, &shadeNow);
 
     glGetFloatv(GL_LINE_WIDTH, &lineWidthNow);
+    beamRange = effectScalar("monster-beam-range");
+    beamHeight = effectScalar("monster-beam-height");
+    jitter = effectScalar("monster-beam-jitter");
+    beamLines = requiredEffectValue("monster-beam-lines", 3);
+    beamGreen = requiredEffectValue("monster-beam-green", 2);
     
     if (monsterName == FLUTTER)
 	col = colororange;
@@ -2618,26 +2673,28 @@ void drawBeam(float x, float z, int horz, int vert, int monsterName,
     /**********************************/
 
     /* if line widths are integral Mesa chokes in a large window */
-    glLineWidth(5.01);
+    glLineWidth(effectScalar("monster-beam-line-width"));
 
     if (vert < 175)
-	R = 4;
+	R = beamRange;
     else
-	R = 1.2 / (cos((900 - vert) * BIG_DEG_TO_RAD));
+	R = beamHeight / (cos((900 - vert) * BIG_DEG_TO_RAD));
 
     if (R < 0)
 	R = 0;
-    if (R > 4)
-	R = 4;
+    if (R > beamRange)
+	R = beamRange;
 
     if (vert < 0)
-	loc3[1] = PLANEY + 1.2 + R * sin(fabs(vert * BIG_DEG_TO_RAD));
+	loc3[1] = PLANEY + beamHeight +
+	    R * sin(fabs(vert * BIG_DEG_TO_RAD));
     else
-	loc3[1] = PLANEY + 1.2 - R * sin(fabs(vert * BIG_DEG_TO_RAD));
+	loc3[1] = PLANEY + beamHeight -
+	    R * sin(fabs(vert * BIG_DEG_TO_RAD));
 
     loc1[0] = x;
     loc1[2] = z;
-    loc1[1] = PLANEY + 1.2;
+    loc1[1] = PLANEY + beamHeight;
 
 /* this doesnt really work ... beam has xz value of 4 no matter what y is (> plane)
  * so beam will be longer than 4 as it gets higher up in the sky
@@ -2650,40 +2707,38 @@ void drawBeam(float x, float z, int horz, int vert, int monsterName,
 	loc3[1] = PLANEY;
 
     if (monsterName == FLUTTER)
-	c[0] = 0.95;
+	c[0] = effectScalar("monster-beam-primary");
     else
-	c[2] = 0.95;
+	c[2] = effectScalar("monster-beam-primary");
 
     switch (detail)
 	{
 	case -1:
-	case 0:	nlines = 4;
+	case 0:	nlines = (int)beamLines->components[0];
 		break;
 		
-	case 1:	nlines = 25;
+	case 1:	nlines = (int)beamLines->components[1];
 		glShadeModel(GL_SMOOTH);
 		break;
 		
-	case 2:	nlines = 40;
+	case 2:	nlines = (int)beamLines->components[2];
 		glShadeModel(GL_SMOOTH);
+		break;
+
+	default:	nlines = (int)beamLines->components[0];
 		break;
 	}
 
 
     for (i = 0; i < nlines; i++)
 	{
-	loc2[0] = loc3[0] + randy(0.04);
-	loc2[1] = loc3[1] + randy(0.04);
-	loc2[2] = loc3[2] + randy(0.04);
+	loc2[0] = loc3[0] + randy(jitter);
+	loc2[1] = loc3[1] + randy(jitter);
+	loc2[2] = loc3[2] + randy(jitter);
 
-	c[1] = 0.5 + randy(0.5);
+	c[1] = beamGreen->components[0] + randy(beamGreen->components[1]);
 	
-	glBegin(GL_LINES);
-	    glColor3fv(c);
-	    glVertex3fv(loc2);
-	    glColor3fv(col);
-	    glVertex3fv(loc1);
-	glEnd();
+	dynamicDrawLine3(loc2, loc1, c, col);
 	}
 	
     glShadeModel(shadeNow);
@@ -2694,14 +2749,10 @@ void drawBeam(float x, float z, int horz, int vert, int monsterName,
 	/* shadow of beam                 */
 	/**********************************/
 
-	glColor3fv(colorblack);
 	loc1[1] = SHADOWS;
 	loc3[1] = SHADOWS;
 
-	glBegin(GL_LINES);
-	    glVertex3fv(loc1);
-	    glVertex3fv(loc3);
-	glEnd();
+	dynamicDrawLine3(loc1, loc3, colorblack, colorblack);
 	}
 
     glLineWidth(lineWidthNow);
@@ -2718,34 +2769,14 @@ void drawRoads(struct road * roads, float xshift, float zshift,
     {
     register int i;
     float displaySize;
-    float square[4][3];
-    float v1[3];
-    float v2[3];
-    float v3[3];
-    float v4[3];
-    float xplus, xminus, zplus, zminus;
     int ropCounter;
-
-    static float tv1[2] = {0,1};
-    static float tv2[2] = {1,1};
-    static float tv3[2] = {1,0};
-    static float tv4[2] = {0,0};
+    int roadType;
 
     float c, d;
     float cprime,  dprime;
 
-    float xlinemin, xlinemax, zlinemin, zlinemax;
-    float xlinemin2, xlinemax2, zlinemin2, zlinemax2; 
-
     GLfloat lineWidthNow;
     glGetFloatv(GL_LINE_WIDTH, &lineWidthNow);
-    
-    xplus   = xshift + 0.252;
-    xminus  = xshift - 0.252;
-    zplus   = zshift + 0.252;
-    zminus  = zshift - 0.252;
-    
-    v1[1] = v2[1] = v3[1] = v4[1] = ROADS + 0.001;
     
 
 	
@@ -2793,7 +2824,10 @@ void drawRoads(struct road * roads, float xshift, float zshift,
 
 
     if (roads == NULL)
+	{
+	glLineWidth(lineWidthNow);
 	return;
+	}
 
     /***********************************/
     /* find all the roads on the plane */
@@ -2812,62 +2846,35 @@ void drawRoads(struct road * roads, float xshift, float zshift,
 	    }
 	}
 
-	
-    square[0][1] = square[1][1] = square[2][1] = square[3][1] = ROADS;
-
     /********************/
     /* Draw black roads */
     /********************/
 
     if (ropCounter > 0)
 	{
-	glColor3fv(colorblack);
-
-	if (detail >= 2) 
+	if (detail >= 2)
 	    {
 	    glColor3fv(colorwhite);
 	    glCallList(roadtex);
 	    glEnable(GL_TEXTURE_2D);
 	    }
+	else
+	    glColor3fv(colorblack);
 
-
-	glBegin(GL_QUADS);
-
-    
 	for(i=0; i < ropCounter; i++)
-	    {
-	    if (roadsOnPlane[i].type < 3)
+	    if (roadsOnPlane[i].type >= 0 && roadsOnPlane[i].type < 3)
 		{
-		square[0][0] = square[3][0] = roadsOnPlane[i].x+xplus;
-		square[1][0] = square[2][0] = roadsOnPlane[i].x+xminus;
-    
-		square[0][2] = square[1][2] = roadsOnPlane[i].y+zplus;
-		square[2][2] = square[3][2] = roadsOnPlane[i].y+zminus;
-
-		if (detail <2)
-		    {
-		    glVertex3fv(square[3]);
-		    glVertex3fv(square[2]);
-		    glVertex3fv(square[1]);
-		    glVertex3fv(square[0]);
-		    }
-		else
-		    {
-			glTexCoord2fv(tv1);
-			glVertex3fv(square[3]);
-			glTexCoord2fv(tv4);
-			glVertex3fv(square[2]);
-			glTexCoord2fv(tv3);
-			glVertex3fv(square[1]);
-			glTexCoord2fv(tv2);
-			glVertex3fv(square[0]);
-		    }
+		roadType = (int)roadsOnPlane[i].type;
+		glPushMatrix();
+		glTranslatef(roadsOnPlane[i].x + xshift, 0.0f,
+		             roadsOnPlane[i].y + zshift);
+		assetModelDrawNode(&externalRoadModels[roadType]->model,
+		                   requiredNode(externalRoadModels[roadType],
+		                                "surface"), NULL);
+		glPopMatrix();
 		}
-	    }
-	glEnd();
-
-	glDisable(GL_TEXTURE_2D);
-
+	if (detail >= 2)
+	    glDisable(GL_TEXTURE_2D);
 	}
 
     /*******************/
@@ -2877,95 +2884,38 @@ void drawRoads(struct road * roads, float xshift, float zshift,
     if (ropCounter > 0)
 	{
 	glColor3fv(colorgrey4);
-    
-	glBegin(GL_QUADS);
-   
+
 	for(i=0; i < ropCounter; i++)
-	    {
 	    if (roadsOnPlane[i].type >= 3)
 		{
-		square[0][0] = square[3][0] = roadsOnPlane[i].x+xplus;
-		square[1][0] = square[2][0] = roadsOnPlane[i].x+xminus;
-    
-		square[0][2] = square[1][2] = roadsOnPlane[i].y+zplus;
-		square[2][2] = square[3][2] = roadsOnPlane[i].y+zminus;
-    	    
-		glVertex3fv(square[3]);
-		glVertex3fv(square[2]);
-		glVertex3fv(square[1]);
-		glVertex3fv(square[0]);
+		glPushMatrix();
+		glTranslatef(roadsOnPlane[i].x + xshift, 0.0f,
+		             roadsOnPlane[i].y + zshift);
+		assetModelDrawNode(&externalRoadModels[3]->model,
+		                   requiredNode(externalRoadModels[3], "surface"),
+		                   NULL);
+		glPopMatrix();
 		}
-	    }
-	glEnd();
 	}
 
-    if (detail != 0) 
+    if (detail != 0)
 	{
 	/**************************/
-	/* draw they yellow lines */
+	/* draw the yellow lines  */
 	/**************************/
-     
-	xlinemin = xshift-ROADLINELENGTH;
-	xlinemax = xshift+ROADLINELENGTH;
-	zlinemin = zshift-ROADLINETHICKNESS;
-	zlinemax = zshift+ROADLINETHICKNESS;
-    
-	xlinemin2 = xshift-ROADLINETHICKNESS;
-	xlinemax2 = xshift+ROADLINETHICKNESS;
-	zlinemin2 = zshift-ROADLINELENGTH;
-	zlinemax2 = zshift+ROADLINELENGTH; 
-    
-	glColor3fv(coloryellow);
-    
-	glBegin(GL_QUADS);
-	
+
 	for(i=0; i < ropCounter; i++)
-	    {
-	    if(roadsOnPlane[i].type == 0)
+	    if (roadsOnPlane[i].type >= 0 && roadsOnPlane[i].type < 3)
 		{
-		v1[0] = v4[0] = roadsOnPlane[i].x + xlinemin;
-		v2[0] = v3[0] = roadsOnPlane[i].x + xlinemax;
-		
-		v2[2] = v1[2] = roadsOnPlane[i].y + zlinemin;
-		v3[2] = v4[2] = roadsOnPlane[i].y + zlinemax;
-		
-		glVertex3fv(v1);
-		glVertex3fv(v4);
-		glVertex3fv(v3);
-		glVertex3fv(v2);
+		roadType = (int)roadsOnPlane[i].type;
+		glPushMatrix();
+		glTranslatef(roadsOnPlane[i].x + xshift, 0.0f,
+		             roadsOnPlane[i].y + zshift);
+		assetModelDrawNode(&externalRoadModels[roadType]->model,
+		                   requiredNode(externalRoadModels[roadType],
+		                                "marker"), NULL);
+		glPopMatrix();
 		}
-					
-	    else if(roadsOnPlane[i].type == 1)
-		{			
-		v1[2] = v4[2] = roadsOnPlane[i].y + zlinemin2;
-		v2[2] = v3[2] = roadsOnPlane[i].y + zlinemax2;
-		
-		v2[0] = v1[0] = roadsOnPlane[i].x + xlinemin2;
-		v3[0] = v4[0] = roadsOnPlane[i].x + xlinemax2;
-    
-		glVertex3fv(v1);
-		glVertex3fv(v2);
-		glVertex3fv(v3);
-		glVertex3fv(v4);
-		
-		}
-	    else if(roadsOnPlane[i].type == 2)
-		{			
-		v1[2] = v4[2] = roadsOnPlane[i].y + zlinemin;
-		v2[2] = v3[2] = roadsOnPlane[i].y + zlinemax;
-		
-		v2[0] = v1[0] = roadsOnPlane[i].x + xlinemin2;
-		v3[0] = v4[0] = roadsOnPlane[i].x + xlinemax2;
-    
-		glVertex3fv(v1);
-		glVertex3fv(v2);
-		glVertex3fv(v3);
-		glVertex3fv(v4);
-		
-		}
-	    }
-	    
-	glEnd();
 	}
 
     glLineWidth(lineWidthNow);
@@ -2988,6 +2938,7 @@ void drawProjectiles(struct projectile * allProjs, int counter,
     int beamCounter;
     int projectileVariant;
     int special;
+    float scarDistance;
 
     static float beamhitx[MAXBEAMS], beamhitz[MAXBEAMS];
 
@@ -3105,10 +3056,9 @@ void drawProjectiles(struct projectile * allProjs, int counter,
     /* draw scar from monster beam    */
     /**********************************/
     
-    glColor3fv(colorblack);
-
     /* if line widths are integral Mesa chokes in a large window */
-    glLineWidth(2.01);
+    glLineWidth(effectScalar("beam-scar-line-width"));
+    scarDistance = effectScalar("beam-scar-link-distance");
 
     v[1] = v2[1] = SHADOWS;
     
@@ -3120,12 +3070,10 @@ void drawProjectiles(struct projectile * allProjs, int counter,
 	v[0] = beamhitx[i];
 	v[2] = beamhitz[i];
 	
-	if ((fabs(v[0] - v2[0]) < 0.3) && (fabs(v[2] - v2[2]) < 0.3))
+	if ((fabs(v[0] - v2[0]) < scarDistance) &&
+	    (fabs(v[2] - v2[2]) < scarDistance))
 	    {
-	    glBegin(GL_LINES);	
-		glVertex3fv(v);
-		glVertex3fv(v2);	
-	    glEnd();
+	    dynamicDrawLine3(v, v2, colorblack, colorblack);
 	    }
 	    
 	v2[0] = v[0];

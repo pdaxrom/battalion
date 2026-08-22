@@ -236,6 +236,11 @@ static int testPrimitiveRoundTrip(void)
             {
             source.meshes[mesh].vertices[vertex].position[0] = (float)vertex;
             source.meshes[mesh].vertices[vertex].position[1] = (float)mesh;
+            source.meshes[mesh].vertices[vertex].normal[1] = 1.0f;
+            source.meshes[mesh].vertices[vertex].texcoord[0] =
+                (float)vertex * 0.25f;
+            source.meshes[mesh].vertices[vertex].texcoord[1] =
+                (float)mesh * 0.5f;
             source.meshes[mesh].vertices[vertex].color[0] = 1.0f;
             source.meshes[mesh].vertices[vertex].color[3] = 1.0f;
             }
@@ -252,13 +257,74 @@ static int testPrimitiveRoundTrip(void)
              nearValue(loaded.meshes[2].pointSize, 3.5f) &&
              !loaded.meshes[0].useCurrentColor &&
              loaded.meshes[1].useCurrentColor &&
-             !loaded.meshes[2].useCurrentColor;
+             !loaded.meshes[2].useCurrentColor &&
+             nearValue(loaded.meshes[0].vertices[1].normal[1], 1.0f) &&
+             nearValue(loaded.meshes[0].vertices[1].texcoord[0], 0.25f) &&
+             nearValue(loaded.meshes[1].vertices[0].texcoord[1], 0.5f);
     remove("/tmp/battalion-primitives.glb");
     if (!result)
         fprintf(stderr, "primitive round-trip failed: %s\n", error);
     assetModelDestroy(&loaded);
     assetModelDestroy(&source);
     return result;
+    }
+
+static int testRoadModels(void)
+    {
+    static const char *paths[4] = {
+        "assets/models/terrain/roads/road-type-0.glb",
+        "assets/models/terrain/roads/road-type-1.glb",
+        "assets/models/terrain/roads/road-type-2.glb",
+        "assets/models/terrain/roads/road-type-3.glb"
+    };
+    struct AssetModel model;
+    const struct AssetMesh *surfaceMesh;
+    char error[160];
+    int pathIndex;
+    int surface;
+    int marker;
+    int textured;
+    size_t vertex;
+
+    assetModelInitialize(&model);
+    for (pathIndex = 0; pathIndex < 4; pathIndex++)
+        {
+        if (!assetModelLoadGLB(paths[pathIndex], &model,
+                               error, sizeof(error)))
+            {
+            fprintf(stderr, "road model load failed for %s: %s\n",
+                    paths[pathIndex], error);
+            return 0;
+            }
+        surface = assetModelFindNode(&model, "surface");
+        marker = assetModelFindNode(&model, "marker");
+        if (surface < 0 || model.nodes[surface].mesh < 0 ||
+            (pathIndex < 3 && marker < 0) ||
+            (pathIndex == 3 && marker >= 0))
+            {
+            fprintf(stderr, "road nodes are invalid in %s\n",
+                    paths[pathIndex]);
+            assetModelDestroy(&model);
+            return 0;
+            }
+        surfaceMesh = &model.meshes[model.nodes[surface].mesh];
+        textured = 0;
+        for (vertex = 0; vertex < surfaceMesh->vertexCount; vertex++)
+            if (!nearValue(surfaceMesh->vertices[vertex].texcoord[0], 0.0f) ||
+                !nearValue(surfaceMesh->vertices[vertex].texcoord[1], 0.0f))
+                textured = 1;
+        if (!surfaceMesh->useCurrentColor || !textured ||
+            surfaceMesh->vertexCount == 0 ||
+            !nearValue(surfaceMesh->vertices[0].normal[1], 1.0f))
+            {
+            fprintf(stderr, "road surface attributes are invalid in %s\n",
+                    paths[pathIndex]);
+            assetModelDestroy(&model);
+            return 0;
+            }
+        assetModelDestroy(&model);
+        }
+    return 1;
     }
 
 static int testExportedHelicopter(void)
@@ -566,6 +632,8 @@ int main(void)
     if (!testExportedSlagHelicopter())
 	return 1;
     if (!testPrimitiveRoundTrip())
+	return 1;
+    if (!testRoadModels())
 	return 1;
     if (!testExternalTextures())
 	return 1;

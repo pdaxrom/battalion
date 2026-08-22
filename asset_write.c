@@ -35,6 +35,10 @@ struct MeshWriteInfo
     {
     size_t positionOffset;
     size_t positionLength;
+    size_t normalOffset;
+    size_t normalLength;
+    size_t texcoordOffset;
+    size_t texcoordLength;
     size_t colorOffset;
     size_t colorLength;
     float minimum[3];
@@ -142,37 +146,24 @@ static void builderAppend(struct JsonBuilder *builder, const char *text)
 static void builderAppendFormat(struct JsonBuilder *builder,
                                 const char *format, ...)
     {
-    char local[256];
-    char *formatted;
+    char local[1024];
     va_list arguments;
-    int required;
+    int length;
 
     if (builder->failed)
         return;
+    /* All callers use short, internal format strings containing numeric
+       values.  vsprintf is part of C89; vsnprintf is not available on the
+       oldest systems supported by Battalion. */
     va_start(arguments, format);
-    required = vsnprintf(local, sizeof(local), format, arguments);
+    length = vsprintf(local, format, arguments);
     va_end(arguments);
-    if (required < 0)
+    if (length < 0 || (size_t)length >= sizeof(local))
         {
         builder->failed = 1;
         return;
         }
-    if ((size_t)required < sizeof(local))
-        {
-        builderAppendBytes(builder, local, (size_t)required);
-        return;
-        }
-    formatted = (char *)malloc((size_t)required + 1);
-    if (formatted == NULL)
-        {
-        builder->failed = 1;
-        return;
-        }
-    va_start(arguments, format);
-    vsnprintf(formatted, (size_t)required + 1, format, arguments);
-    va_end(arguments);
-    builderAppendBytes(builder, formatted, (size_t)required);
-    free(formatted);
+    builderAppendBytes(builder, local, (size_t)length);
     }
 
 static void builderAppendJsonString(struct JsonBuilder *builder,
@@ -198,7 +189,7 @@ static void builderAppendJsonString(struct JsonBuilder *builder,
             builderAppend(builder, "\\t");
         else if (*character < 32)
             {
-            snprintf(escaped, sizeof(escaped), "\\u%04x", *character);
+            sprintf(escaped, "\\u%04x", *character);
             builderAppend(builder, escaped);
             }
         else
@@ -309,9 +300,16 @@ static void appendBufferViews(struct JsonBuilder *json,
         builderAppendFormat(json,
             "{\"buffer\":0,\"byteOffset\":%lu,\"byteLength\":%lu,"
             "\"target\":34962},{\"buffer\":0,\"byteOffset\":%lu,"
+            "\"byteLength\":%lu,\"target\":34962},"
+            "{\"buffer\":0,\"byteOffset\":%lu,\"byteLength\":%lu,"
+            "\"target\":34962},{\"buffer\":0,\"byteOffset\":%lu,"
             "\"byteLength\":%lu,\"target\":34962}",
             (unsigned long)meshes[meshIndex].positionOffset,
             (unsigned long)meshes[meshIndex].positionLength,
+            (unsigned long)meshes[meshIndex].normalOffset,
+            (unsigned long)meshes[meshIndex].normalLength,
+            (unsigned long)meshes[meshIndex].texcoordOffset,
+            (unsigned long)meshes[meshIndex].texcoordLength,
             (unsigned long)meshes[meshIndex].colorOffset,
             (unsigned long)meshes[meshIndex].colorLength);
         }
@@ -357,14 +355,22 @@ static void appendAccessors(struct JsonBuilder *json,
             "\"type\":\"VEC3\",\"min\":[%.9g,%.9g,%.9g],"
             "\"max\":[%.9g,%.9g,%.9g]},"
             "{\"bufferView\":%lu,\"componentType\":5126,\"count\":%lu,"
+            "\"type\":\"VEC3\"},"
+            "{\"bufferView\":%lu,\"componentType\":5126,\"count\":%lu,"
+            "\"type\":\"VEC2\"},"
+            "{\"bufferView\":%lu,\"componentType\":5126,\"count\":%lu,"
             "\"type\":\"VEC4\"}",
             (unsigned long)view, (unsigned long)model->meshes[meshIndex].vertexCount,
             meshes[meshIndex].minimum[0], meshes[meshIndex].minimum[1],
             meshes[meshIndex].minimum[2], meshes[meshIndex].maximum[0],
             meshes[meshIndex].maximum[1], meshes[meshIndex].maximum[2],
             (unsigned long)(view + 1),
+            (unsigned long)model->meshes[meshIndex].vertexCount,
+            (unsigned long)(view + 2),
+            (unsigned long)model->meshes[meshIndex].vertexCount,
+            (unsigned long)(view + 3),
             (unsigned long)model->meshes[meshIndex].vertexCount);
-        view += 2;
+        view += 4;
         }
     for (animationIndex = 0; animationIndex < model->animationCount;
          animationIndex++)
@@ -406,12 +412,15 @@ static void appendMeshes(struct JsonBuilder *json,
             mode = 4;
         builderAppendFormat(json,
             "{\"name\":\"mesh%lu\",\"primitives\":[{\"attributes\":{" 
-            "\"POSITION\":%lu,\"COLOR_0\":%lu},\"mode\":%d,"
+            "\"POSITION\":%lu,\"NORMAL\":%lu,\"TEXCOORD_0\":%lu,"
+            "\"COLOR_0\":%lu},\"mode\":%d,"
             "\"extras\":{\"battalionLineWidth\":%.9g,"
             "\"battalionPointSize\":%.9g,"
             "\"battalionUseCurrentColor\":%s}}]}",
-            (unsigned long)meshIndex, (unsigned long)(meshIndex * 2),
-            (unsigned long)(meshIndex * 2 + 1), mode,
+            (unsigned long)meshIndex, (unsigned long)(meshIndex * 4),
+            (unsigned long)(meshIndex * 4 + 1),
+            (unsigned long)(meshIndex * 4 + 2),
+            (unsigned long)(meshIndex * 4 + 3), mode,
             model->meshes[meshIndex].lineWidth,
             model->meshes[meshIndex].pointSize,
             model->meshes[meshIndex].useCurrentColor ? "true" : "false");
@@ -539,7 +548,7 @@ static void appendAnimations(struct JsonBuilder *json,
              trackIndex++)
             {
             track = &animation->tracks[trackIndex];
-            accessor = model->meshCount * 2 + globalTrack * 2;
+            accessor = model->meshCount * 4 + globalTrack * 2;
             if (trackIndex)
                 builderAppend(json, ",");
             builderAppendFormat(json,
@@ -658,6 +667,12 @@ int assetModelWriteGLB(const char *path, const struct AssetModel *model,
             !addFloatBlock(&binaryLength, mesh->vertexCount, 3,
                            &meshInfo[meshIndex].positionOffset,
                            &meshInfo[meshIndex].positionLength) ||
+            !addFloatBlock(&binaryLength, mesh->vertexCount, 3,
+                           &meshInfo[meshIndex].normalOffset,
+                           &meshInfo[meshIndex].normalLength) ||
+            !addFloatBlock(&binaryLength, mesh->vertexCount, 2,
+                           &meshInfo[meshIndex].texcoordOffset,
+                           &meshInfo[meshIndex].texcoordLength) ||
             !addFloatBlock(&binaryLength, mesh->vertexCount, 4,
                            &meshInfo[meshIndex].colorOffset,
                            &meshInfo[meshIndex].colorLength))
@@ -780,6 +795,20 @@ int assetModelWriteGLB(const char *path, const struct AssetModel *model,
             vertex = &mesh->vertices[vertexIndex];
             for (component = 0; success && component < 3; component++)
                 success = writeFloat(file, vertex->position[component]);
+            }
+        for (vertexIndex = 0; success && vertexIndex < mesh->vertexCount;
+             vertexIndex++)
+            {
+            vertex = &mesh->vertices[vertexIndex];
+            for (component = 0; success && component < 3; component++)
+                success = writeFloat(file, vertex->normal[component]);
+            }
+        for (vertexIndex = 0; success && vertexIndex < mesh->vertexCount;
+             vertexIndex++)
+            {
+            vertex = &mesh->vertices[vertexIndex];
+            for (component = 0; success && component < 2; component++)
+                success = writeFloat(file, vertex->texcoord[component]);
             }
         for (vertexIndex = 0; success && vertexIndex < mesh->vertexCount;
              vertexIndex++)

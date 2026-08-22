@@ -94,6 +94,7 @@ SOURCES := \
 	update.c \
 	tk_x11.c \
 	font.c \
+	dynamic_primitives.c \
 	map_package.c
 
 SOURCES += asset.c asset_gltf.c asset_animation.c asset_render.c \

@@ -32,5 +32,22 @@ int main(void)
         return 1;
         }
     assetValuesDestroy(&values);
+    if (!assetValuesLoad("assets/config/effects.values", &values,
+                         error, sizeof(error)))
+        {
+        fprintf(stderr, "effect values failed to load: %s\n", error);
+        return 1;
+        }
+    value = assetValuesFind(&values, "monster-beam-lines");
+    if (value == NULL || value->componentCount != 3 ||
+        !nearValue(value->components[0], 4.0f) ||
+        !nearValue(value->components[2], 40.0f) ||
+        assetValuesFind(&values, "beam-scar-line-width") == NULL)
+        {
+        fprintf(stderr, "unexpected dynamic effect values\n");
+        assetValuesDestroy(&values);
+        return 1;
+        }
+    assetValuesDestroy(&values);
     return 0;
     }

@@ -9,6 +9,7 @@ texture road textures/road.tga linear repeat
 texture office-logo textures/logo.tga nearest clamp
 
 file animation-values config/animation.values
+file effect-values config/effects.values
 
 model tank models/vehicles/tank.glb
 model tank-slag models/vehicles/tank-slag.glb
@@ -33,6 +34,10 @@ model plane-dots-low models/vehicles/plane-dots-low.glb
 model plane-ground-low models/terrain/plane-ground-low.glb
 model plane-ground-high models/terrain/plane-ground-high.glb
 model plane-ground-large models/terrain/plane-ground-large.glb
+model road-type-0 models/terrain/roads/road-type-0.glb
+model road-type-1 models/terrain/roads/road-type-1.glb
+model road-type-2 models/terrain/roads/road-type-2.glb
+model road-type-3 models/terrain/roads/road-type-3.glb
 
 model googelon models/monsters/googelon.glb
 animation googelon-tail-sway googelon tail-sway loop

@@ -13,7 +13,8 @@ assets/
     vehicles/        tanks, aircraft, and vehicle shadows
     monsters/        monsters, Heroes, and Mecha
     buildings/       structures and structure animations
-    terrain/         trees, water, hills, and ground meshes
+    terrain/         trees, water, hills, ground, and replaceable road tiles
+      roads/         textured road surfaces and their lane markers
     effects/         projectiles, explosions, fire, and generic effects
     ui/              title geometry
   textures/          TGA textures
@@ -39,6 +40,10 @@ is stored in named animation clips. Projectile rotation, Techs' death motion,
 and explosion frames are likewise stored as clips in their GLB files.
 Gameplay-driven controller values, such as live aiming scales and damage-part
 thresholds, live in `config/animation.values` instead of C source.
+Dynamic beam endpoints still come from live gameplay, while their widths,
+radii, jitter and density live in `config/effects.values`. Road surfaces,
+texture coordinates, normals and lane markers are authored GLB assets rather
+than procedural geometry in `graphics.c`.
 
 Verify the checked-in content with:
 
