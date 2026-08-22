@@ -1488,6 +1488,41 @@ static void initializeContact(struct EntityContact *contact,
     contact->audible = audible;
     }
 
+static void notifyDataEntityDamage(struct tank *tank, const char *id,
+	const char *faction, float x, float z)
+    {
+    struct EntityContact source;
+
+    initializeContact(&source, id, faction, x, z, 1, 1, 1);
+    entityAgentNotifyDamage(&tank->dataAgent, &source);
+    }
+
+static void notifyDataEntityDamageFromMonster(struct tank *tank,
+	struct monsterInfo *owner, float x, float z)
+    {
+    struct targetInfo *target;
+    char id[ENTITY_NAME_SIZE];
+    int number;
+
+    if (owner == &Googelon)
+	{
+	notifyDataEntityDamage(tank, "player", "monster", x, z);
+	return;
+	}
+    number = 0;
+    for (target = targets->next; target != NULL; target = target->next)
+	{
+	if (owner == &target->monster)
+	    {
+	    sprintf(id, "target-%d", number);
+	    notifyDataEntityDamage(tank, id, "monster", x, z);
+	    return;
+	    }
+	number++;
+	}
+    notifyDataEntityDamage(tank, "environment", "neutral", x, z);
+    }
+
 static struct tank *findDataActor(struct tank *allTanks, const char *id)
     {
     struct tank *tank;
@@ -1632,9 +1667,9 @@ static void damageDataEntityTarget(struct tank *source,
     if (tank != NULL)
         {
         tank->damage--;
-        tank->dataAgent.damaged = 1;
-        tank->dataAgent.targetX = source->x;
-        tank->dataAgent.targetZ = source->z;
+        notifyDataEntityDamage(tank, source->dataId,
+			       source->dataArchetype->faction,
+			       source->x, source->z);
         }
     }
 
@@ -1849,9 +1884,7 @@ void updateTanks(struct tank * allTanks, float width, float height,
 		{
 		m->energyRemaining -= 0.75f;
 		ttank->damage--;
-		ttank->dataAgent.damaged = 1;
-		ttank->dataAgent.targetX = 0;
-		ttank->dataAgent.targetZ = 0;
+		notifyDataEntityDamage(ttank, "player", "monster", 0, 0);
 		}
 	    if (ttank->damage <= 0)
 		{
@@ -3016,11 +3049,8 @@ void updateBooms(struct boom * allBooms, struct tank * tanklist)
 		    tanktype		    = temptank->next->type;
 		    temptank->next->damage -= 1;
 		    if (tanktype == DATAENTITY)
-			{
-			temptank->next->dataAgent.damaged = 1;
-			temptank->next->dataAgent.targetX = bboom->x;
-			temptank->next->dataAgent.targetZ = bboom->z;
-			}
+			notifyDataEntityDamageFromMonster(temptank->next,
+				bboom->mine, bboom->x, bboom->z);
 		    switch (tanktype)
 			{
 			case TANK:

@@ -22,8 +22,7 @@
 #define ENTITY_MAX_CONTACTS 8
 #define ENTITY_MAX_EVENTS 16
 #define ENTITY_MAX_PENDING_TRIGGERS 8
-#define ENTITY_MAX_SENSOR_DETECTIONS \
-    (ENTITY_MAX_SENSORS * ENTITY_MAX_CONTACTS)
+#define ENTITY_MAX_SENSOR_DETECTIONS ENTITY_MAX_CONTACTS
 
 #define ENTITY_PATROL_LOOP 1
 #define ENTITY_PATROL_PINGPONG 2
@@ -60,7 +59,7 @@ struct EntityPendingTrigger
 
 struct EntitySensorDetection
     {
-    int sensorIndex;
+    unsigned long sensorMask;
     struct EntityContact contact;
     };
 
@@ -79,6 +78,7 @@ struct EntityAgent
     int contactCount;
     int fireRequested;
     int damaged;
+    struct EntityContact damageSource;
     float x;
     float z;
     float heading;
@@ -105,6 +105,8 @@ void entityAgentInitialize(struct EntityAgent *agent,
                            size_t waypointCount, int patrolMode);
 int entityAgentQueueTrigger(struct EntityAgent *agent, const char *event,
                             const struct EntityContact *contact);
+void entityAgentNotifyDamage(struct EntityAgent *agent,
+                             const struct EntityContact *source);
 void entityAgentStep(struct EntityAgent *agent,
                      const struct EntityContact *contacts,
                      size_t contactCount);

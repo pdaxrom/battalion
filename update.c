@@ -195,6 +195,38 @@ void updateVap(float x,  float z, int counter, struct monsterInfo *m)
 /* googelon/flutter is firing their energy beam                  */
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
+static void beamDamageSource(struct EntityContact *contact,
+	struct monsterInfo *player, struct targetInfo *targetList,
+	struct monsterInfo *owner, float x, float z)
+    {
+    struct targetInfo *target;
+    int number;
+
+    memset(contact, 0, sizeof(*contact));
+    strcpy(contact->faction, "monster");
+    contact->x = x;
+    contact->z = z;
+    contact->active = 1;
+    contact->visible = 1;
+    contact->audible = 1;
+    if (owner == player)
+	{
+	strcpy(contact->id, "player");
+	return;
+	}
+    number = 0;
+    for (target = targetList->next; target != NULL; target = target->next)
+	{
+	if (owner == &target->monster)
+	    {
+	    sprintf(contact->id, "target-%d", number);
+	    return;
+	    }
+	number++;
+	}
+    strcpy(contact->id, "beam-source");
+    }
+
 void updateBeam(struct monsterInfo * g,  struct targetInfo * t, float x, float z, struct tank * allTanks,  
 		struct tree ** allTreePtrs, int numTrees, struct monsterInfo * m)
     {
@@ -211,6 +243,7 @@ void updateBeam(struct monsterInfo * g,  struct targetInfo * t, float x, float z
     float beamx,  beamy,  beamz;
     float height;
     float R;
+    struct EntityContact damageSource;
     int itsDead;
     int i;
     int horz, vert;
@@ -375,9 +408,8 @@ void updateBeam(struct monsterInfo * g,  struct targetInfo * t, float x, float z
 	    ttank->damage -= 1;
 	    if (ttank->type == DATAENTITY)
 		{
-		ttank->dataAgent.damaged = 1;
-		ttank->dataAgent.targetX = x;
-		ttank->dataAgent.targetZ = z;
+		beamDamageSource(&damageSource, g, t, m, x, z);
+		entityAgentNotifyDamage(&ttank->dataAgent, &damageSource);
 		}
 
 	    switch (ttank->type)

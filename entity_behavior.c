@@ -223,6 +223,17 @@ int entityAgentQueueTrigger(struct EntityAgent *agent, const char *event,
     return 1;
     }
 
+void entityAgentNotifyDamage(struct EntityAgent *agent,
+                             const struct EntityContact *source)
+    {
+    if (agent == NULL || source == NULL)
+        return;
+    agent->damaged = 1;
+    agent->damageSource = *source;
+    agent->targetX = source->x;
+    agent->targetZ = source->z;
+    }
+
 static void processTriggers(struct EntityAgent *agent)
     {
     size_t index;
@@ -234,23 +245,31 @@ static void processTriggers(struct EntityAgent *agent)
     agent->pendingCount = 0;
     }
 
-static int detectionMatches(const struct EntitySensorDetection *detection,
-                            int sensorIndex, const char *contactId)
-    {
-    return detection->sensorIndex == sensorIndex &&
-           strcmp(detection->contact.id, contactId) == 0;
-    }
-
 static int containsDetection(
     const struct EntitySensorDetection *detections, size_t count,
     int sensorIndex, const char *contactId)
     {
     size_t index;
+    unsigned long sensorBit;
 
+    sensorBit = 1UL << sensorIndex;
     for (index = 0; index < count; index++)
-        if (detectionMatches(&detections[index], sensorIndex, contactId))
+        if ((detections[index].sensorMask & sensorBit) != 0 &&
+            strcmp(detections[index].contact.id, contactId) == 0)
             return 1;
     return 0;
+    }
+
+static struct EntitySensorDetection *findCurrentDetection(
+    struct EntitySensorDetection *detections, size_t count,
+    const char *contactId)
+    {
+    size_t index;
+
+    for (index = 0; index < count; index++)
+        if (strcmp(detections[index].contact.id, contactId) == 0)
+            return &detections[index];
+    return NULL;
     }
 
 static void processSensorContact(
@@ -258,18 +277,28 @@ static void processSensorContact(
     const struct EntityContact *contact,
     struct EntitySensorDetection *current, size_t *currentCount)
     {
+    struct EntitySensorDetection *detection;
+    unsigned long sensorBit;
     int phase;
 
-    if (*currentCount >= ENTITY_MAX_SENSOR_DETECTIONS ||
-        containsDetection(current, *currentCount, sensorIndex, contact->id))
+    if (containsDetection(current, *currentCount, sensorIndex, contact->id))
         return;
     phase = containsDetection(agent->previousDetections,
                               agent->previousDetectionCount,
                               sensorIndex, contact->id) ?
             ENTITY_SENSOR_PHASE_STAY : ENTITY_SENSOR_PHASE_ENTER;
-    current[*currentCount].sensorIndex = sensorIndex;
-    current[*currentCount].contact = *contact;
-    (*currentCount)++;
+    sensorBit = 1UL << sensorIndex;
+    detection = findCurrentDetection(current, *currentCount, contact->id);
+    if (detection == NULL)
+        {
+        if (*currentCount >= ENTITY_MAX_SENSOR_DETECTIONS)
+            return;
+        detection = &current[*currentCount];
+        memset(detection, 0, sizeof(*detection));
+        detection->contact = *contact;
+        (*currentCount)++;
+        }
+    detection->sensorMask |= sensorBit;
     applyRules(agent, ENTITY_RULE_SENSOR,
                agent->archetype->sensors[sensorIndex].id,
                phase, contact);
@@ -281,19 +310,25 @@ static void processSensorExits(
     {
     struct EntityContact contact;
     const struct EntitySensorDetection *previous;
+    size_t sensorIndex;
     size_t index;
 
     for (index = 0; index < agent->previousDetectionCount; index++)
         {
         previous = &agent->previousDetections[index];
-        if (containsDetection(current, currentCount, previous->sensorIndex,
-                              previous->contact.id))
-            continue;
-        contact = previous->contact;
-        contact.active = 0;
-        applyRules(agent, ENTITY_RULE_SENSOR,
-                   agent->archetype->sensors[previous->sensorIndex].id,
-                   ENTITY_SENSOR_PHASE_EXIT, &contact);
+        for (sensorIndex = 0;
+             sensorIndex < agent->archetype->sensorCount; sensorIndex++)
+            {
+            if ((previous->sensorMask & (1UL << sensorIndex)) == 0 ||
+                containsDetection(current, currentCount, (int)sensorIndex,
+                                  previous->contact.id))
+                continue;
+            contact = previous->contact;
+            contact.active = 0;
+            applyRules(agent, ENTITY_RULE_SENSOR,
+                       agent->archetype->sensors[sensorIndex].id,
+                       ENTITY_SENSOR_PHASE_EXIT, &contact);
+            }
         }
     }
 
@@ -328,12 +363,7 @@ static int processSensors(struct EntityAgent *agent,
             {
             if (agent->damaged)
                 {
-                memset(&damageContact, 0, sizeof(damageContact));
-                strcpy(damageContact.id, "damage-source");
-                strcpy(damageContact.faction, "hostile");
-                damageContact.x = agent->targetX;
-                damageContact.z = agent->targetZ;
-                damageContact.active = 1;
+                damageContact = agent->damageSource;
                 processSensorContact(agent, (int)sensorIndex,
                                      &damageContact, current,
                                      &currentCount);

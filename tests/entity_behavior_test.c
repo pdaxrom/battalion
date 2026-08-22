@@ -42,6 +42,7 @@ int main(void)
     struct EntityAgent guard;
     struct EntityAgent receiver;
     struct EntityAgent phaseAgent;
+    struct EntityAgent damageAgent;
     struct EntityArchetype phaseArchetype;
     struct EntityContact contacts[2];
     char error[256];
@@ -197,6 +198,20 @@ int main(void)
         phaseAgent.reaction != ENTITY_REACTION_OBSERVE)
         {
         fprintf(stderr, "deactivation trigger failed\n");
+        return 1;
+        }
+
+    entityAgentInitialize(&damageAgent, tank, 0.0f, 0.0f, 0.0f,
+                          NULL, 0, ENTITY_PATROL_LOOP);
+    contact(&contacts[0], "real-attacker", 2.0f, 1.0f, 1, 1);
+    entityAgentNotifyDamage(&damageAgent, &contacts[0]);
+    entityAgentStep(&damageAgent, NULL, 0);
+    if (damageAgent.eventCount != 1 || !damageAgent.hasTarget ||
+        strcmp(damageAgent.events[0].name, "base-alarm") != 0 ||
+        strcmp(damageAgent.events[0].contact.id, "real-attacker") != 0 ||
+        strcmp(damageAgent.target.id, "real-attacker") != 0)
+        {
+        fprintf(stderr, "damage source contact was not preserved\n");
         return 1;
         }
 
