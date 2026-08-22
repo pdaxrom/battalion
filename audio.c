@@ -230,6 +230,9 @@ void checkSound(char * dataPath)
     char * garbage;
     char catalogPath[MAXPATH];
     char catalogError[160];
+#ifdef SGIAUDIO
+    long pvbuf[4];
+#endif
 
     if (strlen(dataPath) + strlen("audio/catalog.txt") + 1 >
         sizeof(catalogPath))
@@ -248,8 +251,6 @@ void checkSound(char * dataPath)
         }
 
 #ifdef SGIAUDIO
-    long pvbuf[4];
-
     ALseterrorhandler(0);
 
     pvbuf[0] = AL_OUTPUT_COUNT;

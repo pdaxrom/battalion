@@ -54,6 +54,7 @@
 
 #ifdef SGIVERSION
 #include <bstring.h>
+#include <malloc.h>
 #endif
 
 #ifdef SOLARIS
@@ -71,10 +72,12 @@
 # include <multimedia/audio_device.h>
 #endif
 
-#ifdef HPVERSION
-/* to get non-blocking I/O under HP-UX */
+#if defined(HPVERSION) || defined(SGIVERSION)
+/* to get non-blocking I/O under HP-UX and strict-ANSI IRIX builds */
 /* from Neil Harkin <T.N.Harkin@csc.liv.ac.uk> */
+#ifndef FNDELAY
 #define FNDELAY O_NDELAY
+#endif
 #endif
 
 

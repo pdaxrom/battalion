@@ -72,11 +72,17 @@ The host platform is detected automatically, or it can be selected explicitly:
 
     make PLATFORM=linux
     make PLATFORM=macos
+    make PLATFORM=sgi
 
 macOS uses the native Metal backend and does not require OpenGL or XQuartz.
 Linux and the historical Unix targets keep the X11/GLX backend. Build products
 are written to build/<platform>-<graphics>-<audio>/ so configurations do
 not reuse incompatible object files.
+
+IRIX 6.x uses the installed SGI `make` and MIPSpro `cc` directly. The normal
+command builds strict ANSI C89 with OpenGL and no audio. Use
+`make PLATFORM=sgi AUDIO=sgi` to enable the native SGI audio libraries, or
+`make PLATFORM=irix` as an equivalent platform spelling.
 
 Game content is external and required at runtime. The `assets/manifest.txt`
 file declares models, textures, animation clips, and auxiliary files. Stable

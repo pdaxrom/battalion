@@ -1,3 +1,4 @@
+#!/bin/sh tools/irix-make -f Makefile.irix
 ##########################################################################
 # This is a slightly better Makefile than before ... but its gonna need
 # an overhaul very soon as its getting out of control.
@@ -23,6 +24,7 @@
 #   make                         # build for the host platform
 #   make PLATFORM=linux
 #   make PLATFORM=macos
+#   make PLATFORM=sgi
 #   make PLATFORM=linux AUDIO=none
 #   make PLATFORM=linux GRAPHICS=mesa
 
@@ -264,6 +266,8 @@ help:
 	@echo "Examples:"
 	@echo "  make PLATFORM=linux"
 	@echo "  make PLATFORM=macos"
+	@echo "  make PLATFORM=sgi"
+	@echo "  make PLATFORM=sgi AUDIO=sgi"
 	@echo "  make PLATFORM=linux AUDIO=none"
 	@echo "  make PLATFORM=linux GRAPHICS=mesa"
 	@echo

@@ -31,8 +31,8 @@ void dynamicDrawLine3(const float start[3], const float end[3],
     glEnd();
     }
 
-void dynamicDrawQuad3(const float vertices[4][3],
-                      const float colors[4][3])
+void dynamicDrawQuad3(float vertices[4][3],
+                      float colors[4][3])
     {
     int vertex;
 
@@ -45,7 +45,7 @@ void dynamicDrawQuad3(const float vertices[4][3],
     glEnd();
     }
 
-void dynamicDrawSolidQuad3(const float vertices[4][3],
+void dynamicDrawSolidQuad3(float vertices[4][3],
                            const float color[4])
     {
     int vertex;
@@ -57,7 +57,7 @@ void dynamicDrawSolidQuad3(const float vertices[4][3],
     glEnd();
     }
 
-void dynamicDrawLineLoop3(const float vertices[4][3],
+void dynamicDrawLineLoop3(float vertices[4][3],
                           const float color[4])
     {
     int vertex;

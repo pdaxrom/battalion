@@ -1,0 +1,96 @@
+##########################################################################
+# This is a slightly better Makefile than before ... but its gonna need
+# an overhaul very soon as its getting out of control.
+#
+# Makefile for v 1.3 of battalion (OpenGL/Mesa version)
+#
+# ajohnson@eecs.uic.edu
+#
+# if you are compiling this on an SGI the makefile should work fine,
+# as it is. otherwise you may have to do a little bit of tweaking.
+#
+# the most important thing to know before you try and use this file is
+# whether you have OpenGL or Brian Paul's Mesa graphics library installed
+# on your machine. Without either of these you are not going to get very
+# far.
+#
+
+# Native IRIX 6.x make companion.  The public entry point remains Makefile;
+# SGI make reaches this file through tools/irix-make, while GNU make keeps
+# using the cross-platform rules in Makefile.
+
+PROGRAM = battalion
+CC = cc
+PLATFORM = sgi
+GRAPHICS = opengl
+AUDIO = none
+BUILD_DIR = build/$(PLATFORM)-$(GRAPHICS)-$(AUDIO)
+TARGET = $(BUILD_DIR)/$(PROGRAM)
+
+CPPFLAGS =
+PLATFORM_CPPFLAGS = -DSGIVERSION
+GRAPHICS_CPPFLAGS =
+AUDIO_CPPFLAGS =
+COMPAT_CFLAGS = -ansi
+CFLAGS = -O2
+LDFLAGS =
+PLATFORM_LDFLAGS =
+AUDIO_LDFLAGS =
+LDLIBS =
+PLATFORM_LDLIBS = -lGL -lGLU -lX11 -lXext -lm
+AUDIO_LDLIBS =
+
+SOURCES = battalion.c map.c audio.c net.c graphics.c camera.c text.c \
+	update.c tk_x11.c font.c dynamic_primitives.c map_package.c asset.c \
+	asset_gltf.c asset_animation.c asset_render.c asset_manifest.c \
+	asset_bindings.c asset_tga.c asset_values.c stroke_font_asset.c \
+	audio_catalog.c entity_catalog.c entity_behavior.c world_coordinates.c
+
+OBJECTS = $(BUILD_DIR)/battalion.o $(BUILD_DIR)/map.o \
+	$(BUILD_DIR)/audio.o $(BUILD_DIR)/net.o $(BUILD_DIR)/graphics.o \
+	$(BUILD_DIR)/camera.o $(BUILD_DIR)/text.o $(BUILD_DIR)/update.o \
+	$(BUILD_DIR)/tk_x11.o $(BUILD_DIR)/font.o \
+	$(BUILD_DIR)/dynamic_primitives.o $(BUILD_DIR)/map_package.o \
+	$(BUILD_DIR)/asset.o $(BUILD_DIR)/asset_gltf.o \
+	$(BUILD_DIR)/asset_animation.o $(BUILD_DIR)/asset_render.o \
+	$(BUILD_DIR)/asset_manifest.o $(BUILD_DIR)/asset_bindings.o \
+	$(BUILD_DIR)/asset_tga.o $(BUILD_DIR)/asset_values.o \
+	$(BUILD_DIR)/stroke_font_asset.o $(BUILD_DIR)/audio_catalog.o \
+	$(BUILD_DIR)/entity_catalog.o $(BUILD_DIR)/entity_behavior.o \
+	$(BUILD_DIR)/world_coordinates.o
+
+HEADERS = battalion.h tk.h map.h map_package.h asset.h asset_animation.h \
+	asset_render.h asset_manifest.h asset_bindings.h asset_tga.h \
+	asset_values.h stroke_font_asset.h audio_catalog.h entity_catalog.h \
+	entity_behavior.h dynamic_primitives.h world_coordinates.h soundIt.h
+
+all: $(TARGET)
+
+$(TARGET): $(SOURCES) $(HEADERS) Makefile Makefile.irix tools/irix-make
+	@if test ! -d "$(BUILD_DIR)"; then mkdir -p "$(BUILD_DIR)"; fi
+	@for source in $(SOURCES); do \
+		base=`basename "$$source" .c`; \
+		object="$(BUILD_DIR)/$$base.o"; \
+		echo "$(CC) $(CPPFLAGS) $(PLATFORM_CPPFLAGS) $(GRAPHICS_CPPFLAGS) $(AUDIO_CPPFLAGS) $(COMPAT_CFLAGS) $(CFLAGS) -c $$source -o $$object"; \
+		$(CC) $(CPPFLAGS) $(PLATFORM_CPPFLAGS) $(GRAPHICS_CPPFLAGS) $(AUDIO_CPPFLAGS) $(COMPAT_CFLAGS) $(CFLAGS) -c "$$source" -o "$$object" || exit 1; \
+	done
+	$(CC) $(LDFLAGS) $(PLATFORM_LDFLAGS) $(AUDIO_LDFLAGS) -o $(TARGET) $(OBJECTS) $(LDLIBS) $(PLATFORM_LDLIBS) $(AUDIO_LDLIBS)
+
+print-config:
+	@echo "platform:   $(PLATFORM)"
+	@echo "graphics:   $(GRAPHICS)"
+	@echo "audio:      $(AUDIO)"
+	@echo "assets:     external (assets/manifest.txt)"
+	@echo "maps:       external JSON packages (required)"
+	@echo "compiler:   $(CC)"
+	@echo "output:     $(TARGET)"
+
+help:
+	@echo "Usage: make [PLATFORM=sgi] [GRAPHICS=opengl|mesa] [AUDIO=none|sgi]"
+	@echo "Alias: PLATFORM=irix is also accepted"
+
+c89-check: all
+	@echo "IRIX sources compiled with MIPSpro -ansi"
+
+clean:
+	rm -f $(OBJECTS) $(TARGET)

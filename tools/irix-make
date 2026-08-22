@@ -1,0 +1,53 @@
+#!/bin/sh
+
+# SGI make delegates here through the first line of the main Makefile.
+# Keep configuration selection in this small POSIX shell wrapper because
+# IRIX 6.x make does not understand GNU make conditionals or functions.
+
+platform=sgi
+graphics=opengl
+audio=none
+
+for argument in "$@"
+do
+    case "$argument" in
+        PLATFORM=*) platform=`expr "x$argument" : 'xPLATFORM=\(.*\)'` ;;
+        GRAPHICS=*) graphics=`expr "x$argument" : 'xGRAPHICS=\(.*\)'` ;;
+        AUDIO=*) audio=`expr "x$argument" : 'xAUDIO=\(.*\)'` ;;
+    esac
+done
+
+case "$platform" in
+    sgi) ;;
+    irix) ;;
+    *)
+        echo "IRIX build supports PLATFORM=sgi (or PLATFORM=irix)" >&2
+        exit 2
+        ;;
+esac
+
+case "$graphics" in
+    opengl) ;;
+    mesa)
+        set -- "$@" GRAPHICS_CPPFLAGS=-DMESAVERSION
+        set -- "$@" "PLATFORM_LDLIBS=-lMesaGL -lMesaGLU -lX11 -lXext -lm"
+        ;;
+    *)
+        echo "IRIX build supports GRAPHICS=opengl or GRAPHICS=mesa" >&2
+        exit 2
+        ;;
+esac
+
+case "$audio" in
+    none) ;;
+    sgi)
+        set -- "$@" AUDIO_CPPFLAGS=-DSGIAUDIO
+        set -- "$@" "AUDIO_LDLIBS=-laudio -laudiofile"
+        ;;
+    *)
+        echo "IRIX build supports AUDIO=none or AUDIO=sgi" >&2
+        exit 2
+        ;;
+esac
+
+exec /usr/bin/make "$@"
