@@ -145,8 +145,9 @@ transform, but that transform is not visible to gameplay code or asset data.
 Place a ground model's contact point at local `Y = 0` whenever practical.
 Use the entity's `vertical-offset` for intentional hovering or for adapting an
 existing origin. Keep the visual origin, collision envelope, muzzle node,
-and camera values consistent. A floating model with a correctly placed shadow
-usually means that the model origin or `vertical-offset` is wrong.
+and camera values consistent. Dynamic shadows are projected from the collision
+envelope onto the battlefield plane, so an incorrectly floating model usually
+means that the model origin or `vertical-offset` is wrong.
 
 Apply intentional object transforms before export unless the transform is part
 of a node hierarchy or animation. Test orientation in game; do not rely only
@@ -573,8 +574,6 @@ vehicle can be stationary, and an object can have sensors.
 | --- | ---: | --- |
 | `model` | required | Normal model manifest key. |
 | `display-name` | entity id | Human-readable selector label; spaces are allowed. |
-| `destroyed-model` | none | Optional model drawn after destruction. |
-| `shadow-model` | none | Optional separate shadow model. |
 | `idle-animation` | none | Animation key used while idle. |
 | `move-animation` | none | Animation key used while moving. |
 | `backward-animation` | none | Animation key used while moving backward; falls back to `move-animation`. |
@@ -587,13 +586,13 @@ vehicle can be stationary, and an object can have sensors.
 | `aim-pitch-node` | none | Named GLB node receiving live pitch. Requires yaw node. |
 | `render-node` | none | Repeat to draw only named model subtrees; with no entries the active scene is drawn. |
 
-The normal, destroyed, and shadow model names are manifest keys, not paths.
+The model name is a manifest key, not a path.
 Animation names are manifest animation keys, not raw GLB clip names.
 Manifest keys remain lowercase, while the raw glTF clip name is matched exactly
 and may retain exporter casing such as `Forward` or `Backward`.
 
 Use `render-node` when one GLB deliberately contains optional variants such as
-seasonal parts, LOD nodes, or a separately controlled shadow. The selected
+seasonal parts or LOD nodes. The selected
 nodes are still sampled from the active animation pose. This keeps variants in
 one source model without drawing every optional subtree at once.
 
@@ -618,6 +617,8 @@ Hostility is directional. If `guards` lists `raiders`, that does not make
 | `movement` | `ground` | `stationary`, `ground`, or `air`. |
 | `speed` | `0.03` | Distance advanced per simulation step; zero is allowed. |
 | `turn-rate` | `0.2` | Fraction of heading error applied per AI step; must be positive. |
+| `tactic` | `standoff` | `standoff` stops in weapon range; `flyby` keeps moving through an attack pass. |
+| `tactic-radius` | `20` | Distance inside which a flyby actor keeps its current heading. |
 | `collision-mode` | `solid` | `solid` blocks; `phase` passes through structures and actors. |
 | `collision-radius` | `0.25` | Horizontal collision radius; must be positive. |
 | `collision-height` | `0.3` | Physical height; must be positive. |
@@ -640,8 +641,8 @@ non-solid actor. It is not tied to a particular entity id.
 | `spawn-after` | `0` | Simulation counter before random spawning is allowed. |
 | `max-active` | `0` | Maximum random/map instances counted for spawning; zero is unlimited. |
 
-Random spawn weights are relative to other eligible descriptors and to the
-runtime's no-spawn chance. Do not treat the number as a percentage. Explicit
+Random spawn weights are relative to other eligible descriptors. Do not treat
+the number as a percentage. Explicit
 map actors are the preferred method when placement and behavior matter. The
 checked-in playable creatures use `spawn-weight 0`: choosing one for the player
 does not inject any of the other playable creatures into the battlefield.
@@ -658,6 +659,7 @@ scenario.
 | `weapon-min-range` | `0.5` | Minimum attack range; between zero and maximum. |
 | `projectile-speed` | `0.08` | Projectile capability speed; must be positive. |
 | `fire-interval` | `120` | Simulation steps between shots; at least one. |
+| `burst-count` | `1` | Projectiles emitted per attack, from one through 32. |
 | `accuracy` | `10` | Existing weapon spread/accuracy parameter; non-negative. |
 | `forget-range` | `12` | Target is forgotten beyond this range; zero disables range forgetting. |
 | `lost-frames` | `180` | Steps to retain an unseen target; non-negative. |
@@ -836,7 +838,7 @@ event can immediately assign its target and reaction.
 ### Static prop
 
 A static prop is still an entity and can later gain health, sensors, triggers,
-or a destroyed model without changing its map representation:
+or destruction behavior without changing its map representation:
 
 ```text
 battalion-entity 1
@@ -954,8 +956,6 @@ battalion-entity 1
 id scout-tank
 kind vehicle
 model scout-tank
-destroyed-model scout-tank-destroyed
-shadow-model scout-tank-shadow
 move-animation scout-tank-tracks
 aim-yaw-node turret
 aim-pitch-node barrel
@@ -1074,15 +1074,13 @@ Battlefields are `assets/maps/<id>/map.json`. A map with generic actors uses:
   "name": "Test Yard",
   "roads": [],
   "structures": [],
-  "units": [],
   "actors": []
 }
 ```
 
-All four arrays are required in version 2, even when empty. `roads`,
-`structures`, and `units` retain the historical numeric map records. New
-extensible objects should normally use `actors`, whose geometry and behavior
-come from entity archetypes.
+`roads`, `structures`, and `actors` are required in version 2, even when empty.
+Historical numeric `units` are no longer part of the format; every gameplay
+entity uses `actors`, whose geometry and behavior come from archetypes.
 
 ### Actor fields
 
@@ -1157,9 +1155,10 @@ Battalion has two effect families and they must not be confused.
 
 ### Authored model effects
 
-Projectiles, explosions, fire meshes, spheres, and reusable shadows are GLB
-models under `assets/models/effects/`. They follow the same static and animated
-GLB profile as every other model.
+Projectiles, explosions, fire meshes, and spheres are GLB models under
+`assets/models/effects/`. They follow the same static and animated GLB profile
+as every other model. Shadows are generated at runtime from entity collision
+bounds and the current sun or moon direction; they are not authored assets.
 
 An animated explosion is registered like this:
 
@@ -1291,8 +1290,8 @@ Before committing a new object, verify all of the following:
 
 ### `An entity references missing assets`
 
-Check that normal/destroyed/shadow model keys exist, all animation keys resolve
-to real named clips, and all aim and muzzle node names exist in the normal GLB.
+Check that the model key exists, all animation keys resolve to real named clips,
+and all aim and muzzle node names exist in the GLB.
 
 ### Armed entity is rejected or fires from the wrong place
 
@@ -1332,10 +1331,10 @@ that has a matrix transform and do not export `CUBICSPLINE` channels.
 Repair the GLB hierarchy. Only nodes below the live aim node inherit its
 transform. Keep fixed hull parts outside the turret and barrel subtree.
 
-### Object floats above its shadow or the ground
+### Object floats above the ground
 
-Repair the GLB origin first, then tune `vertical-offset`. Verify that the
-separate shadow model uses the same local origin.
+Repair the GLB origin first, then tune `vertical-offset`. Runtime shadows use
+the collision envelope and do not have a separate model or origin.
 
 ### Sensor never fires
 

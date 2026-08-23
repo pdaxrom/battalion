@@ -1,14 +1,6 @@
-/****************************************************************/
-/* code copyright 1995-1996 Andrew Johnson - ALL RIGHTS RESERVED*/
-/*                          ajohnson@eecs.uic.edu               */
-/*                                                              */
-/*                      Electronic Visualization Lab (M/C 154)  */
-/*                      University of Illinois at Chicago       */
-/*                      851 South Morgan St. Room 1120 SEO      */
-/*                      Chicago, IL 60607-7053                  */
-/*                                                              */
-/*                      (312) 996-3002     (312) 413-7585 FAX   */
-/***********************************************************************/
+/*
+ * Copyright (c) 2026 Battalion contributors.
+ */
 /* Generic sensor, trigger, reaction, and patrol controller.           */
 /***********************************************************************/
 
@@ -530,17 +522,23 @@ static void moveAgent(struct EntityAgent *agent)
         }
     if (squared <= 0.000001f)
         return;
-    if (agent->reaction == ENTITY_REACTION_ATTACK && agent->hasTarget &&
+    if (agent->archetype->tactic == ENTITY_TACTIC_STANDOFF &&
+        agent->reaction == ENTITY_REACTION_ATTACK && agent->hasTarget &&
         squared <= agent->archetype->weaponRange *
                    agent->archetype->weaponRange &&
         squared >= agent->archetype->weaponMinRange *
                    agent->archetype->weaponMinRange)
         return;
-    desiredHeading = (float)atan2((double)(destinationX - agent->x),
-                                  (double)(destinationZ - agent->z));
-    difference = normalizeAngle(desiredHeading - agent->heading);
-    agent->heading = normalizeAngle(agent->heading +
-        difference * agent->archetype->turnRate);
+    if (agent->archetype->tactic != ENTITY_TACTIC_FLYBY ||
+        squared > agent->archetype->tacticRadius *
+                  agent->archetype->tacticRadius)
+        {
+        desiredHeading = (float)atan2((double)(destinationX - agent->x),
+                                      (double)(destinationZ - agent->z));
+        difference = normalizeAngle(desiredHeading - agent->heading);
+        agent->heading = normalizeAngle(agent->heading +
+            difference * agent->archetype->turnRate);
+        }
     distance = (float)sqrt((double)squared);
     speed = agent->archetype->speed;
     if (speed > distance)

@@ -1,3 +1,6 @@
+/*
+ * Copyright (c) 2026 Battalion contributors.
+ */
 #include "stroke_font_asset.h"
 
 #include <math.h>

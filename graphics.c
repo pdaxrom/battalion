@@ -9,6 +9,7 @@
 /*                                                              */
 /*                      (312) 996-3002     (312) 413-7585 FAX   */
 /***********************************************************************/
+/* Modifications copyright (c) 2026 Battalion contributors. */
 /* graphics.c v 1.3                                                    */
 /* high level graphics routines for battalion                          */
 /***********************************************************************/
@@ -66,15 +67,11 @@
     /*************/
 
     GLuint 
-	plaintank, slagtank, masertank, slagmasertank,  
-	launchertank, slaglaunchertank, helo, slagHelo, 
-	bigRotor, smallRotor,
+	plaintank, masertank, launchertank,
 
 	fighterBody,
 	
 	watershellObj,
-
-	tankShadow, planeShadow, fighterShadow, 
 
 	planeDotsObj, planeDotsObjD0,
     
@@ -103,7 +100,7 @@
     static GLuint hillCornerModels[2][2];
     static GLuint hillInsideModels[2][2];
     static GLuint effectSphereLow, effectSphereHigh, fireModel;
-    static GLuint shadowRectangle, directionArrow;
+    static GLuint directionArrow;
 
     /***************************/
     /* texture mapping stuff   */
@@ -117,10 +114,10 @@
     static struct AssetValues externalAnimationValues;
     static struct AssetValues externalEffectValues;
     static struct AssetValues externalPaletteValues;
-    static const struct AssetManifestModel *externalHeloModels[2];
-    static size_t externalHeloClips[2];
-    static int externalHeloLoops[2];
-    static struct AssetPose externalHeloPoses[2];
+    static const struct AssetManifestModel *externalHeloModel;
+    static size_t externalHeloClip;
+    static int externalHeloLoop;
+    static struct AssetPose externalHeloPose;
     static const struct AssetManifestModel *externalProjectileModels[4];
     static size_t externalProjectileClips[4];
     static int externalProjectileLoops[4];
@@ -468,8 +465,7 @@ void makeObjects(char * dataPath)
     assetValuesInitialize(&externalAnimationValues);
     assetValuesInitialize(&externalEffectValues);
     assetValuesInitialize(&externalPaletteValues);
-    assetPoseInitialize(&externalHeloPoses[0]);
-    assetPoseInitialize(&externalHeloPoses[1]);
+    assetPoseInitialize(&externalHeloPose);
     assetPoseInitialize(&externalProjectilePoses[0]);
     assetPoseInitialize(&externalProjectilePoses[1]);
     assetPoseInitialize(&externalProjectilePoses[2]);
@@ -580,21 +576,15 @@ void makeObjects(char * dataPath)
 
 #define LOAD_MODEL(variable, slot) variable = requiredBoundModel(slot)
     LOAD_MODEL(plaintank, "vehicle-tank-standard");
-    LOAD_MODEL(slagtank, "vehicle-tank-standard-destroyed");
     LOAD_MODEL(masertank, "vehicle-tank-maser");
-    LOAD_MODEL(slagmasertank, "vehicle-tank-maser-destroyed");
     LOAD_MODEL(launchertank, "vehicle-tank-launcher");
-    LOAD_MODEL(slaglaunchertank, "vehicle-tank-launcher-destroyed");
     LOAD_MODEL(fighterBody, "vehicle-fighter-body");
     LOAD_MODEL(watershellObj, "projectile-water");
-    LOAD_MODEL(tankShadow, "shadow-tank");
-    LOAD_MODEL(planeShadow, "shadow-plane");
-    LOAD_MODEL(fighterShadow, "shadow-fighter");
     LOAD_MODEL(titleObj, "ui-title-high");
     LOAD_MODEL(titleObjOO, "ui-title-medium");
     LOAD_MODEL(titleObjOOO, "ui-title-low");
-    LOAD_MODEL(planeDotsObj, "vehicle-plane-dots-high");
-    LOAD_MODEL(planeDotsObjD0, "vehicle-plane-dots-low");
+    LOAD_MODEL(planeDotsObj, "terrain-plane-dots-high");
+    LOAD_MODEL(planeDotsObjD0, "terrain-plane-dots-low");
     LOAD_MODEL(strip1Obj, "building-strip-1-high");
     LOAD_MODEL(strip1ObjD0, "building-strip-1-low");
     LOAD_MODEL(strip2Obj, "building-strip-2-high");
@@ -671,16 +661,12 @@ void makeObjects(char * dataPath)
     LOAD_MODEL(effectSphereLow, "effect-sphere-low");
     LOAD_MODEL(effectSphereHigh, "effect-sphere-high");
     LOAD_MODEL(fireModel, "effect-fire");
-    LOAD_MODEL(shadowRectangle, "effect-shadow-rectangle");
     LOAD_MODEL(directionArrow, "ui-direction-arrow");
 #undef LOAD_MODEL
 
     if (!requiredBoundAnimation(
-	"vehicle-helicopter", &externalHeloModels[0],
-	&externalHeloClips[0], &externalHeloLoops[0]) ||
-	!requiredBoundAnimation(
-	"vehicle-helicopter-destroyed", &externalHeloModels[1],
-	&externalHeloClips[1], &externalHeloLoops[1]))
+	"vehicle-helicopter", &externalHeloModel,
+	&externalHeloClip, &externalHeloLoop))
 	{
 	showError("Required helo-rotors animation is missing from external assets");
 	exit(1);
@@ -747,9 +733,6 @@ void makeObjects(char * dataPath)
     requiredNode(externalGoogelonModel, "head-simple");
     requiredNode(externalGoogelonModel, "xmas-head");
     requiredNode(externalGoogelonModel, "xmas-tail");
-    requiredNode(externalGoogelonModel, "shadow-body");
-    requiredNode(externalGoogelonModel, "shadow-leg");
-    requiredNode(externalGoogelonModel, "shadow-tail");
     requiredNode(externalFlutterModel, "wing-left");
     requiredNode(externalFlutterModel, "wing-right");
     requiredNode(externalTechsModel, "head");
@@ -761,10 +744,8 @@ void makeObjects(char * dataPath)
     requiredNode(externalPineTreeModel, "pine-crown");
     requiredNode(externalPineTreeModel, "pine-crown-vector");
     requiredNode(externalPineTreeModel, "pine-lights");
-    requiredNode(externalPineTreeModel, "pine-shadow");
     requiredNode(externalRoundTreeModel, "round-trunk");
     requiredNode(externalRoundTreeModel, "round-crown");
-    requiredNode(externalRoundTreeModel, "round-shadow");
     requiredNode(externalRoadModels[0], "surface");
     requiredNode(externalRoadModels[0], "marker");
     requiredNode(externalRoadModels[1], "surface");
@@ -848,16 +829,200 @@ void makeObjects(char * dataPath)
 
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
-/* draw a rectangular shadow on the ground                       */
+/* draw the procedural sky and projected runtime shadows         */
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
-void shadow (float x, float z, float wx, float wz)
+static void drawSkyDisc(float x, float y, float radius,
+                        const float color[4])
     {
+    int segment;
+    float angle;
+    float vertices[26][3];
+
+    vertices[0][0] = x;
+    vertices[0][1] = y;
+    vertices[0][2] = 0.0f;
+    for (segment = 0; segment <= 24; segment++)
+        {
+        angle = (float)(segment * 2.0 * PI / 24.0);
+        vertices[segment + 1][0] =
+            x + (float)cos((double)angle) * radius;
+        vertices[segment + 1][1] =
+            y + (float)sin((double)angle) * radius;
+        vertices[segment + 1][2] = 0.0f;
+        }
+    dynamicDrawTriangleFan3(vertices, 26, color);
+    }
+
+void drawEnvironmentSky(const struct WorldEnvironment *environment)
+    {
+    float bottomColors[4][3];
+    float bottomVertices[4][3];
+    float topColors[4][3];
+    float topVertices[4][3];
+    float starColor[4];
+    float starVertices[72][3];
+    float starX;
+    float starY;
+    float sunX;
+    float sunY;
+    float moonX;
+    float moonY;
+    int component;
+    int star;
+
+    glPushAttrib(GL_ALL_ATTRIB_BITS);
+    glDisable(GL_DEPTH_TEST);
+    glDepthMask(GL_FALSE);
+    glDisable(GL_TEXTURE_2D);
+    glDisable(GL_CULL_FACE);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    glMatrixMode(GL_PROJECTION);
     glPushMatrix();
-    glTranslatef(x, 0.0f, z);
-    glScalef(wx, 1.0f, wz);
-    glCallList(shadowRectangle);
+    glLoadIdentity();
+    glOrtho(-1.0, 1.0, -1.0, 1.0, -1.0, 1.0);
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
+    glLoadIdentity();
+
+    bottomVertices[0][0] = -1.0f; bottomVertices[0][1] = -1.0f;
+    bottomVertices[0][2] = 0.5f;
+    bottomVertices[1][0] = 1.0f; bottomVertices[1][1] = -1.0f;
+    bottomVertices[1][2] = 0.5f;
+    bottomVertices[2][0] = 1.0f; bottomVertices[2][1] = 0.0f;
+    bottomVertices[2][2] = 0.5f;
+    bottomVertices[3][0] = -1.0f; bottomVertices[3][1] = 0.0f;
+    bottomVertices[3][2] = 0.5f;
+    topVertices[0][0] = -1.0f; topVertices[0][1] = 0.0f;
+    topVertices[0][2] = 0.5f;
+    topVertices[1][0] = 1.0f; topVertices[1][1] = 0.0f;
+    topVertices[1][2] = 0.5f;
+    topVertices[2][0] = 1.0f; topVertices[2][1] = 1.0f;
+    topVertices[2][2] = 0.5f;
+    topVertices[3][0] = -1.0f; topVertices[3][1] = 1.0f;
+    topVertices[3][2] = 0.5f;
+    for (component = 0; component < 3; component++)
+        {
+        bottomColors[0][component] = environment->skyHorizon[component] * 0.55f;
+        bottomColors[1][component] = bottomColors[0][component];
+        bottomColors[2][component] = environment->skyHorizon[component];
+        bottomColors[3][component] = environment->skyHorizon[component];
+        topColors[0][component] = environment->skyHorizon[component];
+        topColors[1][component] = environment->skyHorizon[component];
+        topColors[2][component] = environment->skyZenith[component];
+        topColors[3][component] = environment->skyZenith[component];
+        }
+    dynamicDrawQuad3(bottomVertices, bottomColors);
+    dynamicDrawQuad3(topVertices, topColors);
+
+    starColor[0] = 0.78f;
+    starColor[1] = 0.84f;
+    starColor[2] = 1.0f;
+    starColor[3] = environment->starVisibility;
+    for (star = 0; star < 72; star++)
+        {
+        starX = -0.96f + (float)((star * 73) % 193) * 0.01f;
+        starY = 0.02f + (float)((star * 47) % 94) * 0.01f;
+        starVertices[star][0] = starX;
+        starVertices[star][1] = starY;
+        starVertices[star][2] = 0.0f;
+        }
+    dynamicDrawPoints3(starVertices, 72, starColor, 1.8f);
+
+    sunX = environment->sunDirection[0] * 0.72f;
+    sunY = environment->sunDirection[1] * 0.72f;
+    moonX = environment->moonDirection[0] * 0.72f;
+    moonY = environment->moonDirection[1] * 0.72f;
+    if (environment->sunVisibility > 0.001f)
+        drawSkyDisc(sunX, sunY, 0.065f, environment->sunColor);
+    if (environment->moonVisibility > 0.001f)
+        drawSkyDisc(moonX, moonY, 0.052f, environment->moonColor);
+
     glPopMatrix();
+    glMatrixMode(GL_PROJECTION);
+    glPopMatrix();
+    glMatrixMode(GL_MODELVIEW);
+    glPopAttrib();
+    }
+
+void drawEnvironmentShadow(float x, float z, float bottom,
+                           float radius, float height,
+                           const struct WorldEnvironment *environment)
+    {
+    float angle;
+    float centerX;
+    float centerZ;
+    float color[4];
+    float directionLength;
+    float lightHeight;
+    float majorRadius;
+    float minorRadius;
+    float offsetLength;
+    float perpendicularX;
+    float perpendicularZ;
+    float shadowX;
+    float shadowZ;
+    float vertices[22][3];
+    int segment;
+
+    (void)bottom;
+    if (!shadowsEnabled || environment->shadowStrength <= 0.001f ||
+        radius <= 0.0f ||
+        height <= 0.0f)
+        return;
+    lightHeight = environment->lightDirection[1];
+    if (lightHeight < 0.16f)
+        lightHeight = 0.16f;
+    shadowX = -environment->lightDirection[0] / lightHeight;
+    shadowZ = -environment->lightDirection[2] / lightHeight;
+    directionLength = (float)sqrt((double)(shadowX * shadowX +
+                                           shadowZ * shadowZ));
+    if (directionLength < 0.0001f)
+        {
+        shadowX = 1.0f;
+        shadowZ = 0.0f;
+        directionLength = 1.0f;
+        }
+    shadowX /= directionLength;
+    shadowZ /= directionLength;
+    offsetLength = height * directionLength * 0.45f;
+    if (offsetLength > height * 3.5f)
+        offsetLength = height * 3.5f;
+    centerX = x + shadowX * offsetLength * 0.5f;
+    centerZ = z + shadowZ * offsetLength * 0.5f;
+    majorRadius = radius + offsetLength * 0.55f;
+    minorRadius = radius * 0.88f;
+    perpendicularX = -shadowZ;
+    perpendicularZ = shadowX;
+    color[0] = 0.01f;
+    color[1] = 0.015f;
+    color[2] = 0.025f;
+    color[3] = environment->shadowStrength;
+    glPushAttrib(GL_ALL_ATTRIB_BITS);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glDisable(GL_CULL_FACE);
+    glDisable(GL_TEXTURE_2D);
+    glDepthMask(GL_FALSE);
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    vertices[0][0] = centerX;
+    vertices[0][1] = PLANEY + 0.004f;
+    vertices[0][2] = centerZ;
+    for (segment = 0; segment <= 20; segment++)
+        {
+        angle = (float)(segment * 2.0 * PI / 20.0);
+        vertices[segment + 1][0] = centerX +
+            shadowX * (float)cos((double)angle) * majorRadius +
+            perpendicularX * (float)sin((double)angle) * minorRadius;
+        vertices[segment + 1][1] = PLANEY + 0.004f;
+        vertices[segment + 1][2] = centerZ +
+            shadowZ * (float)cos((double)angle) * majorRadius +
+            perpendicularZ * (float)sin((double)angle) * minorRadius;
+        }
+    dynamicDrawTriangleFan3(vertices, 22, color);
+    glPopAttrib();
     }
 
 static void drawEffectSphere(const float sphere[4], GLuint model)
@@ -896,23 +1061,20 @@ void makeCHH(int dam)
 /* draw a helicopter                                             */
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
-void drawHelo(float counter,  int slag)
+void drawHelo(float counter)
     {
     GLint shadeNow;
-    int variant;
     
     glGetIntegerv(GL_SHADE_MODEL, &shadeNow);
 
-    variant = slag ? 1 : 0;
-    if (assetPoseSample(&externalHeloModels[variant]->model,
-			externalHeloClips[variant],
+    if (assetPoseSample(&externalHeloModel->model,
+			externalHeloClip,
 			counter * animationScalar("helo-rotor-time-scale"),
-			externalHeloLoops[variant],
-			&externalHeloPoses[variant]))
+			externalHeloLoop,
+			&externalHeloPose))
 	{
 	glShadeModel(GL_FLAT);
-	assetModelDraw(&externalHeloModels[variant]->model,
-		       &externalHeloPoses[variant]);
+	assetModelDraw(&externalHeloModel->model, &externalHeloPose);
 	glShadeModel(shadeNow);
 	return;
 	}
@@ -1019,29 +1181,6 @@ void drawMonster(struct monsterInfo monster, int counter,
 	                       &externalGoogelonPose);
 	glPopMatrix();
 
-	if ((!monster.monsterIsDead) && (detail > 0))
-	      {
-	      assetModelDrawNode(&externalGoogelonModel->model,
-	                         requiredNode(externalGoogelonModel,
-	                                      "shadow-body"),
-	                         &externalGoogelonPose);
-	      glPushMatrix();
-	      glTranslatef(leftLeg->components[0], 0.0f,
-	                   leftLeg->components[2] * monster.rot2);
-	      assetModelDrawNode(&externalGoogelonModel->model,
-	                         requiredNode(externalGoogelonModel,
-	                                      "shadow-leg"),
-	                         &externalGoogelonPose);
-	      glTranslatef(rightLeg->components[0] - leftLeg->components[0],
-	                   0.0f,
-	                   (rightLeg->components[2] -
-	                    leftLeg->components[2]) * monster.rot2);
-	      assetModelDrawNode(&externalGoogelonModel->model,
-	                         requiredNode(externalGoogelonModel,
-	                                      "shadow-leg"),
-	                         &externalGoogelonPose);
-	      glPopMatrix();
-	      }
 
 	/********/
 	/* tail */
@@ -1057,13 +1196,6 @@ void drawMonster(struct monsterInfo monster, int counter,
 		                                "xmas-tail"),
 		                   &externalGoogelonPose);
 
-	    if ((!monster.monsterIsDead) && (detail > 0))
-		{
-		assetModelDrawNode(&externalGoogelonModel->model,
-		                   requiredNode(externalGoogelonModel,
-		                                "shadow-tail"),
-		                   &externalGoogelonPose);
-		}
 
     glPopMatrix();
     }
@@ -1148,29 +1280,6 @@ void drawSimpleMonster(struct monsterInfo monster, int counter,
 
 	glPopMatrix();
 
-	if ((!monster.monsterIsDead) && (detail > 0))
-	      {
-	      assetModelDrawNode(&externalGoogelonModel->model,
-	                         requiredNode(externalGoogelonModel,
-	                                      "shadow-body"),
-	                         &externalGoogelonPose);
-	      glPushMatrix();
-	      glTranslatef(leftLeg->components[0], 0.0f,
-	                   leftLeg->components[2] * monster.rot2);
-	      assetModelDrawNode(&externalGoogelonModel->model,
-	                         requiredNode(externalGoogelonModel,
-	                                      "shadow-leg"),
-	                         &externalGoogelonPose);
-	      glTranslatef(rightLeg->components[0] - leftLeg->components[0],
-	                   0.0f,
-	                   (rightLeg->components[2] -
-	                    leftLeg->components[2]) * monster.rot2);
-	      assetModelDrawNode(&externalGoogelonModel->model,
-	                         requiredNode(externalGoogelonModel,
-	                                      "shadow-leg"),
-	                         &externalGoogelonPose);
-	      glPopMatrix();
-	      }
 
 	    /********/
 	    /* tail */
@@ -1497,10 +1606,11 @@ void drawMechaMonster(int dam, int counter, int detail)
         return;
     setConfiguredDamage(externalMechaModel, &externalMechaPose, dam,
                         "mecha-damage-");
+    (void)detail;
     for (node = 0; node < externalMechaModel->model.nodeCount; node++)
         if (externalMechaModel->model.nodes[node].name != NULL &&
             hasPrefix(externalMechaModel->model.nodes[node].name, "shadow-"))
-            externalMechaPose.nodes[node].visible = detail > 0;
+            externalMechaPose.nodes[node].visible = 0;
     assetModelDraw(&externalMechaModel->model, &externalMechaPose);
     }
 
@@ -1973,6 +2083,9 @@ void drawtrees(struct tree * allTreesOnPlane, int numTreesOnPlane, int counter,
 		int pine;
 
 		pine = allTreesOnPlane[treeCounter].treeshape == 0 || itsChristmas;
+		drawEnvironmentShadow(x, z, y, pine ? 0.18f : 0.22f,
+		                      allTreesOnPlane[treeCounter].height,
+		                      &worldEnvironment);
 		treeModel = pine ? externalPineTreeModel : externalRoundTreeModel;
 		treePose = pine ? &externalPineTreePose : &externalRoundTreePose;
 		if (!assetPoseReset(&treeModel->model, treePose))
@@ -2000,18 +2113,6 @@ void drawtrees(struct tree * allTreesOnPlane, int numTreesOnPlane, int counter,
 		                       requiredNode(treeModel, "pine-lights"), treePose);
 		glPopMatrix();
 
-		if (detail > 0)
-		    {
-		    glPushMatrix();
-		    glColor4fv(colorblack);
-		    glTranslatef(x, pine ? 0.0f : SHADOWS, z);
-		    assetModelDrawNode(&treeModel->model,
-		                       requiredNode(treeModel,
-		                                    pine ? "pine-shadow" :
-		                                           "round-shadow"),
-		                       treePose);
-		    glPopMatrix();
-		    }
 		}
 
 	    /**********************************/
@@ -2020,6 +2121,9 @@ void drawtrees(struct tree * allTreesOnPlane, int numTreesOnPlane, int counter,
 	    	    
 	    if (allTreesOnPlane[treeCounter].type == 1)
 		{
+		drawEnvironmentShadow(x, z, y, 0.34f,
+		                      allTreesOnPlane[treeCounter].height,
+		                      &worldEnvironment);
 		glPushMatrix();
 
 		    glTranslatef(x,  y,  z);
@@ -2392,8 +2496,7 @@ int configuredEntityMuzzlePose(const struct EntityArchetype *archetype,
     return 1;
     }
 
-static void drawExternalEntity(const struct tank *tank, int counter,
-                               int destroyed)
+static void drawExternalEntity(const struct tank *tank, int counter)
     {
     const struct EntityArchetype *archetype;
     const struct AssetManifestModel *model;
@@ -2403,14 +2506,6 @@ static void drawExternalEntity(const struct tank *tank, int counter,
     if (archetype == NULL)
         return;
     glRotatef(archetype->modelYawOffset, 0, 1, 0);
-    if (destroyed && archetype->destroyedModel[0] != '\0')
-        {
-        model = assetManifestFindModel(&externalAssets,
-                                       archetype->destroyedModel);
-        if (model != NULL)
-            assetModelDraw(&model->model, NULL);
-        return;
-        }
     if (externalEntityModelPose(tank, counter, &model, &pose))
         drawExternalEntityModel(model, archetype, pose);
     }
@@ -2569,8 +2664,7 @@ int configuredPlayerEntityBounds(const struct EntityArchetype *archetype,
 
 void drawConfiguredPlayerEntity(const struct EntityArchetype *archetype,
                                 int moving, int backwards, int attacking,
-                                int counter,
-                                int destroyed, float aimYaw, float aimPitch)
+                                int counter, float aimYaw, float aimPitch)
     {
     struct tank entity;
 
@@ -2585,144 +2679,55 @@ void drawConfiguredPlayerEntity(const struct EntityArchetype *archetype,
     entity.aimYaw = aimYaw;
     entity.aimPitch = aimPitch;
     glScalef(archetype->scale, archetype->scale, archetype->scale);
-    drawExternalEntity(&entity, counter, destroyed);
+    drawExternalEntity(&entity, counter);
     }
 
-void drawSlagTanks(struct tank * allSlags, int counter, int detail,
-		   float viewerX, float viewerZ)
-    {    
-    const struct AssetValue *groundScale;
-    const struct AssetValue *maserScale;
-    int c;
-    float angle2;
-    float airRoll;
-    float airPitch;
-    float airYaw;
-    struct tank * ttank;
+static void drawDataEntityDebris(const struct tank *fragment)
+    {
+    float size;
 
-    groundScale = requiredAnimationValue("slag-ground-scale", 3);
-    maserScale = requiredAnimationValue("slag-maser-scale", 3);
-    airRoll = animationScalar("slag-air-roll");
-    airPitch = animationScalar("slag-air-pitch");
-    airYaw = animationScalar("slag-air-yaw");
-    
-    for(ttank = allSlags->next;ttank != NULL;ttank = ttank->next)
-	{
-	if ((fabs(ttank->x - viewerX) <= PLANESIZE) &&
-	    (fabs(ttank->z - viewerZ) <= PLANESIZE))
-	    {
-	    angle2 = ttank->theta * RAD_TO_SMALL_DEG;
+    size = fragment->debrisSize;
+    drawEnvironmentShadow(fragment->x, fragment->z, fragment->y,
+                          size * 0.7f, size * 1.4f,
+                          &worldEnvironment);
+    glTranslatef(fragment->x, fragment->y, fragment->z);
+    if (fragment->debrisGrounded)
+        {
+        glRotatef(11.0f + fragment->subtype * 13.0f, 1, 0, 1);
+        glRotatef(fragment->subtype * 47.0f, 0, 1, 0);
+        }
+    else
+        {
+        glRotatef(fragment->count * (13.0f + fragment->subtype * 2.0f),
+                  1, 0, 1);
+        glRotatef(fragment->count * (19.0f + fragment->subtype),
+                  0, 1, 0);
+        }
+    glScalef(size * (1.2f + (fragment->subtype % 3) * 0.18f),
+             size * (0.55f + (fragment->subtype % 2) * 0.16f),
+             size * (0.78f + (fragment->subtype % 4) * 0.1f));
+    if ((fragment->subtype % 3) == 0)
+        glColor4fv(colorbrown);
+    else if ((fragment->subtype % 3) == 1)
+        glColor4fv(colorgrey3);
+    else
+        glColor4fv(colorblack);
+    glCallList(effectSphereLow);
+    }
 
-	    c = ttank->count;
-		    
-	    glPushMatrix();
-	
-	    switch(ttank->type){
-		case TANK:	glTranslatef(ttank->x, ttank->y +
-				    animationScalar("slag-ground-position"), ttank->z);
-				glScalef(groundScale->components[0] +
-				             groundScale->components[1] * c,
-				         groundScale->components[0] +
-				             groundScale->components[2] * c,
-				         groundScale->components[0] +
-				             groundScale->components[1] * c);
-				glRotatef(angle2, 0, 1, 0);
-				glCallList(slagtank);
-				break;
-	
-		case LAUNCHER:	glTranslatef(ttank->x, ttank->y +
-				    animationScalar("slag-ground-position"), ttank->z);
-				glScalef(groundScale->components[0] +
-				             groundScale->components[1] * c,
-				         groundScale->components[0] +
-				             groundScale->components[2] * c,
-				         groundScale->components[0] +
-				             groundScale->components[1] * c);
-				glRotatef(angle2, 0, 1, 0);
-				glCallList(slaglaunchertank);
-				break;
-	
-		    	    
-		case MASERTANK:	glTranslatef(ttank->x, ttank->y +
-				    animationScalar("slag-ground-position"), ttank->z);
-				glScalef(maserScale->components[0] +
-				             maserScale->components[1] * c,
-				         maserScale->components[0] +
-				             maserScale->components[2] * c,
-				         maserScale->components[0] +
-				             maserScale->components[1] * c);
-				glRotatef(angle2, 0, 1, 0);
-				glCallList(slagmasertank);
-				break;
-  
-		case HELO:	glTranslatef(ttank->x, ttank->y, ttank->z);
-				glRotatef(c * airPitch, 1, 0, 0);
-				glRotatef(c * airRoll, 0, 0, 1);
-				glRotatef(angle2 +
-				    animationScalar("slag-air-facing") +
-				    c * airYaw, 0, 1, 0);
-				drawHelo((float)counter, 1);
-				break;
+void drawWrecks(struct tank *allWrecks, float viewerX, float viewerZ)
+    {
+    struct tank *fragment;
 
-		case CHH:	glTranslatef(ttank->x, ttank->y, ttank->z);
-				glRotatef(c * airPitch, 1, 0, 0);
-				glRotatef(c * airRoll, 0, 0, 1);
-				glRotatef(angle2 +
-				    animationScalar("slag-chh-facing") +
-				    c * airYaw, 0, 1, 0);
-				makeCHH(0);
-				break;
-
-		case MECHAG:	glTranslatef(ttank->x, 0, ttank->z);
-				glRotatef(angle2, 0, 1, 0);
-				drawMechaMonster(0, counter, detail);
-				break;
-				
-		case HERO:	glTranslatef(ttank->x, 0, ttank->z);
-				glRotatef(angle2, 0, 1, 0);
-				if (ttank->subtype == 0)
-				    drawHeroDude(0, ttank->walking, ttank->maserCount, c, detail);
-				else
-				    drawHeroDude2(0, ttank->walking, ttank->maserCount, c, detail);
-				break;
-				
-		case AIRPLANE:	glTranslatef(ttank->x, ttank->y, ttank->z);
-				glRotatef(c * airRoll, 0, 0, 1);
-				glRotatef(angle2 +
-				    animationScalar("slag-air-facing") +
-				    c * airYaw, 0, 1, 0);
-				glScalef(animationScalar("airplane-world-scale"),
-				         animationScalar("airplane-world-scale"),
-				         animationScalar("airplane-world-scale"));
-				drawAirplane(counter);
-				break;
-
-		case FIGHTER:	glTranslatef(ttank->x, ttank->y, ttank->z);
-				glRotatef(c * airRoll, 0, 0, 1);
-				glRotatef(angle2 +
-				    animationScalar("slag-air-facing") +
-				    c * airYaw, 0, 1, 0);
-				glScalef(animationScalar("fighter-world-scale"),
-				         animationScalar("fighter-world-scale"),
-				         animationScalar("fighter-world-scale"));
-				drawFighter();
-				break;
-
-		case DATAENTITY: glTranslatef(ttank->x, ttank->y, ttank->z);
-				glRotatef(angle2, 0, 1, 0);
-				glScalef(ttank->dataArchetype->scale,
-				         ttank->dataArchetype->scale,
-				         ttank->dataArchetype->scale);
-				drawExternalEntity(ttank, counter, 1);
-				break;
-				
-		default:	showError("Bogus Vehicle in Tank List! (drawSlagTanks)");
-				break;
-		}
-	    	    
-	    glPopMatrix();
-	    }
-	}
+    for (fragment = allWrecks->next; fragment != NULL;
+         fragment = fragment->next)
+        if (fabs(fragment->x - viewerX) <= PLANESIZE &&
+            fabs(fragment->z - viewerZ) <= PLANESIZE)
+            {
+            glPushMatrix();
+            drawDataEntityDebris(fragment);
+            glPopMatrix();
+            }
     }
 
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
@@ -2876,6 +2881,24 @@ void drawTanks(struct tank * allTanks,  int counter, struct monsterInfo G,
 	    /**********************************/
 
 	    angle2 = cTank.theta * RAD_TO_SMALL_DEG;
+	    {
+		float shadowRadius;
+		float shadowHeight;
+
+		if (cTank.type == DATAENTITY && cTank.dataArchetype != NULL)
+		    {
+		    shadowRadius = cTank.dataArchetype->collisionRadius;
+		    shadowHeight = cTank.dataArchetype->collisionHeight;
+		    }
+		else
+		    {
+		    shadowRadius = 0.3f;
+		    shadowHeight = 0.6f;
+		    }
+		drawEnvironmentShadow(cTank.x, cTank.z, cTank.y,
+		                      shadowRadius, shadowHeight,
+		                      &worldEnvironment);
+	    }
 	    
 	    /**********************************/
 	    /* draw vehicle                   */
@@ -2905,7 +2928,7 @@ void drawTanks(struct tank * allTanks,  int counter, struct monsterInfo G,
 
 		case HELO:	glTranslatef(cTank.x, cTank.y, cTank.z);
   				glRotatef(angle2+180, 0, 1, 0);
-				drawHelo((float)counter,  0);
+				drawHelo((float)counter);
 				break;
 
 		case AIRPLANE:	glTranslatef(cTank.x, cTank.y, cTank.z);
@@ -2947,7 +2970,7 @@ void drawTanks(struct tank * allTanks,  int counter, struct monsterInfo G,
 				glScalef(cTank.dataArchetype->scale,
 				         cTank.dataArchetype->scale,
 				         cTank.dataArchetype->scale);
-				drawExternalEntity(&cTank, counter, 0);
+				drawExternalEntity(&cTank, counter);
 				break;
 				
 		default:	showError("Bogus Vehicle in Tank List! (drawTanks)");
@@ -2956,55 +2979,6 @@ void drawTanks(struct tank * allTanks,  int counter, struct monsterInfo G,
 	    
 	    glPopMatrix();	
 
-	    if (detail > 0)  	
-		{
-
-		/**********************************/
-		/* draw shadow                    */
-		/**********************************/
-
-		glPushMatrix();
-		    glTranslatef(cTank.x, 0, cTank.z);
-		    glRotatef(angle2, 0, 1, 0);
-
-		    switch (cTank.type){
-		    case TANK:
-		    case LAUNCHER:
-		    case MASERTANK:	glCallList(tankShadow);
-					break;
-		    
-		    case HELO:	    	glColor4fv(colorblack);
-					shadow (0, 0, 0.14, 0.18);
-					shadow (0, -0.22, 0.04, 0.1);
-					break;
-		    
-		    case MECHAG:	break;
-		    
-		    case CHH:		glColor4fv(colorblack);
-					shadow (0, 0, 0.14, 0.22);
-					break;
-		    
-		    case HERO:		glColor4fv(colorblack);
-					shadow (0, 0, 0.12, 0.08);
-					break;
-		    
-		    case AIRPLANE:	glCallList(planeShadow);
-					break;
-
-		    case FIGHTER:	glCallList(fighterShadow);	
-					break;
-
-		    case DATAENTITY: if (cTank.dataArchetype->shadowModel[0] != '\0')
-					    glCallList(assetModelDisplayList(
-					        cTank.dataArchetype->shadowModel));
-					break;
-
-		    default:		showError("Bogus Vehicle in Tank List! (drawTanks)");
-					break;
-		    }
-		glPopMatrix();
-		}
-  
 	    if ((cTank.maserCount > 0) && (cTank.rad <= cTank.range) && (cTank.rad >= 0.5) && (!monsterIsDead))
 		{
 		/**********************************/
@@ -3318,8 +3292,8 @@ void drawBeam(const struct EntityArchetype *archetype, int detail,
 	/* shadow of beam                 */
 	/**********************************/
 
-	loc1[1] = SHADOWS;
-	loc3[1] = SHADOWS;
+	loc1[1] = GROUND_OVERLAY_Y;
+	loc3[1] = GROUND_OVERLAY_Y;
 
 	dynamicDrawLine3(loc1, loc3, colorblack, colorblack);
 	}
@@ -3565,11 +3539,6 @@ void drawProjectiles(struct projectile * allProjs, int counter,
 					&externalProjectileModels[projectileVariant]->model,
 					&externalProjectilePoses[projectileVariant]);
 				glPopMatrix();
-				if (detail > 0)
-				    {
-				    glColor4fv(colorblack);
-				    shadow (x, z, 0.05, 0.05);
-				    }
 				break;
 				
 		case PROJTECHS: glPushMatrix();		/* techs shell */
@@ -3580,11 +3549,6 @@ void drawProjectiles(struct projectile * allProjs, int counter,
 				        &externalSpecialProjectileModels[0]->model,
 				        &externalSpecialProjectilePoses[0]);
 				glPopMatrix();
-				if (detail > 0)
-				    {
-				    glColor4fv(colorblack);
-				    shadow (x, z, 0.05, 0.05);
-				    }
 				break;
 				
 		case PROJFIRE:  break;			/* flames */
@@ -3609,11 +3573,6 @@ void drawProjectiles(struct projectile * allProjs, int counter,
 				        &externalSpecialProjectileModels[1]->model,
 				        &externalSpecialProjectilePoses[1]);
 				glPopMatrix();
-				if (detail > 0)
-				    {
-				    glColor4fv(colorblack);
-				    shadow (x, z, 0.05, 0.05);
-				    }
 				break;
     
 		default:	showError("Bogus Projectile in Projectile List! (drawProjectiles)");
@@ -3650,7 +3609,7 @@ void drawProjectiles(struct projectile * allProjs, int counter,
     glLineWidth(effectScalar("beam-scar-line-width"));
     scarDistance = effectScalar("beam-scar-link-distance");
 
-    v[1] = v2[1] = SHADOWS;
+    v[1] = v2[1] = GROUND_OVERLAY_Y;
     
     v2[0] = beamhitx[0];
     v2[2] = beamhitz[0];

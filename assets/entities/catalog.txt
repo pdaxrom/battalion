@@ -7,6 +7,13 @@ entity entities/creatures/vapour.entity
 entity entities/creatures/techs.entity
 entity entities/creatures/flutter.entity
 entity entities/vehicles/tank-standard.entity
+entity entities/vehicles/tank-maser.entity
+entity entities/vehicles/tank-launcher.entity
 entity entities/vehicles/helo-standard.entity
+entity entities/vehicles/airplane-bomber.entity
+entity entities/vehicles/fighter.entity
+entity entities/vehicles/hunter-chh.entity
+entity entities/vehicles/mechag.entity
+entity entities/vehicles/hero-typhoon.entity
 entity entities/npcs/beam-soldier.entity
 entity entities/npcs/moira-brown.entity

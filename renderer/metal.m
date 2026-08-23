@@ -1,3 +1,6 @@
+/*
+ * Copyright (c) 2026 Battalion contributors.
+ */
 #import <MetalKit/MetalKit.h>
 
 #include "backend.h"
@@ -26,6 +29,7 @@ static id<CAMetalDrawable> drawable;
 static id<MTLRenderPipelineState> opaquePipeline;
 static id<MTLRenderPipelineState> blendPipeline;
 static id<MTLDepthStencilState> depthEnabledState;
+static id<MTLDepthStencilState> depthReadOnlyState;
 static id<MTLDepthStencilState> depthDisabledState;
 static id<MTLSamplerState> samplers[4];
 static id<MTLTexture> textures[MAX_TEXTURES];
@@ -83,6 +87,9 @@ static void createDepthStates(void)
     descriptor.depthCompareFunction = MTLCompareFunctionLessEqual;
     descriptor.depthWriteEnabled = YES;
     depthEnabledState = [device newDepthStencilStateWithDescriptor:descriptor];
+
+    descriptor.depthWriteEnabled = NO;
+    depthReadOnlyState = [device newDepthStencilStateWithDescriptor:descriptor];
 
     descriptor = [[MTLDepthStencilDescriptor alloc] init];
     descriptor.depthCompareFunction = MTLCompareFunctionAlways;
@@ -199,6 +206,7 @@ void rendererBackendDraw(enum RendererPrimitive primitive,
     id<MTLBuffer> vertexBuffer;
     MetalUniforms uniforms;
     MTLViewport viewport;
+    MTLScissorRect scissor;
     MTLPrimitiveType metalPrimitive;
     CGFloat scaleX, scaleY;
     unsigned int texture;
@@ -217,7 +225,9 @@ void rendererBackendDraw(enum RendererPrimitive primitive,
     memset(uniforms.padding, 0, sizeof(uniforms.padding));
 
     [encoder setRenderPipelineState:state->blending ? blendPipeline : opaquePipeline];
-    [encoder setDepthStencilState:state->depthTest ? depthEnabledState : depthDisabledState];
+    [encoder setDepthStencilState:state->depthTest
+        ? (state->depthWrite ? depthEnabledState : depthReadOnlyState)
+        : depthDisabledState];
     [encoder setFrontFacingWinding:MTLWindingCounterClockwise];
     [encoder setCullMode:state->cullBackFaces ? MTLCullModeBack : MTLCullModeNone];
     [encoder setTriangleFillMode:state->wireframe ? MTLTriangleFillModeLines : MTLTriangleFillModeFill];
@@ -245,6 +255,33 @@ void rendererBackendDraw(enum RendererPrimitive primitive,
     viewport.zfar = 1.0;
     if (viewport.width > 0 && viewport.height > 0)
         [encoder setViewport:viewport];
+
+    if (state->scissorEnabled) {
+        int left = (int)(state->scissor[0] * scaleX);
+        int bottom = (int)(state->scissor[1] * scaleY);
+        int right = (int)((state->scissor[0] + state->scissor[2]) * scaleX);
+        int top = (int)((state->scissor[1] + state->scissor[3]) * scaleY);
+        int drawableWidth = (int)renderView.drawableSize.width;
+        int drawableHeight = (int)renderView.drawableSize.height;
+        if (left < 0) left = 0;
+        if (bottom < 0) bottom = 0;
+        if (right > drawableWidth) right = drawableWidth;
+        if (top > drawableHeight) top = drawableHeight;
+        if (right < left) right = left;
+        if (top < bottom) top = bottom;
+        scissor.x = (NSUInteger)left;
+        scissor.y = (NSUInteger)(drawableHeight - top);
+        scissor.width = (NSUInteger)(right - left);
+        scissor.height = (NSUInteger)(top - bottom);
+    } else {
+        scissor.x = 0;
+        scissor.y = 0;
+        scissor.width = (NSUInteger)renderView.drawableSize.width;
+        scissor.height = (NSUInteger)renderView.drawableSize.height;
+    }
+    if (scissor.width == 0 || scissor.height == 0)
+        return;
+    [encoder setScissorRect:scissor];
 
     metalPrimitive = primitive == RENDERER_LINES ? MTLPrimitiveTypeLine
         : primitive == RENDERER_POINTS ? MTLPrimitiveTypePoint : MTLPrimitiveTypeTriangle;

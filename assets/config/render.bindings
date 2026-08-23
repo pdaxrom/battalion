@@ -16,21 +16,15 @@ texture road-surface road
 texture office-sign office-logo
 
 model vehicle-tank-standard tank
-model vehicle-tank-standard-destroyed tank-slag
 model vehicle-tank-maser tank-maser
-model vehicle-tank-maser-destroyed tank-maser-slag
 model vehicle-tank-launcher tank-launcher
-model vehicle-tank-launcher-destroyed tank-launcher-slag
 model vehicle-fighter-body fighter-body
 model projectile-water projectile-water
-model shadow-tank tank-shadow
-model shadow-plane plane-shadow
-model shadow-fighter fighter-shadow
 model ui-title-high title-high
 model ui-title-medium title-medium
 model ui-title-low title-low
-model vehicle-plane-dots-high plane-dots-high
-model vehicle-plane-dots-low plane-dots-low
+model terrain-plane-dots-high plane-dots-high
+model terrain-plane-dots-low plane-dots-low
 model building-strip-1-high strip-1-high
 model building-strip-1-low strip-1-low
 model building-strip-2-high strip-2-high
@@ -107,7 +101,6 @@ model terrain-hill-inside-1-xmas hill-inside-1-xmas
 model effect-sphere-low sphere-low
 model effect-sphere-high sphere-high
 model effect-fire fire
-model effect-shadow-rectangle shadow-rectangle
 model ui-direction-arrow direction-arrow
 model vehicle-hunter hunter
 model tree-pine pine-tree
@@ -120,7 +113,6 @@ model building-drive-in-screen building-26
 model building-office-logo building-37
 
 animation vehicle-helicopter helo-rotors
-animation vehicle-helicopter-destroyed helo-slag-rotors
 animation vehicle-airplane airplane-propellers
 animation monster-googelon googelon-tail-sway
 animation monster-flutter flutter-wing-flap

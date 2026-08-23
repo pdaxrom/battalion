@@ -1,14 +1,6 @@
-/****************************************************************/
-/* code copyright 1995-1996 Andrew Johnson - ALL RIGHTS RESERVED*/
-/*                          ajohnson@eecs.uic.edu               */
-/*                                                              */
-/*                      Electronic Visualization Lab (M/C 154)  */
-/*                      University of Illinois at Chicago       */
-/*                      851 South Morgan St. Room 1120 SEO      */
-/*                      Chicago, IL 60607-7053                  */
-/*                                                              */
-/*                      (312) 996-3002     (312) 413-7585 FAX   */
-/***********************************************************************/
+/*
+ * Copyright (c) 2026 Battalion contributors.
+ */
 /* Renderer-neutral entry points for geometry created from live state. */
 /***********************************************************************/
 
@@ -65,6 +57,31 @@ void dynamicDrawLineLoop3(float vertices[4][3],
     glColor4fv(color);
     glBegin(GL_LINE_LOOP);
     for (vertex = 0; vertex < 4; vertex++)
+        glVertex3fv(vertices[vertex]);
+    glEnd();
+    }
+
+void dynamicDrawPoints3(const float (*vertices)[3], size_t count,
+                        const float color[4], float pointSize)
+    {
+    size_t vertex;
+
+    glColor4fv(color);
+    glPointSize(pointSize);
+    glBegin(GL_POINTS);
+    for (vertex = 0; vertex < count; vertex++)
+        glVertex3fv(vertices[vertex]);
+    glEnd();
+    }
+
+void dynamicDrawTriangleFan3(const float (*vertices)[3], size_t count,
+                             const float color[4])
+    {
+    size_t vertex;
+
+    glColor4fv(color);
+    glBegin(GL_TRIANGLE_FAN);
+    for (vertex = 0; vertex < count; vertex++)
         glVertex3fv(vertices[vertex]);
     glEnd();
     }

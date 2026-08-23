@@ -1,0 +1,41 @@
+# Data-driven replacement for legacy unit type 4.
+battalion-entity 1
+id hunter-chh
+display-name Hunter CHH
+kind vehicle
+model hunter
+render-node damage-00
+muzzle-node muzzle
+faction army
+hostile-faction monster
+movement air
+speed 0.036
+turn-rate 0.16
+health 20
+score 40
+scale 1
+vertical-offset 1
+collision-radius 0.3
+collision-height 0.4
+weapon beam
+weapon-color red
+weapon-range 4.5
+weapon-min-range 0.5
+projectile-speed 0.1
+fire-interval 1
+accuracy 1000
+forget-range 14
+lost-frames 180
+sensor nearby proximity 2 360 hostile
+sensor sight vision 10 140 hostile
+sensor noise hearing 14 360 hostile
+sensor damaged damage 0 360 hostile
+on-enter nearby attack hunter-alert
+on-enter sight attack hunter-alert
+on-enter noise investigate hunter-alert
+on-enter damaged attack hunter-alert
+on-trigger hunter-alert activate none
+on-trigger hunter-alert attack none
+spawn-weight 5
+spawn-after 2000
+max-active 0

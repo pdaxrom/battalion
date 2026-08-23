@@ -1,3 +1,6 @@
+/*
+ * Copyright (c) 2026 Battalion contributors.
+ */
 #ifndef BATTALION_RENDERER_BACKEND_H
 #define BATTALION_RENDERER_BACKEND_H
 
@@ -18,6 +21,8 @@ enum RendererPrimitive {
 typedef struct RendererDrawState {
     float mvp[16];
     int viewport[4];
+    int scissor[4];
+    int scissorEnabled;
     unsigned int texture;
     int textureEnabled;
     int textureLinear;

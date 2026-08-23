@@ -1,6 +1,6 @@
 {
   "format": "battalion-map",
-  "version": 1,
+  "version": 2,
   "id": "00",
   "name": "Kasperville",
   "roads": [
@@ -481,7 +481,7 @@
     {"x": 7.19999981, "z": -6.5999999, "type": 2, "shape": 1},
     {"x": 7.19999981, "z": -7.19999981, "type": 2, "shape": 4}
   ],
-  "units": [
-    {"x": 5.4000001, "z": -3, "type": 5}
+  "actors": [
+    {"id": "preplaced-hero-01", "archetype": "hero-typhoon", "group": "army-preplaced", "x": 5.4000001, "z": -3}
   ]
 }

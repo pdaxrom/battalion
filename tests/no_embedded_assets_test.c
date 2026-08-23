@@ -1,3 +1,6 @@
+/*
+ * Copyright (c) 2026 Battalion contributors.
+ */
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -58,7 +61,16 @@ static int auditSources(void)
 static int retiredFilesAreAbsent(void)
     {
     static const char *retired[] = {
-        "objects.c", "gprim.c", "tk.c", "battalion.data"
+        "objects.c", "gprim.c", "tk.c", "battalion.data",
+        "assets/sounds/slag.wav",
+        "assets/models/vehicles/tank-slag.glb",
+        "assets/models/vehicles/tank-maser-slag.glb",
+        "assets/models/vehicles/tank-launcher-slag.glb",
+        "assets/models/vehicles/helo-slag.glb",
+        "assets/models/vehicles/tank-shadow.glb",
+        "assets/models/vehicles/plane-shadow.glb",
+        "assets/models/vehicles/fighter-shadow.glb",
+        "assets/models/effects/shadow-rectangle.glb"
     };
     struct stat status;
     size_t index;

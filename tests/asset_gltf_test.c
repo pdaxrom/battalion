@@ -1,3 +1,6 @@
+/*
+ * Copyright (c) 2026 Battalion contributors.
+ */
 #include "asset.h"
 #include "asset_animation.h"
 #include "asset_write.h"
@@ -445,25 +448,6 @@ static int testExportedHelicopter(void)
     return result;
     }
 
-static int testExportedSlagHelicopter(void)
-    {
-    struct AssetModel model;
-    char error[160];
-    int result;
-
-    assetModelInitialize(&model);
-    result = assetModelLoadGLB(
-        "assets/models/vehicles/helo-slag.glb", &model,
-        error, sizeof(error)) &&
-        model.meshCount == 3 && model.nodeCount == 3 &&
-        model.animationCount == 1 &&
-        strcmp(model.animations[0].name, "rotors") == 0;
-    if (!result)
-        fprintf(stderr, "slag helicopter animation load failed: %s\n", error);
-    assetModelDestroy(&model);
-    return result;
-    }
-
 static int testAnimatedVapour(void)
     {
     struct AssetModel model;
@@ -677,6 +661,51 @@ static int testCreatureAimNodes(void)
     return 1;
     }
 
+static int testMigratedVehicleMuzzles(void)
+    {
+    static const char *paths[7] = {
+        "assets/models/vehicles/tank-maser.glb",
+        "assets/models/vehicles/tank-launcher.glb",
+        "assets/models/vehicles/airplane.glb",
+        "assets/models/vehicles/fighter-body.glb",
+        "assets/models/vehicles/hunter.glb",
+        "assets/models/monsters/mecha.glb",
+        "assets/models/monsters/hero-typhoon.glb"
+        };
+    static const char *variantNodes[7] = {
+        NULL, NULL, "airplane", NULL, "damage-00",
+        "eye-intact", "leg-right"
+        };
+    struct AssetModel model;
+    char error[160];
+    float muzzleMatrix[16];
+    int muzzleNode;
+    int index;
+
+    assetModelInitialize(&model);
+    for (index = 0; index < 7; index++)
+        {
+        muzzleNode = -1;
+        if (!assetModelLoadGLB(paths[index], &model, error, sizeof(error)) ||
+            model.sceneRootCount < 1 ||
+            (muzzleNode = assetModelFindNode(&model, "muzzle")) < 0 ||
+            (variantNodes[index] != NULL &&
+             assetModelFindNode(&model, variantNodes[index]) < 0) ||
+            (index == 2 &&
+             (!assetModelNodeWorldMatrix(&model, muzzleNode, NULL,
+                                         muzzleMatrix) ||
+              muzzleMatrix[9] > -0.99f)))
+            {
+            fprintf(stderr, "migrated vehicle asset is invalid %s: %s\n",
+                    paths[index], error);
+            assetModelDestroy(&model);
+            return 0;
+            }
+        assetModelDestroy(&model);
+        }
+    return 1;
+    }
+
 static int testGoogelonWalk(void)
     {
     struct AssetModel model;
@@ -862,8 +891,6 @@ int main(void)
 	return 1;
     if (!testExportedHelicopter())
 	return 1;
-    if (!testExportedSlagHelicopter())
-	return 1;
     if (!testAnimatedVapour())
 	return 1;
     if (!testPrimitiveRoundTrip())
@@ -877,7 +904,9 @@ int main(void)
     if (!testCharacterModels())
 	return 1;
     if (!testCreatureAimNodes())
-	return 1;
+        return 1;
+    if (!testMigratedVehicleMuzzles())
+        return 1;
     if (!testGoogelonWalk())
 	return 1;
     if (!testProjectileAnimations())

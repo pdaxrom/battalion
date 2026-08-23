@@ -9,6 +9,7 @@
 /*                                                              */
 /*                      (312) 996-3002     (312) 413-7585 FAX   */
 /***********************************************************************/
+/* Modifications copyright (c) 2026 Battalion contributors. */
 /* text.c v 1.3                                                        */
 /* routines to display all the textual overlays for battalion          */
 /***********************************************************************/
@@ -406,7 +407,7 @@ glPushAttrib(GL_DEPTH_BUFFER_BIT);
 	glTranslatef(-0.8,  -0.23,  7.2);
 	glScalef(.2,  .2,  .2);
 	drawConfiguredPlayerEntity(networkEntityArchetype(VAPOUR),
-	                           1, 0, 0, counter, 0, 0.0f, 0.0f);
+	                           1, 0, 0, counter, 0.0f, 0.0f);
     glPopMatrix();
 	
     glPushMatrix();
@@ -639,6 +640,7 @@ static    char pauseEnglish[]		= "-Pause";
 static    char detailEnglish[]		= "-Detail";
 static    char soundEnglish[]		= "-Sound";
 static    char musicEnglish[]		= "-Music";
+static    char shadowsEnglish[]		= "-Shadows";
 
     glPushAttrib(GL_DEPTH_BUFFER_BIT);
     
@@ -891,10 +893,23 @@ static    char musicEnglish[]		= "-Music";
 
     glPushMatrix();
 	glTranslatef(-4.8,  -5,  0);
+	drawHelpString("F5");
+    glPopMatrix();
+    glPushMatrix();
+	glTranslatef(-3.6,  -5,  0);
+	drawHelpString(shadowsEnglish);
+    glPopMatrix();
+    glPushMatrix();
+	glTranslatef(-1.9,  -5,  0);
+	shadowsEnabled ? drawHelpString(onstring) : drawHelpString(offstring);
+    glPopMatrix();
+
+    glPushMatrix();
+	glTranslatef(-4.8,  -5.5,  0);
 	drawHelpString("F1");
 	glPopMatrix();
     glPushMatrix();
-	glTranslatef(-3.6,  -5,  0);
+	glTranslatef(-3.6,  -5.5,  0);
 	drawHelpString(helpEnglish);
     glPopMatrix();
 
@@ -1105,7 +1120,7 @@ void doOptions(struct monsterInfo monster, long xWin, int counter,
 		             preview->components[2]);
 		glScalef(0.7f, 0.7f, 0.7f);
 		}
-	    drawConfiguredPlayerEntity(archetype, 1, 0, 0, counter, 0,
+	    drawConfiguredPlayerEntity(archetype, 1, 0, 0, counter,
 	                               0.0f, 0.0f);
 	glPopMatrix();
 	}
@@ -1360,7 +1375,7 @@ void doSummary(int monster,  int deadTime, long winX, int killtanks,
 	    glTranslatef(.65,  0,  7.1);
 	    glRotatef(.1*angle + 180, 0, 1, 0);
 	    glScalef(.3,  .3,  .3);
-	    drawHelo((float)counter,  0);
+	    drawHelo((float)counter);
 	glPopMatrix();
 	}
 

@@ -9,6 +9,7 @@
 /*                                                              */
 /*                      (312) 996-3002     (312) 413-7585 FAX   */
 /***********************************************************************/
+/* Modifications copyright (c) 2026 Battalion contributors. */
 /* Silent backend selected by AUDIO=none.                              */
 /***********************************************************************/
 
@@ -19,7 +20,7 @@ extern int noSound;
 int soundOn;
 int musicOn;
 int playingTankFire, playingHeloRocket, playingTankMaser;
-int playingExplosion, playingSlag, playingTech;
+int playingExplosion, playingTech;
 int musicCount, deadCount;
 
 void turnSoundOff(void)
@@ -69,7 +70,7 @@ void initSounds(void)
     musicCount = 0;
     deadCount = 0;
     playingTankFire = playingHeloRocket = playingTankMaser = 0;
-    playingExplosion = playingSlag = playingTech = 0;
+    playingExplosion = playingTech = 0;
     }
 
 void checkSound(char *dataPath)

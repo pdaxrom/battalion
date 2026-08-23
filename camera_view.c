@@ -1,3 +1,6 @@
+/*
+ * Copyright (c) 2026 Battalion contributors.
+ */
 /***********************************************************************/
 /* Size-aware chase-camera framing for data-driven player entities.    */
 /***********************************************************************/

@@ -1,3 +1,6 @@
+/*
+ * Copyright (c) 2026 Battalion contributors.
+ */
 #include "audio_mixer.h"
 
 #include <assert.h>

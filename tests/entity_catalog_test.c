@@ -1,14 +1,6 @@
-/****************************************************************/
-/* code copyright 1995-1996 Andrew Johnson - ALL RIGHTS RESERVED*/
-/*                          ajohnson@eecs.uic.edu               */
-/*                                                              */
-/*                      Electronic Visualization Lab (M/C 154)  */
-/*                      University of Illinois at Chicago       */
-/*                      851 South Morgan St. Room 1120 SEO      */
-/*                      Chicago, IL 60607-7053                  */
-/*                                                              */
-/*                      (312) 996-3002     (312) 413-7585 FAX   */
-/***********************************************************************/
+/*
+ * Copyright (c) 2026 Battalion contributors.
+ */
 
 #include "entity_catalog.h"
 
@@ -72,6 +64,8 @@ int main(void)
     const struct EntityArchetype *flutter;
     const struct EntityArchetype *vapour;
     const struct EntityArchetype *techs;
+    const struct EntityArchetype *airplane;
+    const struct EntityArchetype *fighter;
     char error[256];
     size_t index;
 
@@ -85,10 +79,6 @@ int main(void)
     for (index = 0; index < catalog.count; index++)
         {
         if (!manifestContainsModel(catalog.entries[index].model) ||
-            (catalog.entries[index].destroyedModel[0] != '\0' &&
-            !manifestContainsModel(catalog.entries[index].destroyedModel)) ||
-            (catalog.entries[index].shadowModel[0] != '\0' &&
-             !manifestContainsModel(catalog.entries[index].shadowModel)) ||
             !manifestContainsAnimation(catalog.entries[index].idleAnimation) ||
             !manifestContainsAnimation(catalog.entries[index].moveAnimation) ||
             !manifestContainsAnimation(
@@ -118,6 +108,7 @@ int main(void)
         tank->reactionRules[0].reaction != ENTITY_REACTION_ATTACK ||
         tank->reactionRules[0].phase != ENTITY_SENSOR_PHASE_ENTER ||
         strcmp(tank->reactionRules[0].emit, "base-alarm") != 0 ||
+        tank->spawnWeight != 20 ||
         !entityArchetypeIsHostileTo(tank, "monster") ||
         entityArchetypeIsHostileTo(tank, "army"))
         {
@@ -130,6 +121,17 @@ int main(void)
     flutter = entityCatalogFind(&catalog, "flutter");
     vapour = entityCatalogFind(&catalog, "vapour");
     techs = entityCatalogFind(&catalog, "techs");
+    airplane = entityCatalogFind(&catalog, "airplane-bomber");
+    fighter = entityCatalogFind(&catalog, "fighter");
+    if (airplane == NULL || fighter == NULL || helicopter == NULL ||
+        airplane->tactic != ENTITY_TACTIC_FLYBY ||
+        airplane->tacticRadius != 20.0f ||
+        fighter->tactic != ENTITY_TACTIC_FLYBY ||
+        fighter->burstCount != 4 || helicopter->spawnWeight != 17)
+        {
+        entityCatalogDestroy(&catalog);
+        return 1;
+        }
 
     {
     const struct EntityArchetype *moira;

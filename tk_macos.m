@@ -1,3 +1,6 @@
+/*
+ * Copyright (c) 2026 Battalion contributors.
+ */
 #import <AppKit/AppKit.h>
 #import <CoreGraphics/CoreGraphics.h>
 #import <MetalKit/MetalKit.h>
@@ -24,6 +27,7 @@ static int mouseY;
 static double mouseDeltaX;
 static double mouseDeltaY;
 static int controlIsDown;
+static int shiftIsDown;
 
 static GLenum (*KeyDownFunc)(int, GLenum);
 static GLenum (*KeyUpFunc)(int);
@@ -62,13 +66,17 @@ static int keyFromEvent(NSEvent *event)
       case NSDownArrowFunctionKey: return TK_DOWN;
       case NSPageUpFunctionKey: return TK_PAGEUP;
       case NSPageDownFunctionKey: return TK_PAGEDOWN;
+      case NSHomeFunctionKey: return TK_HOME;
+      case NSEndFunctionKey: return TK_END;
       case NSF1FunctionKey: return TK_F1;
       case NSF2FunctionKey: return TK_F2;
       case NSF3FunctionKey: return TK_F3;
       case NSF4FunctionKey: return TK_F4;
+      case NSF5FunctionKey: return TK_F5;
       case 0x09: return TK_TAB;
       case 0x0d: return TK_RETURN;
       case 0x1b: return TK_ESCAPE;
+      case 0x7f: return TK_BACKSPACE;
       default:
         return key < 128 ? (int)key : 0;
     }
@@ -134,11 +142,17 @@ static GLenum buttonMaskForEvent(NSEvent *event)
 - (void)flagsChanged:(NSEvent *)event
 {
     int nowDown = (event.modifierFlags & NSEventModifierFlagControl) != 0;
+    int shiftNowDown = (event.modifierFlags & NSEventModifierFlagShift) != 0;
     if (nowDown && !controlIsDown && KeyDownFunc)
         (*KeyDownFunc)(TK_CONTROL_L, TK_CONTROL);
     else if (!nowDown && controlIsDown && KeyUpFunc)
         (*KeyUpFunc)(TK_CONTROL_L);
     controlIsDown = nowDown;
+    if (shiftNowDown && !shiftIsDown && KeyDownFunc)
+        (*KeyDownFunc)(TK_SHIFT_L, TK_SHIFT);
+    else if (!shiftNowDown && shiftIsDown && KeyUpFunc)
+        (*KeyUpFunc)(TK_SHIFT_L);
+    shiftIsDown = shiftNowDown;
 }
 
 - (void)mouseDown:(NSEvent *)event
@@ -178,6 +192,15 @@ static GLenum buttonMaskForEvent(NSEvent *event)
 - (void)rightMouseDragged:(NSEvent *)event { [self mouseDragged:event]; }
 - (void)otherMouseDragged:(NSEvent *)event { [self mouseDragged:event]; }
 
+- (void)scrollWheel:(NSEvent *)event
+{
+    [self updateMouse:event];
+    if (MouseDownFunc && event.scrollingDeltaY != 0.0)
+        (*MouseDownFunc)(mouseX, mouseY,
+                         event.scrollingDeltaY > 0.0 ?
+                         TK_WHEELUP : TK_WHEELDOWN);
+}
+
 - (void)setFrameSize:(NSSize)newSize
 {
     NSSize backingSize;
@@ -206,6 +229,7 @@ static GLenum buttonMaskForEvent(NSEvent *event)
 {
     (void)notification;
     controlIsDown = 0;
+    shiftIsDown = 0;
     if (FocusFunc)
         (*FocusFunc)(0);
 }

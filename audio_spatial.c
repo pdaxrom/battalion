@@ -1,14 +1,6 @@
-/****************************************************************/
-/* code copyright 1995-1996 Andrew Johnson - ALL RIGHTS RESERVED*/
-/*                          ajohnson@eecs.uic.edu               */
-/*                                                              */
-/*                      Electronic Visualization Lab (M/C 154)  */
-/*                      University of Illinois at Chicago       */
-/*                      851 South Morgan St. Room 1120 SEO      */
-/*                      Chicago, IL 60607-7053                  */
-/*                                                              */
-/*                      (312) 996-3002     (312) 413-7585 FAX   */
-/***********************************************************************/
+/*
+ * Copyright (c) 2026 Battalion contributors.
+ */
 /* Cross-platform audio policy shared by the PCM output backends.       */
 /***********************************************************************/
 
@@ -27,7 +19,7 @@ extern struct monsterInfo Googelon;
 int soundOn;
 int musicOn;
 int playingTankFire, playingHeloRocket, playingTankMaser;
-int playingExplosion, playingSlag, playingTech;
+int playingExplosion, playingTech;
 int musicCount, deadCount;
 
 static struct AudioCatalog spatialCatalog;
@@ -44,7 +36,6 @@ static void stopEffects(void)
     audioMixerStopType(TANKMASER);
     audioMixerStopType(EXPLOSION);
     audioMixerStopType(MONSTERBEAM);
-    audioMixerStopType(SLAG);
     audioMixerStopType(CRASH);
     audioMixerStopType(TECHSHOOT);
     }
@@ -175,7 +166,7 @@ void initSounds(void)
     deadCount = 0;
     backendStarted = 0;
     playingTankFire = playingHeloRocket = playingTankMaser = 0;
-    playingExplosion = playingSlag = playingTech = 0;
+    playingExplosion = playingTech = 0;
     }
 
 void checkSound(char *dataPath)
@@ -207,7 +198,6 @@ void checkSound(char *dataPath)
     requiredEntry("crash", 2);
     requiredEntry("monster-beam", 3);
     requiredEntry("rocket", 4);
-    requiredEntry("slag", 5);
     requiredEntry("tank", 6);
     requiredEntry("tech", 7);
     requiredEntry("music-1", 10);
@@ -294,7 +284,6 @@ static int effectSlot(int soundType)
         case TANKMASER: return 0;
         case EXPLOSION: return 1;
         case MONSTERBEAM: return 3;
-        case SLAG: return 5;
         case CRASH: return 2;
         case TECHSHOOT: return 7;
         }

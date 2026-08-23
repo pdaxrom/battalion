@@ -55,6 +55,20 @@ renderer output rather than authored content. Beams, impact scars, particles,
 and HUD rectangles therefore remain runtime primitives; their reusable widths,
 radii, colours, density, and layout values are external configuration assets.
 
+## Time of day and dynamic shadows
+
+The runtime initializes the sky from local time and advances through day,
+sunset, night, and sunrise. Sun and moon direction drive procedural projected
+shadows; stars fade in at night. No destroyed or shadow model is selected by an
+entity archetype, and no shadow mesh is stored beside a vehicle. Destruction
+uses the shared explosion plus burning-debris simulation instead.
+
+Press `[` or `]` to move time by one hour. Press `F5` to toggle shadows. The
+same switch is available at startup as `--no-shadows` or `--shadows`. SGI,
+SunOS, and Solaris builds start with shadows disabled; the explicit switch can
+still enable them. The geometry and environment model are shared by Metal and
+desktop OpenGL through the renderer-neutral path intended for GLES.
+
 The checked-in GLB files are the canonical source assets. The one-time
 converter and the old C model factories have been removed, so geometry is not
 duplicated between code and assets.
@@ -93,42 +107,70 @@ gameplay state.
 
 Each battlefield now also has a self-contained
 `assets/maps/<id>/map.json`. `default` is the historical unnumbered map;
-numbered maps use two-digit IDs. The v1 schema keeps authored record order and
-uses named fields:
+numbered maps use two-digit IDs. Version 2 keeps authored record order and
+uses actors for every gameplay entity:
 
 ```json
 {
   "format": "battalion-map",
-  "version": 1,
+  "version": 2,
   "id": "01",
   "name": "Andyville",
   "roads": [{"x": 17.5, "z": 21.5, "type": 3}],
   "structures": [{"x": -24, "z": -19.6, "type": 2, "shape": 3}],
-  "units": [{"x": 5, "z": 40, "type": 0}]
+  "actors": [{"id": "guard-a", "archetype": "tank-standard",
+               "x": 5, "z": 40}]
 }
 ```
 
 Map and model data remain separate: map records identify authored gameplay
 type/shape data, while geometry and animation live in renderer-neutral GLB
-files under `assets/models`. Runtime expansion of compound hills, initial occupants,
-destruction state, and enemy spawning is intentionally still gameplay logic.
+files under `assets/models`. Historical numeric `units` were migrated to
+catalog archetypes and are rejected to prevent silent data loss.
 
 JSON packages are required on every platform. `make test` validates every
 package and performs JSON write/read round trips.
+
+### Map editor MVP
+
+The build also produces a standalone Nuklear map editor. It edits
+`BattalionMapPackage` directly: there is no editor-only document model and no
+second map format. On macOS it uses the same fixed-function frontend and Metal
+backend as the game; on X11 it uses the corresponding OpenGL path.
+
+```sh
+make editor
+build/macos-metal-coreaudio/map_editor assets/maps/default/map.json
+build/macos-metal-coreaudio/map_editor --validate assets/maps/default/map.json
+```
+
+Use the archetype palette to enter actor placement mode, then click in the
+viewport. Left-drag moves actors or selected patrol waypoints, right- or
+middle-drag pans, and the mouse wheel zooms around the cursor. File, Edit, and
+View provide new/open/save, deletion, grid/snap, fit, validation, and a
+`make test` command. The properties panel edits the v2 actor fields, patrol
+path, and trigger routes. Roads and structures retain their compact runtime
+arrays; all editable gameplay objects use the same actor representation.
+
+The editor uses the same `battalionMapPackageValidate` routine as package
+loading and writing. Its additional catalog check only verifies that every
+actor archetype exists in `assets/entities/catalog.txt`, matching runtime
+startup behavior.
 
 ## Extensible gameplay entities
 
 `assets/entities/catalog.txt` lists authored `.entity` archetypes. This is a
 gameplay catalog, not a tank table: `vehicle`, `npc`, `creature`, `object`,
 `device`, and `structure` all enter the same generic runtime. An archetype
-selects its normal, destroyed, and shadow models plus idle, move, and attack
-clips through manifest keys. It also declares faction relationships, movement,
+selects its model plus idle, move, and attack clips through manifest keys.
+Destroyed entities use runtime debris and fire, while shadows are projected
+from collision bounds. The archetype also declares faction relationships, movement,
 collision dimensions, health, score, weapon, random-spawn policy, and whether
 the player may control it.
 
 For example, the checked-in catalog contains a ground tank, helicopter, armed
-NPC, the skinned Moira Brown regression NPC, Googelon, Flutter, Techs, and
-Vapour. All controllable catalog entries use the
+NPC, the migrated army vehicle roster, the skinned Moira Brown regression NPC,
+Googelon, Flutter, Techs, and Vapour. All controllable catalog entries use the
 same controls and can be selected without adding a C enum or switch branch:
 
 ```sh
@@ -150,7 +192,9 @@ remain centred at a consistent visual size.
 
 The reusable weapon capabilities are `none`, `shell`, `rocket`, `beam`, `fire`,
 and `plasma`. Projectile choice and player firing are based on that capability,
-not on an archetype id. `player-fire-cost` is the per-shot energy cost, separate
+not on an archetype id. `tactic standoff|flyby` controls generic approach
+behavior and `burst-count` controls projectiles per attack. `player-fire-cost`
+is the per-shot energy cost, separate
 from `player-move-cost`; `fire-interval` is the post-shot reload period rather
 than a global-frame alignment requirement.
 

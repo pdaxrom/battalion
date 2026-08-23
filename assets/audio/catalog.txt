@@ -7,7 +7,6 @@ entry boom pcm 1 sounds/boom.wav
 entry crash pcm 2 sounds/crash.wav
 entry monster-beam pcm 3 sounds/monsterbeam.wav
 entry rocket pcm 4 sounds/rocket.wav
-entry slag pcm 5 sounds/slag.wav
 entry tank pcm 6 sounds/tank.wav
 entry tech pcm 7 sounds/tech.wav
 entry music-1 pcm 10 music/mbatt1.wav

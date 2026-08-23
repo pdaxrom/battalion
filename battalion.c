@@ -9,6 +9,7 @@
 /*                                                              */
 /*                      (312) 996-3002     (312) 413-7585 FAX   */
 /***********************************************************************/
+/* Modifications copyright (c) 2026 Battalion contributors. */
 /* battalion.c  v 1.3a                                                 */
 /* main routines for battalion                                         */
 /***********************************************************************/
@@ -19,6 +20,7 @@
 
 #include "battalion.h"
 #include "camera_view.h"
+#include "entity_wreck.h"
 #include "map.h"
 #include "map_package.h"
 
@@ -32,6 +34,8 @@ int buildingBoomSoFar[800];
 int buildingBoomThisFrameCounter;
 int buildingBoomThisFrame[20];
 int currentTankNumber;
+struct WorldEnvironment worldEnvironment;
+int shadowsEnabled;
 
 /*********/
 /* times */
@@ -111,7 +115,7 @@ struct road * roadSystem;
 struct projectile * projectFlight;
 struct boom * projectboom;
 struct tank * tanklist;
-struct tank * slaglist;
+struct tank * wrecklist;
 struct tree * treelist;
 struct monsterInfo Googelon;
 
@@ -292,12 +296,6 @@ static int entityAssetsAvailable(const struct EntityArchetype *archetype)
 
     if (assetModelDisplayList(archetype->model) == 0)
         return 0;
-    if (archetype->destroyedModel[0] != '\0' &&
-        assetModelDisplayList(archetype->destroyedModel) == 0)
-        return 0;
-    if (archetype->shadowModel[0] != '\0' &&
-        assetModelDisplayList(archetype->shadowModel) == 0)
-        return 0;
     if (!assetModelHasNode(archetype->model, archetype->aimYawNode) ||
         !assetModelHasNode(archetype->model, archetype->aimPitchNode) ||
         !assetModelHasNode(archetype->model, archetype->muzzleNode))
@@ -439,7 +437,7 @@ static int playerProjectileTriggerLatched;
 static int playerWeaponReloadRemaining;
 static int showHelp;
 static int showDemoMenu;
-static int commandKeys[6];
+static int commandKeys[7];
 
 static void clearPlayerInput(void);
 static void setPointerCaptured(int);
@@ -718,7 +716,7 @@ void quickTanks()
 		}
 	}
 
-    for(temptank = slaglist->next;(temptank != NULL);temptank = temptank->next)
+    for(temptank = wrecklist->next;(temptank != NULL);temptank = temptank->next)
 	{
 	    allTanks2OnPlane[numTanksOnPlane] = temptank;
 	    allTanksOnPlane[numTanksOnPlane] = *temptank;
@@ -852,7 +850,8 @@ void addScore(int tank, struct monsterInfo * m)
 /* add a new explosion                                           */
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
-void addBoom(float x,  float y,  float z, struct monsterInfo* m)
+static void addBoomInternal(float x, float y, float z,
+                            struct monsterInfo *m, int damaging)
     {
     struct boom * tempboom2;
     struct boom tempboom;
@@ -863,6 +862,7 @@ void addBoom(float x,  float y,  float z, struct monsterInfo* m)
 	{
 	tempboom.mine	= m;
 	tempboom.count	= 1;
+	tempboom.damaging = damaging;
 	tempboom.x	= x;
 
 	if (y >= PLANEY)
@@ -875,6 +875,16 @@ void addBoom(float x,  float y,  float z, struct monsterInfo* m)
 	*tempboom2	    = tempboom;
 	projectboom->next   = tempboom2;
 	}
+    }
+
+void addBoom(float x, float y, float z, struct monsterInfo *m)
+    {
+    addBoomInternal(x, y, z, m, 1);
+    }
+
+static void addVisualBoom(float x, float y, float z)
+    {
+    addBoomInternal(x, y, z, NULL, 0);
     }
 
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
@@ -1841,6 +1851,7 @@ static void fireDataEntity(struct tank *tank, struct tank *allTanks,
     float direction[3];
     float bodyHeading;
     int projectileType;
+    int burst;
 
     archetype = tank->dataArchetype;
     tank->maserCount = 0;
@@ -1867,11 +1878,12 @@ static void fireDataEntity(struct tank *tank, struct tank *allTanks,
         projectileType = PROJFIRE;
     else
         projectileType = PROJTANK;
-    addProjectile(origin[0], origin[1], origin[2], projectileType,
-                  direction[0] * archetype->projectileSpeed,
-                  direction[1] * archetype->projectileSpeed,
-                  direction[2] * archetype->projectileSpeed,
-                  archetype->accuracy, NULL);
+    for (burst = 0; burst < archetype->burstCount; burst++)
+        addProjectile(origin[0], origin[1], origin[2], projectileType,
+                      direction[0] * archetype->projectileSpeed,
+                      direction[1] * archetype->projectileSpeed,
+                      direction[2] * archetype->projectileSpeed,
+                      archetype->accuracy, NULL);
     }
 
 static void updateDataEntity(struct tank *tank, struct tank *allTanks,
@@ -1973,1000 +1985,186 @@ static void updateMonsterBeamFromAsset(
                archetype, origin, direction);
     }
 
-void updateTanks(struct tank * allTanks, float width, float height,
-		float bottom, int dead, int monster,
-		struct tank* slag, float accuracy, int firingDelay,
-		int mainCounter, struct monsterInfo * m, struct targetInfo * targets)
+#define DATA_ENTITY_DEBRIS_COUNT 7
+#define DATA_ENTITY_DEBRIS_LIFE 420
+#define DATA_ENTITY_DEBRIS_FIRE_COUNT 3
+
+static void spawnDataEntityDebris(struct tank *source,
+                                  struct tank *allWrecks)
     {
-    float xv,  yv,  zv;
-    float Vplane, angle;
-    int blocked, maserOn;
-    struct tank *killertank,  *ttank, *temptank;
-    float energyLoss;
-    float tankx,  tankz;
-    int tanktype;
-
-    float rad;
-    float radToNearestTarget;
-    struct targetInfo * nearestTarget;
-
-    int aircraft;
-    struct targetInfo * temptarget;
-    struct monsterInfo * nearestMonster;
-
-    float centerX,  centerZ;
-    float nearAngle;
-
-
-    int targetCounter, targetc;
-    float targetxs[MAXTARGETS+1];
-    float targetzs[MAXTARGETS+1];
-    struct targetInfo * targetinfs[MAXTARGETS+1];
-
-    /****************************************/
-    /* move targets into quick access array */
-    /****************************************/
-
-    targetCounter = 0;
-    for(temptarget = targets->next;temptarget != NULL;temptarget = temptarget->next)
-	{
-	targetxs[targetCounter]	    = temptarget->x;
-	targetzs[targetCounter]	    = temptarget->z;
-	targetinfs[targetCounter]   = temptarget;
-	targetCounter++;
-	}
-
-    centerX	= 0;
-    centerZ	= 0;
-
-    maserOn	= 0;
-    energyLoss	= 0;
-
-    temptank	= allTanks;
-
-    while(temptank->next != NULL)
-	{
-	ttank = temptank->next;
-	ttank->count -= 1;
-
-	tankx = ttank->x;
-	tankz = ttank->z;
-	tanktype = ttank->type;
-
-	if (tanktype == DATAENTITY)
-	    {
-	    updateDataEntity(ttank, allTanks, m, targets);
-	    if (!dead && worldCylindersOverlap(
-		ttank->x, ttank->z, tankCollisionRadius(ttank),
-		tankCollisionBottom(ttank), tankCollisionTop(ttank),
-		m->x, m->z, width, bottom, height))
-		{
-		m->energyRemaining -= 0.75f;
-		ttank->damage--;
-		notifyDataEntityDamage(ttank, "player", "monster",
-		                           m->x, m->z);
-		}
-	    if (ttank->damage <= 0)
-		{
-		addBoom(ttank->x, ttank->y, ttank->z, NULL);
-		killertank = temptank->next;
-		temptank->next = killertank->next;
-		if (ttank->dataArchetype->destroyedModel[0] != '\0')
-		    {
-		    killertank->next = slag->next;
-		    slag->next = killertank;
-		    killertank->count = 1;
-		    }
-		else
-		    afree(killertank, arena);
-		}
-	    else
-		temptank = temptank->next;
-	    continue;
-	    }
-
-	nearestTarget = NULL;
-	nearestMonster = m;
-	centerX = m->x;
-	centerZ = m->z;
-	radToNearestTarget = sqrt((tankx - m->x) * (tankx - m->x) +
-	                          (tankz - m->z) * (tankz - m->z));
-
-	/************************************************/
-	/* need to compute radius to the nearest target */
-	/************************************************/
-
-	for(targetc = 0; targetc < targetCounter; targetc++)
-	    {
-	    rad = sqrt((tankx-targetxs[targetc]) * (tankx-targetxs[targetc]) + (tankz-targetzs[targetc]) * (tankz-targetzs[targetc]));
-	    if (rad < radToNearestTarget)
-		{
-		radToNearestTarget  = rad;
-		nearestTarget	    = targetinfs[targetc];
-		nearestMonster	    = &(nearestTarget->monster);
-		centerX		    = nearestTarget->x;
-		centerZ		    = nearestTarget->z;
-		}
-	    }
-
-	ttank->rad = radToNearestTarget;
-	ttank->goforit = nearestMonster;
-
-
-	if (tanktype == MECHAG) /* mechaG shoots 5X as fast*/
-	    ttank->count -= 4;
-
-	if (tanktype == CHH) /* 009CHH shoots 2X as fast*/
-	    ttank->count -= 1;
-
-
-
-	if (ttank->z == 0)
-	    ttank->z = NEARZERO;
-
-	angle = computeAngle(tankz, centerZ, tankx, centerX);
-
-	/**************************/
-	/* deal with the aircraft */
-	/**************************/
-
-	if ((tanktype == AIRPLANE) || (tanktype == FIGHTER))
-	    aircraft = 1;
-	else
-	    aircraft = 0;
-
-	if ((!aircraft) || (aircraft && (ttank->rad > (PLANESIZE*2.5))))
-	    {
-	    nearAngle = angle;
-	    if (fabs(ttank->theta - (angle + TWOPI)) < fabs(ttank->theta - nearAngle))
-		nearAngle = angle + TWOPI;
-	    if (fabs(ttank->theta - (angle - TWOPI)) < fabs(ttank->theta - nearAngle))
-		nearAngle = angle - TWOPI;
-
-	    ttank->theta = 0.8 * ttank->theta + 0.2 * nearAngle;
-
-	    if (ttank->theta < 0)
-		ttank->theta += TWOPI;
-	    else if (ttank->theta >= TWOPI)
-		ttank->theta -= TWOPI;
-	    }
-
-
-	if (aircraft && (ttank->rad > (PLANESIZE*2.5)))
-	    ttank->count = 0;
-
-
-	if ((tanktype == MASERTANK) || (tanktype == CHH) || (tanktype == MECHAG))
-	    {
-	    ttank->rand1 = randy(0.025);
-	    ttank->rand2 = randy(0.025);
-	    ttank->rand3 = randy(0.025);
-	    }
-
-	/**********************************/
-	/* move vehicle                   */
-	/**********************************/
-
-	if ((ttank->rad > ttank->finalR) || (tanktype == AIRPLANE) || (tanktype == FIGHTER))
-	    {
-
-	    /**********************************/
-	    /* check for obstacles            */
-	    /**********************************/
-
-	    if ((tanktype == AIRPLANE) || (tanktype == FIGHTER))
-		blocked = 0;
-	    else
-		blocked = checkForBlock(ttank, ttank->rad,  ttank->theta,  ttank->y);
-
-	    if (!blocked)
-		{
-		Vplane = ttank->speed;
-
-		ttank->walking += 1;
-
-		ttank->zv = cos(ttank->theta) * Vplane;
-		ttank->xv = sin(ttank->theta) * Vplane;
-
-		ttank->x += ttank->xv;
-		ttank->z += ttank->zv;
-		}
-	    }
-
-	if ((!dead) && (nearestMonster->monsterIsDead != 1) && (ttank->rad <= ttank->range) && (ttank->rad >= ttank->minrange))
-	{
-	/**********************************/
-	/* mechaGoogelon firing           */
-	/**********************************/
-
-	if ((tanktype == MECHAG))
-	    {
-	    if ((ttank->count <= 0) && ((rand() % 5) == 0) && (nearestMonster->monsterIsDead != 1))
-		{
-		xv = - (ttank->x-centerX) / 12;
-		yv = ((height - bottom) * 0.5 + bottom - ttank->y) / 12;
-		zv = - (ttank->z-centerZ) / 12;
-
-		addProjectile( ttank->x, ttank->y, ttank->z, PROJROCKET,
-		    xv, yv, zv, accuracy*0.33, NULL);
-
-		ttank->count = firingDelay;
-		}
-
-	    if ((ttank->count <= 0) && (ttank->maserCount <= 0) && ((rand() % 10) == 0))
-		{
-		ttank->maserCount = 10 + (rand() % 5);
-		ttank->count = firingDelay;
-		}
-	    if ((ttank->maserCount > 0) && (ttank->rad <= ttank->range))
-		{
-		maserOn = 1;
-		doSoundAt(TANKMASER, ttank->x, ttank->y, ttank->z);
-		ttank->maserCount -= 1;
-
-		nearestMonster->energyRemaining -= 0.5;
-		}
-	    }
-
-	/**********************************/
-	/* 009 CHH firing                 */
-	/**********************************/
-
-	if ((tanktype == CHH))
-	    {
-	    if ((ttank->count <= 0) && ((rand() % 5) == 0))
-		{
-		xv = - (ttank->x-centerX) / 12;
-		yv = ((height - bottom) * 0.5 + bottom - ttank->y) / 12;
-		zv = - (ttank->z-centerZ) / 12;
-
-		addProjectile( ttank->x, ttank->y, ttank->z, PROJROCKET,
-		    xv, yv, zv, accuracy*0.5, NULL);
-
-		ttank->count = firingDelay;
-		}
-
-	    if ((ttank->count <= 0) && (ttank->maserCount <= 0) && ((rand() % 10) == 0))
-		{
-		ttank->maserCount = 10 + (rand() % 5);
-		ttank->count = firingDelay;
-		}
-	    if ((ttank->maserCount > 0) && (ttank->rad <= ttank->range))
-		{
-		maserOn = 1;
-		doSoundAt(TANKMASER, ttank->x, ttank->y, ttank->z);
-		ttank->maserCount -= 1;
-
-		nearestMonster->energyRemaining -= 0.5;
-		}
-	    }
-
-	/**********************************/
-	/* tank firing shell              */
-	/**********************************/
-
-	if ((tanktype == TANK) && (ttank->count <= 0) && ((rand() % 5) == 0))
-	    {
-	    ttank->count = firingDelay;
-
-	    if (monster == FLUTTER)
-		Vplane = sqrt(GRAVITY * ttank->rad) * 0.8071;
-	    else
-		Vplane = sqrt(GRAVITY * ttank->rad) * 0.7071;
-
-	    xv = sin(ttank->theta) * Vplane;
-	    zv = cos(ttank->theta) * Vplane;
-
-	    addProjectile( ttank->x, ttank->y + 0.15, ttank->z, PROJTANK,
-		xv, Vplane, zv, accuracy, NULL);
-	    }
-
-	/************************************/
-	/* airplane 'dropping' bomb         */
-	/************************************/
-
-	if ((tanktype == AIRPLANE) && (mainCounter % 2))
-	    {
-	    addProjectile(ttank->x, ttank->y-0.1, ttank->z, PROJTANK,  0, 0, 0,  0, NULL);
-	    }
-
-	/************************************/
-	/* fighter launchine missile        */
-	/************************************/
-
-	if ((tanktype == FIGHTER) && (ttank->count <= 0))
-	    {
-	    ttank->count = 1000; /* way bug number */
-
-	    xv = - (ttank->x-centerX) / 15;
-	    yv = ((height - bottom) * 0.5 + bottom - ttank->y) / 15;
-	    zv = - (ttank->z-centerZ) / 15;
-
-	    addProjectile(ttank->x, ttank->y-0.1, ttank->z, PROJROCKET, xv, yv, zv, accuracy * 0.75, NULL);
-	    addProjectile(ttank->x, ttank->y-0.1, ttank->z, PROJROCKET, xv, yv, zv, accuracy * 0.75, NULL);
-	    addProjectile(ttank->x, ttank->y-0.1, ttank->z, PROJROCKET, xv, yv, zv, accuracy * 0.75, NULL);
-	    addProjectile(ttank->x, ttank->y-0.1, ttank->z, PROJROCKET, xv, yv, zv, accuracy * 0.75, NULL);
-	    }
-
-	/**********************************/
-	/* helo firing rocket             */
-	/**********************************/
-
-	if ((tanktype == HELO) && (ttank->count <= 0) && ((rand() % 5) == 0))
-	    {
-	    ttank->count = firingDelay;
-
-	    xv = - (ttank->x-centerX) / 15;
-	    yv = ((height - bottom) * 0.5 + bottom - ttank->y) / 15;
-	    zv = - (ttank->z-centerZ) / 15;
-
-	    addProjectile( ttank->x, ttank->y-0.15, ttank->z, PROJROCKET,
-		xv, yv, zv, accuracy*2, NULL);
-	    }
-
-	/**********************************/
-	/* launcher firing rocket         */
-	/**********************************/
-
-	if ((tanktype == LAUNCHER) && (ttank->count <= 0) && ((rand() % 5) == 0))
-	    {
-	    ttank->count = firingDelay/3;
-
-	    yv = ((height - bottom) * 0.5 + bottom - ttank->y) / 15;
-
-	    xv = - (ttank->x-centerX) / 15;
-	    zv = - (ttank->z-centerZ) / 15;
-
-	    addProjectile( ttank->x, ttank->y+0.2, ttank->z, PROJROCKET,
-		xv, yv, zv, accuracy*0.4, NULL);
-	    }
-
- 	/**********************************/
-	/* hero firing maser / shells     */
-	/**********************************/
-
-	if ( (tanktype == HERO))
-	    {
-	    if ((ttank->count <= 0) && (ttank->maserCount <= 0) && ((rand() % 5) == 0))
-		{
-		ttank->maserCount = 40;
-		}
-
-	    if (ttank->maserCount > 0)
-		{
-		ttank->maserCount -= 1;
-		if (ttank->maserCount == 0)
-		    ttank->count = firingDelay;
-
-		if ((ttank->maserCount > 10) && (ttank->maserCount < 30) && (ttank->subtype == 1))
-		    {
-		    maserOn = 1;
-		    doSoundAt(TANKMASER, ttank->x, ttank->y, ttank->z);
-
-		    nearestMonster->energyRemaining -= 0.5;
-		    }
-
-		if ((ttank->maserCount > 10) && (ttank->maserCount < 30) && (ttank->subtype == 0))
-		    {
-		    xv = - (ttank->x-centerX) / 15;
-		    yv = ((height - bottom) *0.5 + bottom - ttank->y) / 15;
-		    zv = - (ttank->z-centerZ) / 15;
-
-		    addProjectile(ttank->x, ttank->y + 0.5, ttank->z, PROJHERO, xv, yv, zv, accuracy, NULL);
-		    addProjectile(ttank->x, ttank->y + 0.5, ttank->z, PROJHERO, xv, yv, zv, accuracy, NULL);
-		    }
-		}
-	    }
-
-	/**********************************/
-	/* tank firing maser              */
-	/**********************************/
-
-	if (tanktype == MASERTANK)
-	    {
-	    if (!client)
-		{
-		if ((ttank->count <= 0) && (ttank->maserCount <= 0) && ((rand() % 5) == 0))
-		    {
-		    ttank->maserCount = 20 + (rand() % 5);
-		    }
-		}
-
-	    if (ttank->maserCount > 0)
-		{
-	    	maserOn = 1;
-		doSoundAt(TANKMASER, ttank->x, ttank->y, ttank->z);
-		ttank->maserCount -= 1;
-		if (ttank->maserCount == 0)
-		    ttank->count = firingDelay;
-
-		nearestMonster->energyRemaining -= 0.3;
-		}
-	    }
-	}
-
-	/**********************************/
-	/* tank being crushed             */
-	/**********************************/
-
-	if ((ttank->x <= (centerX+width)) && (ttank->z <= (centerZ+width)) &&
-	    (ttank->x >= (centerX-width)) && (ttank->z >= (centerZ-width)) &&
-	    (ttank->y <= height) && (ttank->y >= bottom) && (!dead))
-	    {
-	    nearestMonster->energyRemaining -= 0.75;
-
-	    ttank->damage -= 1;
-
-	    switch (tanktype)
-		{
-		case TANK:
-		case LAUNCHER:
-		case MASERTANK:
-		case AIRPLANE:
-		case FIGHTER:
-		case HELO:	    addScore(tanktype, nearestMonster);
-				    break;
-
-		case MECHAG:	    addScore(PARTIALM, nearestMonster);
-				    break;
-
-		case CHH:	    addScore(PARTIALC, nearestMonster);
-				    break;
-
-		case HERO:	    addScore(PARTIALH, nearestMonster);
-				    break;
-		}
-	    }
-
-	/**********************************/
-	/* tank is dead                   */
-	/**********************************/
-
-	if (ttank->damage <= 0)
-	    {
-	    addBoom(ttank->x, ttank->y, ttank->z, NULL);
-
-	    killertank = temptank->next;
-	    temptank->next = temptank->next->next;
-
-	    switch (ttank->type)
-		{
-		case MECHAG:
-		case CHH:
-		case HERO:	    addScore(ttank->type, NULL);
-		}
-
-	    if ((ttank->damage <= -99) || (tanktype == MECHAG) || (tanktype == CHH) || (tanktype == HERO) ||
-		(tanktype == AIRPLANE) || (tanktype == FIGHTER))
-		{
-		killertank->next = slag->next;
-		slag->next = killertank;
-		killertank->count = 1;
-		}
-	    else
-		{
-		afree(killertank, arena);
-
-		}
-	    }
-	else
-	    if (ttank->rad > 20 * PLANESIZE)
-		{
-		killertank = temptank->next;
-		temptank->next = temptank->next->next;
-		afree(killertank, arena);
-
-		}
-	else
-	    temptank = temptank->next;
-	}
-
-    /* Deliver data-driven events only after every agent has completed its
-       simulation step.  Receivers consume this queue on the next step, so
-       trigger timing no longer depends on linked-list order. */
-    for (ttank = allTanks->next; ttank != NULL; ttank = ttank->next)
-	if (ttank->type == DATAENTITY)
-	    routeDataEntityEvents(ttank, allTanks);
-
-    /**********************************************************/
-    /* if some vehicle is firing a maser then do maser sound  */
-    /**********************************************************/
-
-    if (!maserOn)
-	soundKiller(TANKMASER);
+    const struct EntityArchetype *archetype;
+    struct tank *fragment;
+    float angle;
+    float blastRadius;
+    float collisionHeight;
+    float fragmentSize;
+    float speed;
+    float sourceX;
+    float sourceY;
+    float sourceZ;
+    int fromAir;
+    int i;
+    int sourceNumber;
+
+    archetype = source->dataArchetype;
+    sourceX = source->x;
+    sourceY = source->y;
+    sourceZ = source->z;
+    sourceNumber = source->number;
+    collisionHeight = archetype->collisionHeight;
+    blastRadius = archetype->collisionRadius;
+    if (blastRadius < 0.2f)
+        blastRadius = 0.2f;
+    fragmentSize = blastRadius * 0.36f;
+    if (fragmentSize < 0.05f)
+        fragmentSize = 0.05f;
+    if (fragmentSize > 0.16f)
+        fragmentSize = 0.16f;
+    fromAir = archetype->movement == ENTITY_MOVEMENT_AIR;
+
+    for (i = 0; i < DATA_ENTITY_DEBRIS_COUNT; i++)
+        {
+        if (i == 0)
+            fragment = source;
+        else
+            fragment = (struct tank *)amalloc(sizeTank, arena);
+        if (fragment == NULL)
+            continue;
+        memset(fragment, 0, sizeof(*fragment));
+        angle = (float)(rand() % 6283) * 0.001f;
+        speed = 0.018f + (float)(rand() % 28) * 0.001f;
+        fragment->x = sourceX + randy(blastRadius * 0.28f);
+        fragment->y = sourceY + collisionHeight *
+            (0.24f + (float)(rand() % 52) * 0.01f);
+        fragment->z = sourceZ + randy(blastRadius * 0.28f);
+        fragment->xv = sin(angle) * speed;
+        fragment->yv = 0.035f + (float)(rand() % 45) * 0.001f;
+        fragment->zv = cos(angle) * speed;
+        fragment->theta = angle;
+        fragment->count = 0;
+        fragment->number = sourceNumber;
+        fragment->type = DATAENTITY;
+        fragment->subtype = (char)i;
+        fragment->dataArchetype = archetype;
+        fragment->debrisFromAir = fromAir;
+        fragment->debrisFireDelay = i * 5;
+        fragment->debrisSize = fragmentSize *
+            (0.72f + (float)(rand() % 57) * 0.01f);
+        fragment->next = allWrecks->next;
+        allWrecks->next = fragment;
+        }
+
+    addBoom(sourceX, sourceY + collisionHeight * 0.5f, sourceZ, NULL);
+    for (i = 0; i < 5; i++)
+        addVisualBoom(sourceX + randy(blastRadius),
+                      sourceY + randy(collisionHeight * 0.75f),
+                      sourceZ + randy(blastRadius));
     }
 
-/*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
-/*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
-/* update all the vehicles in the process of dying               */
-/*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
-
-void updateSlagTanks(struct tank * allSlags)
+static int updateDataEntityDebris(struct tank *fragment)
     {
-    int i, j, k;
-    float x, y, z;
-    float zv,  xv;
-    float Vplane;
-    int dead;
-    struct tank *killertank, *ttank, *temptank;
-    int boom1,  boom2;
+    int landed;
 
-    temptank = allSlags;
+    landed = entityWreckStep(
+        &fragment->x, &fragment->y, &fragment->z,
+        &fragment->xv, &fragment->yv, &fragment->zv,
+        PLANEY + fragment->debrisSize * 0.55f,
+        GRAVITY, &fragment->debrisGrounded);
+    if (landed && fragment->debrisFromAir)
+        addVisualBoom(fragment->x, fragment->y, fragment->z);
 
-    while(temptank->next != NULL)
-	{
-	ttank = temptank->next;
+    if (fragment->debrisGrounded &&
+        fragment->subtype < DATA_ENTITY_DEBRIS_FIRE_COUNT)
+        {
+        fragment->debrisFireDelay--;
+        if (fragment->debrisFireDelay <= 0)
+            {
+            addProjectile(fragment->x, PLANEY + 0.14f, fragment->z,
+                          PROJFIRE, 0.0f, -0.0005f, 0.0f,
+                          10000.0f, NULL);
+            fragment->debrisFireDelay = 68 + fragment->subtype * 7;
+            }
+        }
+    return fragment->count >= DATA_ENTITY_DEBRIS_LIFE;
+    }
 
-	ttank->count += 1;
+void updateTanks(struct tank *allTanks, float width, float height,
+                 float bottom, int dead, int monster,
+                 struct tank *wrecks, float accuracy, int firingDelay,
+                 int counter, struct monsterInfo *player,
+                 struct targetInfo *targetList)
+    {
+    struct tank *killertank;
+    struct tank *tank;
+    struct tank *previous;
 
-	dead = 0;
+    (void)monster;
+    (void)accuracy;
+    (void)firingDelay;
+    (void)counter;
+    previous = allTanks;
+    while (previous->next != NULL)
+        {
+        tank = previous->next;
+        if (tank->type != DATAENTITY)
+            {
+            showError("Discarding a legacy vehicle from the actor list");
+            previous->next = tank->next;
+            afree(tank, arena);
+            continue;
+            }
+        tank->count--;
+        updateDataEntity(tank, allTanks, player, targetList);
+        if (!dead && worldCylindersOverlap(
+                tank->x, tank->z, tankCollisionRadius(tank),
+                tankCollisionBottom(tank), tankCollisionTop(tank),
+                player->x, player->z, width, bottom, height))
+            {
+            player->energyRemaining -= 0.75f;
+            tank->damage--;
+            notifyDataEntityDamage(tank, "player", "monster",
+                                   player->x, player->z);
+            }
+        if (tank->damage <= 0)
+            {
+            killertank = tank;
+            previous->next = killertank->next;
+            spawnDataEntityDebris(killertank, wrecks);
+            }
+        else
+            previous = previous->next;
+        }
 
-	if (ttank->z == 0)
-	    ttank->z = NEARZERO;
+    /* Events are delivered after every agent has completed this step. */
+    for (tank = allTanks->next; tank != NULL; tank = tank->next)
+        routeDataEntityEvents(tank, allTanks);
+    }
 
-	if (((ttank->type == HELO) || (ttank->type == CHH)) && (ttank->y <= PLANEY+0.1))
-	    {
-	    addBoom(ttank->x, PLANEY, ttank->z, NULL);
-	    dead = 1;
-	    }
+void updateWrecks(struct tank *allWrecks)
+    {
+    struct tank *fragment;
+    struct tank *previous;
 
-	if (((ttank->type == HELO) || (ttank->type == CHH) || (ttank->type == AIRPLANE) || (ttank->type == FIGHTER)) && (ttank->y > PLANEY))
-	    {
-	    ttank->y -= 0.04;
-	    }
-
-	if ((ttank->type == AIRPLANE) || (ttank->type == FIGHTER))
-	    {
-	    ttank->x += sin(ttank->theta) * TANKV;
-	    ttank->z += cos(ttank->theta) * TANKV;
-
-	    if (ttank->count > 5)
-		dead = 1;
-	    }
-
-
-	if ((ttank->type != HELO) && (ttank->type != CHH) && (ttank->type != AIRPLANE)
-	&& (ttank->type != FIGHTER) && (ttank->count >= 40))
-	    {
-	    dead = 1;
-	    }
-
-	x = ttank->x;
-	y = ttank->y;
-	z = ttank->z;
-
-	if (ttank->count % 2)
-	    {
-	    switch(ttank->type){
-		case MECHAG:	addBoom(x + randy(0.15), y + (rand() % 1000) / 1000.0 - 0.4,
-				z + randy(0.15), NULL);
-				break;
-		case AIRPLANE:
-		case FIGHTER:
-		case CHH:	addBoom(x + randy(0.25), y + randy(0.25), z + randy(0.25), NULL);
-				break;
-		}
-	    }
-
-
-	if (((ttank->type == AIRPLANE) || (ttank->type == FIGHTER)) && (ttank->count >= 5))
-	    {
-	    Vplane = sqrt(GRAVITY * 1.5) * 0.7071;
-
-		for (i=-1;i<2;i++)
-		    for (j=-1;j<2;j++)
-			for (k=-1;k<2;k++)
-			    {
-			    if ((rand() % 100) < 30)
-				{
-				zv = cos((rand() % 100) * 0.0628) * Vplane;
-				xv = sin((rand() % 100) * 0.0628) * Vplane;
-
-				addProjectile(x+i*0.2, y+(j*0.3), z+k*0.2, PROJTANK,
-					    xv,  Vplane,  zv, 75, NULL);
-				}
-			    }
-	    }
-
-	if ((ttank->type == HERO) && (ttank->count >= 40))
-	    {
-	    Vplane = sqrt(GRAVITY * 1.5) * 0.7071;
-
-		for (i=-1;i<2;i++)
-		    for (j=-1;j<2;j++)
-			for (k=-1;k<2;k++)
-			    {
-			    zv = cos((rand() % 100) * 0.0628) * Vplane;
-			    xv = sin((rand() % 100) * 0.0628) * Vplane;
-
-			    if (ttank->subtype == 1)
-				{
-				boom1 = rand() % 3;
-				boom2 = rand() % 3;
-				}
-			    else
-				{
-				boom1 = PROJTANK;
-				boom2 = PROJHERO;
-				}
-
-			    addProjectile(x+i*0.2, y+(j*0.3)+0.1, z+k*0.2, boom1,
-					    xv,  Vplane,  zv, 75, NULL);
-			    zv = cos(rand()%100*0.0628) * Vplane;
-			    xv = sin(rand()%100*0.0628) * Vplane;
-
-			    addProjectile(x+i*0.2, y+(j*0.3)+0.1, z+k*0.2, boom2,
-					    xv,  Vplane,  zv, 75, NULL);
-			    }
-	    }
-
-	if ((ttank->type == MECHAG) && (ttank->count >= 40))
-	    {
-	    Vplane = sqrt(GRAVITY * 1.5) * 1.4;
-
-		for (i=-1;i<2;i++)
-		    for (j=-1;j<2;j++)
-			for (k=-1;k<2;k++)
-			    {
-			    zv = cos((rand() % 100) * 0.0628) * Vplane;
-			    xv = sin((rand() % 100) * 0.0628) * Vplane;
-
-			    addProjectile(x+i*0.2, y+(j*0.3)+.1, z+k*0.2, PROJTANK, xv, Vplane, zv, 75, NULL);
-			    }
-	    }
-
-	if (dead)
-	    {
-	    killertank = temptank->next;
-	    temptank->next = temptank->next->next;
-	    afree(killertank, arena);
-	    }
-	else
-	    temptank = temptank->next;
-	}
+    previous = allWrecks;
+    while (previous->next != NULL)
+        {
+        fragment = previous->next;
+        fragment->count++;
+        if (fragment->type != DATAENTITY ||
+            updateDataEntityDebris(fragment))
+            {
+            previous->next = fragment->next;
+            afree(fragment, arena);
+            }
+        else
+            previous = fragment;
+        }
     }
 
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 /* a new military vehicle is entering the game                   */
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
-
-void addNewTank(struct targetInfo * targets, float startx, float startz, int starttype, struct tank * tanklist,
-		struct tree * treelist, int mainCounter, int firingDelay, struct monsterInfo * G)
-    {
-    float amount,amount2;
-    float heroScale;
-    int attempts;
-    int type,  side;
-    int blocked;
-    int howManyOfEach;
-    float minX, minZ, maxX, maxZ;
-    float ttankx, ttankz;
-    float spawnCenterX, spawnCenterZ;
-    struct targetInfo * temptarget;
-    char newtype;
-    int targetCount, targetPick;
-
-    struct targetInfo * nearestTarget;
-    float radToNearestTarget;
-    struct monsterInfo * nearestMonster;
-    float centerX, centerZ;
-    float rad;
-
-    struct tank * temptank,  *ttank;
-    struct tree * temptree;
-
-    /*********************************/
-    /* decide on type of vehicle     */
-    /*********************************/
-
-/* disable the adding of vehicles in networked games */
-
-if (netUp || client)
-    return;
-
-
-if ((starttype != -1) && (netUp || client))
-    return;
-
-    type = rand() % 100;
-
-if (netUp)
-    {
-    if (type > 50)
-	newtype = MASERTANK;
-    }
-else
-    {
-    if ((type < 28) && (mainCounter  > 750))
-	newtype = MASERTANK;
-    else if ((type >= 28) && (type < 45))
-	newtype	= HELO;
-    else if ((type >= 45) && (type < 60))
-	newtype	= LAUNCHER;
-    else if ((type >= 60) && (type < 65) && (mainCounter  > 1000))
-	newtype	= AIRPLANE;
-    else if ((type >= 65) && (type < 70) && (mainCounter  > 750))
-	newtype	= FIGHTER;
-    else if ((type >= 90) && (type < 92) && (mainCounter  > 3000))
-	newtype	= HERO;
-    else if ((type >= 92) && (type < 97) && (mainCounter  > 2000))
-	newtype	= CHH;
-    else if ((type >= 97) && (mainCounter  > 1250))
-	newtype	= MECHAG;
-    else
-	newtype = TANK;
-    }
-
-if ((!netUp) || (newtype == MASERTANK))
-{
-    /***************************************************************/
-    /* ensure max of 1 bomber, 2 mechagoogelons, 2 heros on screen */
-    /***************************************************************/
-
-    howManyOfEach = 0;
-
-    if ((newtype == AIRPLANE) || (newtype == FIGHTER) || (newtype == MECHAG) || (newtype == HERO))
-	{
-	for(ttank = tanklist->next; ttank != NULL; ttank = ttank->next)
-	    if (ttank->type == newtype)
-		howManyOfEach += 1;
-
-	if ((((newtype == AIRPLANE) || (newtype == FIGHTER))  && (howManyOfEach >= 1))
-	|| ((newtype != AIRPLANE) && (newtype != FIGHTER) && (howManyOfEach >= 2)))
-	    newtype = TANK;
-	}
-
-    /************************************/
-    /* choose where vehicle will appear */
-    /************************************/
-
-    targetCount = 1;
-    for(temptarget = targets->next;temptarget != NULL;temptarget = temptarget->next)
-	targetCount += 1;
-
-    blocked = 1;
-    attempts = 0;
-
-    temptank = (struct tank *) amalloc(sizeTank, arena);
-
-    if (temptank != NULL)
-	{
-	memset(temptank, 0, sizeTank);
-	temptank->type = newtype;
-	temptank->speed = TANKV;
-	temptank->damage = 1;
-	temptank->y = legacyTankSpawnY(newtype);
-	if (starttype != -1)
-	    {
-	    temptank->type = (char)starttype;
-	    temptank->x = startx;
-	    temptank->z = startz;
-	    temptank->y = legacyTankSpawnY(starttype);
-	    temptank->theta = 0.0f;
-	    temptank->rad = 0.0f;
-	    blocked = 0;
-	    }
-	while ((blocked) && (attempts < 1000))
-	    {
-	    attempts += 1;
-	    targetPick = rand() % targetCount;
-	    spawnCenterX = G->x;
-	    spawnCenterZ = G->z;
-	    temptarget = targets->next;
-	    while ((targetPick > 0) && (temptarget != NULL))
-		{
-		spawnCenterX = temptarget->x;
-		spawnCenterZ = temptarget->z;
-		temptarget = temptarget->next;
-		targetPick -= 1;
-		}
-	    minX = spawnCenterX - (PLANESIZE + 1);
-	    maxX = spawnCenterX + (PLANESIZE + 1);
-	    minZ = spawnCenterZ - (PLANESIZE + 1);
-	    maxZ = spawnCenterZ + (PLANESIZE + 1);
-	    side = rand() % 4;
-	    amount = minX + (maxX - minX) *
-		(float)(rand() % 1001) / 1000.0f;
-	    amount2 = minZ + (maxZ - minZ) *
-		(float)(rand() % 1001) / 1000.0f;
-
-	    switch(side)
-		{
-		case 0: temptank->x = amount;
-			temptank->z = minZ;
-			break;
-
-		case 1: temptank->z = amount2;
-			temptank->x = minX;
-			break;
-
-		case 2: temptank->x = amount;
-			temptank->z = maxZ;
-			break;
-
-		case 3: temptank->z = amount2;
-			temptank->x = maxX;
-			break;
-		}
-
-	    if (newtype == HERO)
-		{
-		heroScale = 2.0f + randy(0.5f);
-		temptank->x = spawnCenterX +
-		    (temptank->x - spawnCenterX) / heroScale;
-		temptank->z = spawnCenterZ +
-		    (temptank->z - spawnCenterZ) / heroScale;
-		}
-
-	    /***********************/
-	    /* check for obstacles */
-	    /***********************/
-
-	    ttankx = temptank->x;
-	    ttankz = temptank->z;
-
-	    /************************************************/
-	    /* need to compute radius to the nearest target */
-	    /************************************************/
-
-	    nearestTarget = NULL;
-	    nearestMonster = G;
-	    centerX = G->x;
-	    centerZ = G->z;
-	    radToNearestTarget = sqrt(
-		(ttankx - G->x) * (ttankx - G->x) +
-		(ttankz - G->z) * (ttankz - G->z));
-
-	    for(temptarget = targets->next; temptarget != NULL; temptarget = temptarget->next)
-		{
-		rad = sqrt((ttankx - temptarget->x) * (ttankx - temptarget->x) + (ttankz - temptarget->z) * (ttankz - temptarget->z));
-		if (rad < radToNearestTarget)
-		    {
-		    radToNearestTarget  = rad;
-		    nearestTarget	= temptarget;
-		    nearestMonster	= &(nearestTarget->monster);
-		    centerX		= nearestTarget->x;
-		    centerZ		= nearestTarget->z;
-		    }
-		}
-
-	    temptank->rad = radToNearestTarget;
-	    temptank->goforit = nearestMonster;
-
-	    temptank->theta = computeAngle(ttankz, centerZ, ttankx, centerX);
-
-	    blocked = checkForBlock(temptank, temptank->rad, temptank->theta, temptank->y);
-
-	    if (radToNearestTarget > 2 * PLANESIZE)
-		blocked = 1;
-	}
-
-	temptank->goforit = NULL;
-
-
-	/**************************************/
-	/* set up specific vehicle attributes */
-	/**************************************/
-
-	if (blocked)
-	    {
-	    showError("Nowhere to put a new vehicle");
-	    afree(temptank, arena);
-	    }
-	else
-	    {
-	    temptank->finalR = (rand() % 1000) * 0.002 + 1.0;
-	    temptank->type = newtype;
-
-	    if (starttype != -1)
-		{
-		temptank->type = (char) starttype;
-		temptank->x = startx;
-		temptank->z = startz;
-		}
-
-	    temptank->count = firingDelay;
-	    temptank->maserCount = 0;
-	    temptank->walking = 0;
-
-	    temptank->number = currentTankNumber++;
-
-	    temptank->subtype = (char) (rand() % 2);
-
-	    switch (temptank->type)
-		{
-		case TANK:	    temptank->range	= 6;
-				    temptank->damage	= 1;
-				    temptank->minrange	= 0.5;
-				    temptank->speed	= TANKV;
-				    break;
-
-		case LAUNCHER:	    temptank->range	= 4;
-				    temptank->damage	= 1;
-				    temptank->minrange	= 0.5;
-				    temptank->speed	= 0.8 * TANKV;
-				    temptank->count	= firingDelay/3;
-				    break;
-
-		case MASERTANK:	    temptank->range	= 3;
-				    temptank->damage	= 1;
-				    temptank->minrange	= 0.5;
-				    temptank->speed	= 1.2 * TANKV;
-				    break;
-
-		case HELO:	    temptank->range	= 4;
-				    temptank->y		= PLANEY + 1.0 + randy(0.2);
-				    temptank->damage	= 1;
-				    temptank->minrange	= 0.5;
-				    temptank->speed	= 1.5 * TANKV;
-				    break;
-
-		case MECHAG:	    temptank->range	= 4.5;
-				    temptank->y		= PLANEY +0.4;
-				    temptank->damage	= 50;
-				    temptank->minrange	= 0.5;
-				    temptank->speed	= TANKV;
-				    break;
-
-		case CHH:	    temptank->range	= 4.5;
-				    temptank->y		= PLANEY + 1.0 + randy(0.2);
-				    temptank->damage	= 20;
-				    temptank->minrange	= 0.5;
-				    temptank->speed	= 1.2 * TANKV;
-				    break;
-
-		case HERO:	    temptank->range	= 4;
-				    temptank->y		= PLANEY +0.58;
-				    temptank->damage	= 100;
-				    temptank->minrange	= 0.5;
-				    temptank->speed	= TANKV;
-
-				    temptree = (struct tree *) amalloc(sizeof(struct tree), arena);
-				    if (temptree != NULL)
-					{
-					temptree->x		= temptank->x;
-					temptree->z		= temptank->z;
-					temptree->type		= 1;
-					temptree->treeshape	= 33;
-					temptree->y		= PLANEY;
-					temptree->deathCount	= 0;
-					temptree->death2	= -1;
-					temptree->intact	= 1;
-					temptree->height	= buildingHeight(temptree->type, temptree->treeshape);
-
-					temptree->next		= treelist->next;
-					treelist->next		= temptree;
-					}
-				    break;
-
-		case AIRPLANE:	    temptank->range	= 1.5;
-				    temptank->y		= PLANEY +2.5 + randy(0.25);
-				    temptank->damage	= 1;
-				    temptank->minrange	= 0.0;
-				    temptank->speed	= 4 * TANKV;
-				    temptank->finalR	= -1;
-				    break;
-
-		case FIGHTER:	    temptank->range	= 5;
-				    temptank->y		= PLANEY + 2.0 + randy(0.2);
-				    temptank->damage	= 1;
-				    temptank->minrange	= 4.5;
-				    temptank->speed	= 6 * TANKV;
-				    temptank->finalR	= -1;
-				    temptank->count = 0;
-				    break;
-
-		default:	showError("Bogus Vehicle Type! (addNewTank)");
-				break;
-		}
-
-	    temptank->next = tanklist->next;
-	    tanklist->next = temptank;
-	    }
-	}
-}
-    }
 
 static int addConfiguredEntity(
     const struct EntityArchetype *archetype,
@@ -3052,7 +2250,7 @@ static const struct EntityArchetype *selectSpawnArchetype(
                  archetype->maxActive))
             totalWeight += archetype->spawnWeight;
         }
-    if (totalWeight == 0 || rand() % (totalWeight + 100) >= totalWeight)
+    if (totalWeight == 0)
         return NULL;
     selected = rand() % totalWeight;
     for (index = 0; index < gameEntities.count; index++)
@@ -3175,14 +2373,14 @@ void updateBooms(struct boom * allBooms, struct tank * tanklist)
 	/* make some noise     */
 	/***********************/
 
-	if ((bboom->count == 2))
+	if (bboom->damaging && (bboom->count == 2))
 	    doSoundAt(EXPLOSION, bboom->x, bboom->y, bboom->z);
 
 	/**********************************/
 	/* check for another tank hit     */
 	/**********************************/
 
-	if ((bboom->count == 4))
+	if (bboom->damaging && (bboom->count == 4))
 	    {
 	    for(temptank = tanklist; temptank->next != NULL; temptank = temptank->next)
 		if (tankHit(temptank->next, bboom->x, bboom->y, bboom->z))
@@ -3318,7 +2516,7 @@ void setPlayConditions()
 	    afree(killer, arena);
 	    }
 
-    temptank = slaglist;
+    temptank = wrecklist;
     while(temptank != NULL)
 	    {
 	    ttank = temptank;
@@ -3350,12 +2548,12 @@ void setPlayConditions()
     projectFlight = (struct projectile *) acalloc(1, sizeProjectile, arena);
     projectboom = (struct boom *) acalloc(1, sizeBoom, arena);
     tanklist = (struct tank *) acalloc(1, sizeTank, arena);
-    slaglist = (struct tank *) acalloc(1, sizeTank, arena);
+    wrecklist = (struct tank *) acalloc(1, sizeTank, arena);
     treelist = (struct tree *) acalloc(1, sizeof(struct tree), arena);
     targets = (struct targetInfo *) acalloc(
 	1, sizeof(struct targetInfo), arena);
     if (projectFlight == NULL || projectboom == NULL || tanklist == NULL ||
-	slaglist == NULL || treelist == NULL || targets == NULL)
+	wrecklist == NULL || treelist == NULL || targets == NULL)
 	{
 	showError("Out of memory initializing gameplay lists");
 	exit(1);
@@ -3390,11 +2588,6 @@ void setPlayConditions()
 		temptree->intact	    = 1;
 		temptree->height	    = buildingHeight(temptree->type, temptree->treeshape);
 		temptree->number	    = treeID++;
-
-		if ((type == 1) && (shape == 31))
-		    addNewTank(targets, x, z, 1, tanklist, treelist, mainCounter, firingDelay, &Googelon);
-		if ((type == 1) && (shape == 32))
-		    addNewTank(targets, x, z, 2, tanklist, treelist, mainCounter, firingDelay, &Googelon);
 
 		if ((type == 3) && (shape == 13))
 		    {
@@ -3438,19 +2631,6 @@ void setPlayConditions()
 
     if (!netUp && !client)
 	{
-	    mapRecord = 0;
-	    for (;;)
-		{
-		if (mapRecord >= battlefieldMap.unitCount)
-		    break;
-		x = battlefieldMap.units[mapRecord].x;
-		z = battlefieldMap.units[mapRecord].z;
-		type = battlefieldMap.units[mapRecord].type;
-		mapRecord++;
-		addNewTank(targets, x, z, type, tanklist, treelist,
-			   mainCounter, firingDelay, &Googelon);
-		}
-
 	for (mapRecord = 0; mapRecord < battlefieldMap.actorCount;
 	     mapRecord++)
 	    if (!addMapActor(&battlefieldMap.actors[mapRecord], tanklist))
@@ -3736,7 +2916,7 @@ void initialization()
     projectFlight   = NULL;
     projectboom	    = NULL;
     tanklist	    = NULL;
-    slaglist	    = NULL;
+    wrecklist	    = NULL;
     treelist	    = NULL;
 
     roadSystem	    = NULL;
@@ -3749,6 +2929,8 @@ void initialization()
 
     beg = time(NULL);
     theTime = localtime(&beg);
+    worldEnvironmentSetHour(&worldEnvironment,
+        (float)theTime->tm_hour + (float)theTime->tm_min / 60.0f);
 
     /*************************************/
     /* if its xmas use the xmas graphics */
@@ -4194,6 +3376,7 @@ static int commandKeyIndex(int key)
 	case TK_P: return 4;
 	case TK_v:
 	case TK_V: return 5;
+	case TK_F5: return 6;
 	default: return -1;
 	}
     }
@@ -4373,6 +3556,15 @@ GLenum processKey(int key, GLenum mask)
 
 	case TK_F4:	    toggleMusic();
 			    timeMusic = now;
+			    break;
+
+	case TK_F5:	    shadowsEnabled = !shadowsEnabled;
+			    break;
+
+	case '[':	    worldEnvironmentAdvance(&worldEnvironment, -1.0f);
+			    break;
+
+	case ']':	    worldEnvironmentAdvance(&worldEnvironment, 1.0f);
 			    break;
 
 	case TK_F3:	    toggleSound();
@@ -4931,6 +4123,8 @@ void doUpdate()
     float nextX, nextZ;
     int blocked;
 
+    worldEnvironmentAdvance(&worldEnvironment, 0.0025f);
+
     if (playerWeaponReloadRemaining > 0)
 	playerWeaponReloadRemaining -= 1;
 
@@ -4957,22 +4151,6 @@ void doUpdate()
 	    soundKiller(MUSIC);
 	}
 
-    /*************************************************/
-    /* add another monster if the time is right      */
-    /*************************************************/
-
-    if ((!netUp) && (!client) && (!alone))
-	{
-	if (mode == DEMOMODE)
-	    {
-	    if ((mainCounter > 500) && ((mainCounter % 4000) ==  1500))
-		addRandomCatalogEntity();
-	    }
-	else
-	    if ((mainCounter > 1000) && ((mainCounter % 9000) ==  8000))
-		addRandomCatalogEntity();
-	}
-
     /*********************/
     /* add a new vehicle */
     /*********************/
@@ -4981,8 +4159,7 @@ void doUpdate()
 	{
 	if (((mainCounter % arrivalTime) == 0) && !Googelon.monsterIsDead)
 	    {
-		    addNewTank(targets, 0, 0, -1, tanklist, treelist,
-		               mainCounter, firingDelay, &Googelon);
+		    addRandomCatalogEntity();
 
 	    if ((mode == DEMOMODE) && !(rand() % 4) && (Googelon.moveCount >= 150))
 		view = (view + 1) % 3;
@@ -5116,16 +4293,16 @@ void doUpdate()
 
      if (tanklist->next != NULL)
 	updateTanks(tanklist, Googelon.width, Googelon.height, Googelon.bottom,
-	    Googelon.monsterIsDead, Googelon.monster, slaglist, accuracy,
+	    Googelon.monsterIsDead, Googelon.monster, wrecklist, accuracy,
 	    firingDelay, mainCounter, &Googelon, targets);
 
 
     /****************************/
-    /* update the slagging tank */
+    /* update burning wreck fragments */
     /****************************/
 
-    if (slaglist->next != NULL)
-	updateSlagTanks(slaglist);
+    if (wrecklist->next != NULL)
+	updateWrecks(wrecklist);
 
 
     /**************************/
@@ -5572,10 +4749,27 @@ void drawAMonster(float x, struct monsterInfo monster, float z,
     float aimPitch;
     float aimYaw;
     float bodyHeading;
+    float shadowBottom;
+    float shadowHeight;
+    float shadowRadius;
 
     if ((fabs(x - Googelon.x) <= PLANESIZE) &&
 	(fabs(z - Googelon.z) <= PLANESIZE))
 	{
+	shadowBottom = monster.bottom;
+	shadowHeight = monster.height - monster.bottom;
+	shadowRadius = monster.width;
+	networkArchetype = monsterArchetype(&monster);
+	if (networkArchetype != NULL)
+	    {
+	    shadowBottom = PLANEY + networkArchetype->verticalOffset;
+	    shadowHeight = networkArchetype->collisionHeight;
+	    shadowRadius = networkArchetype->collisionRadius;
+	    }
+	if (!monster.monsterIsDead)
+	    drawEnvironmentShadow(x, z, shadowBottom,
+	                          shadowRadius, shadowHeight,
+	                          &worldEnvironment);
 	glPushMatrix();
 	    glTranslatef(x,  0,  z);
 	    switch(monster.monster){
@@ -5609,7 +4803,7 @@ void drawAMonster(float x, struct monsterInfo monster, float z,
 				    drawConfiguredPlayerEntity(
 				        networkArchetype, monster.monsterMoving,
 				        monster.monsterBack, monster.beamOn, mainCounter,
-				        monster.energyRemaining <= 0, 0.0f, 0.0f);
+				        0.0f, 0.0f);
 				    }
 				break;
 
@@ -5670,7 +4864,6 @@ void drawAMonster(float x, struct monsterInfo monster, float z,
 				drawConfiguredPlayerEntity(
 				    networkArchetype, monster.monsterMoving,
 				    monster.monsterBack, monster.beamOn, mainCounter,
-				    monster.energyRemaining <= 0,
 				    aimYaw, aimPitch);
 				break;
 	    }
@@ -5736,6 +4929,8 @@ void doDrawing (int eyeball)
     else /*view == OMNISCIENTVIEW */
 	goToOverView(eyeball);
 
+    drawEnvironmentSky(&worldEnvironment);
+
     /***********************************/
     /* rotate and draw the battlefield */
     /***********************************/
@@ -5766,12 +4961,11 @@ void doDrawing (int eyeball)
     glTranslatef(-Googelon.x, 0, -Googelon.z);
 
     /**********************************/
-    /* draw the slagging vehicles     */
+    /* draw burning wreck fragments   */
     /**********************************/
 
-    if (slaglist->next != NULL)
-	drawSlagTanks(slaglist, mainCounter, lod,
-	              Googelon.x, Googelon.z);
+    if (wrecklist->next != NULL)
+	drawWrecks(wrecklist, Googelon.x, Googelon.z);
 
 
     /******************************************************/
@@ -6360,6 +5554,10 @@ static void doDisplay(void)
     int eye;
     struct CameraViewport stereoViewport;
 
+    glClearColor(worldEnvironment.skyHorizon[0],
+                 worldEnvironment.skyHorizon[1],
+                 worldEnvironment.skyHorizon[2], 1.0f);
+
     /**********************************/
     /* draw everything                */
     /**********************************/
@@ -6645,9 +5843,9 @@ void showCommands(char * progName)
     fprintf (stderr, "\n\n");
 
 #ifdef SOLARIS
-    fprintf (stderr, "Usage: %s [-a] [-b] [-d level] [-m] [-s] [--map name] [--stereo mode] [--no-audio-smoothing] [-help]\n", progName);
+    fprintf (stderr, "Usage: %s [-a] [-b] [-d level] [-m] [-s] [--map name] [--stereo mode] [--no-audio-smoothing] [--no-shadows] [-help]\n", progName);
 #else
-    fprintf (stderr, "Usage: %s [-a] [-b] [-d level] [-m] [-s] [--map name] [--stereo mode] [--no-audio-smoothing] [-c] [-h #] [-n] [-p #] [-help]\n", progName);
+    fprintf (stderr, "Usage: %s [-a] [-b] [-d level] [-m] [-s] [--map name] [--stereo mode] [--no-audio-smoothing] [--no-shadows] [-c] [-h #] [-n] [-p #] [-help]\n", progName);
 #endif
 
     fprintf (stderr, "  -a)lone        fight alone\n");
@@ -6662,6 +5860,9 @@ void showCommands(char * progName)
     fprintf (stderr, "                  V cycles stereo mode while running\n");
     fprintf (stderr, "  --no-audio-smoothing  disable spatial audio interpolation\n");
     fprintf (stderr, "  --audio-smoothing     enable spatial audio interpolation\n");
+    fprintf (stderr, "  --no-shadows          disable dynamic projected shadows\n");
+    fprintf (stderr, "  --shadows             enable dynamic projected shadows\n");
+    fprintf (stderr, "  F5 toggles shadows; [ and ] change time of day\n");
     fprintf (stderr, "  -help          show this list of command line options\n\n");
 
     battalionMapPrintAvailable(dataPath, stderr);
@@ -6791,6 +5992,12 @@ main (int argc, char*argv[])
 
     frames = 0;
 
+#if defined(SGIVERSION) || defined(SUNVERSION) || defined(SOLARIS)
+    shadowsEnabled = 0;
+#else
+    shadowsEnabled = 1;
+#endif
+
     preparseMapArguments(argc, argv);
     initialization();
     if (!selectRequestedPlayerEntity())
@@ -6854,6 +6061,12 @@ main (int argc, char*argv[])
 
 	else if (strcmp(argv[argument], "--audio-smoothing") == 0)
 	    audioSetSmoothingEnabled(1);
+
+	else if (strcmp(argv[argument], "--no-shadows") == 0)
+	    shadowsEnabled = 0;
+
+	else if (strcmp(argv[argument], "--shadows") == 0)
+	    shadowsEnabled = 1;
 
 	else if ((strcmp(argv[argument], "-detail") == 0) ||
 		 (strcmp(argv[argument], "-d") == 0))

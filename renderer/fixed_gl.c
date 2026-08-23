@@ -1,3 +1,6 @@
+/*
+ * Copyright (c) 2026 Battalion contributors.
+ */
 #include "fixed_gl.h"
 #include "backend.h"
 
@@ -26,6 +29,7 @@ typedef struct FixedState {
     float lineWidth;
     float pointSize;
     int viewport[4];
+    int scissor[4];
     GLenum shadeModel;
     GLenum polygonMode;
     GLuint listBase;
@@ -41,6 +45,7 @@ typedef struct FixedState {
     int fog;
     int lighting;
     int alphaTest;
+    int scissorTest;
 } FixedState;
 
 enum CommandOp {
@@ -49,7 +54,7 @@ enum CommandOp {
     CMD_POP_MATRIX, CMD_TRANSLATE, CMD_ROTATE, CMD_SCALE, CMD_ORTHO,
     CMD_MULT_MATRIX,
     CMD_ENABLE, CMD_DISABLE, CMD_BLEND_FUNC, CMD_CULL_FACE, CMD_DEPTH_FUNC,
-    CMD_DEPTH_RANGE, CMD_SHADE_MODEL, CMD_POLYGON_MODE, CMD_LINE_WIDTH,
+    CMD_DEPTH_MASK, CMD_DEPTH_RANGE, CMD_SHADE_MODEL, CMD_POLYGON_MODE, CMD_LINE_WIDTH,
     CMD_POINT_SIZE, CMD_FOGI, CMD_HINT, CMD_PUSH_ATTRIB, CMD_POP_ATTRIB,
     CMD_CLEAR_COLOR, CMD_CLEAR_DEPTH, CMD_CLEAR, CMD_VIEWPORT, CMD_SCISSOR,
     CMD_CALL_LIST, CMD_LIST_BASE, CMD_BIND_TEXTURE, CMD_TEX_IMAGE, CMD_TEX_PARAMETER,
@@ -337,6 +342,8 @@ static void emitImmediate(void)
         matrixMultiply(drawState.mvp, projection.value[projection.top],
                        modelview.value[modelview.top]);
         memcpy(drawState.viewport, state.viewport, sizeof(state.viewport));
+        memcpy(drawState.scissor, state.scissor, sizeof(state.scissor));
+        drawState.scissorEnabled = state.scissorTest;
         drawState.texture = state.texture;
         drawState.textureEnabled = state.textureEnabled;
         drawState.textureLinear = state.textureLinear;
@@ -540,6 +547,7 @@ static void setCapability(GLenum capability, int enabled)
       case GL_FOG: state.fog = enabled; break;
       case GL_LIGHTING: state.lighting = enabled; break;
       case GL_ALPHA_TEST: state.alphaTest = enabled; break;
+      case GL_SCISSOR_TEST: state.scissorTest = enabled; break;
       default: break;
     }
 }
@@ -568,6 +576,7 @@ GLboolean glIsEnabled(GLenum capability)
       case GL_FOG: return (GLboolean)state.fog;
       case GL_LIGHTING: return (GLboolean)state.lighting;
       case GL_ALPHA_TEST: return (GLboolean)state.alphaTest;
+      case GL_SCISSOR_TEST: return (GLboolean)state.scissorTest;
       default: return GL_FALSE;
     }
 }
@@ -581,6 +590,16 @@ void glBlendFunc(GLenum source, GLenum destination)
 }
 void glCullFace(GLenum mode) { if (isRecording()) RECORD_ENUM1(CMD_CULL_FACE, mode); }
 void glDepthFunc(GLenum function) { if (isRecording()) RECORD_ENUM1(CMD_DEPTH_FUNC, function); }
+void glDepthMask(GLboolean enabled)
+{
+    Command *c;
+    if (isRecording()) {
+        c=appendCommand(CMD_DEPTH_MASK);
+        c->i[0]=(GLint)enabled;
+        return;
+    }
+    state.depthWrite=enabled != GL_FALSE;
+}
 void glDepthRange(GLclampd nearValue, GLclampd farValue)
 {
     Command *c; if (isRecording()) { c=appendCommand(CMD_DEPTH_RANGE); c->f[0]=(float)nearValue; c->f[1]=(float)farValue; }
@@ -643,7 +662,15 @@ void glViewport(GLint x, GLint y, GLsizei width, GLsizei height)
 }
 void glScissor(GLint x, GLint y, GLsizei width, GLsizei height)
 {
-    Command *c; if (isRecording()) { c=appendCommand(CMD_SCISSOR); c->i[0]=x;c->i[1]=y;c->i[2]=width;c->i[3]=height; }
+    Command *c;
+    if (isRecording())
+        {
+        c=appendCommand(CMD_SCISSOR);
+        c->i[0]=x;c->i[1]=y;c->i[2]=width;c->i[3]=height;
+        return;
+        }
+    state.scissor[0]=x;state.scissor[1]=y;
+    state.scissor[2]=width;state.scissor[3]=height;
 }
 void glGetIntegerv(GLenum name, GLint *value)
 {
@@ -710,6 +737,7 @@ static void executeCommand(Command *c)
       case CMD_BLEND_FUNC: glBlendFunc((GLenum)c->i[0],(GLenum)c->i[1]); break;
       case CMD_CULL_FACE: glCullFace((GLenum)c->i[0]); break;
       case CMD_DEPTH_FUNC: glDepthFunc((GLenum)c->i[0]); break;
+      case CMD_DEPTH_MASK: glDepthMask((GLboolean)c->i[0]); break;
       case CMD_DEPTH_RANGE: glDepthRange(c->f[0],c->f[1]); break;
       case CMD_SHADE_MODEL: glShadeModel((GLenum)c->i[0]); break;
       case CMD_POLYGON_MODE: glPolygonMode((GLenum)c->i[0],(GLenum)c->i[1]); break;

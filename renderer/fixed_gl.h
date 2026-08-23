@@ -1,3 +1,6 @@
+/*
+ * Copyright (c) 2026 Battalion contributors.
+ */
 #ifndef BATTALION_FIXED_GL_H
 #define BATTALION_FIXED_GL_H
 
@@ -57,6 +60,7 @@ typedef double GLclampd;
 #define GL_POINT_SMOOTH                  0x0b10
 #define GL_POLYGON_SMOOTH                0x0b41
 #define GL_POLYGON_STIPPLE               0x0b42
+#define GL_SCISSOR_TEST                  0x0c11
 #define GL_TEXTURE_2D                    0x0de1
 #define GL_TEXTURE_BINDING_2D            0x8069
 #define GL_COLOR_MATERIAL                0x0b57
@@ -133,6 +137,7 @@ GLboolean glIsEnabled(GLenum capability);
 void glBlendFunc(GLenum source, GLenum destination);
 void glCullFace(GLenum mode);
 void glDepthFunc(GLenum function);
+void glDepthMask(GLboolean enabled);
 void glDepthRange(GLclampd nearValue, GLclampd farValue);
 void glShadeModel(GLenum mode);
 void glPolygonMode(GLenum face, GLenum mode);

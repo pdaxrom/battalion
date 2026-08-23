@@ -1,14 +1,6 @@
-/****************************************************************/
-/* code copyright 1995-1996 Andrew Johnson - ALL RIGHTS RESERVED*/
-/*                          ajohnson@eecs.uic.edu               */
-/*                                                              */
-/*                      Electronic Visualization Lab (M/C 154)  */
-/*                      University of Illinois at Chicago       */
-/*                      851 South Morgan St. Room 1120 SEO      */
-/*                      Chicago, IL 60607-7053                  */
-/*                                                              */
-/*                      (312) 996-3002     (312) 413-7585 FAX   */
-/***********************************************************************/
+/*
+ * Copyright (c) 2026 Battalion contributors.
+ */
 /* Data-driven gameplay entity archetypes.                             */
 /***********************************************************************/
 
@@ -73,6 +65,9 @@
 #define ENTITY_TARGET_NEAREST 0
 #define ENTITY_TARGET_ALL 1
 
+#define ENTITY_TACTIC_STANDOFF 1
+#define ENTITY_TACTIC_FLYBY 2
+
 struct EntitySensor
     {
     char id[ENTITY_NAME_SIZE];
@@ -96,8 +91,6 @@ struct EntityArchetype
     char id[ENTITY_NAME_SIZE];
     char displayName[ENTITY_NAME_SIZE];
     char model[ENTITY_NAME_SIZE];
-    char destroyedModel[ENTITY_NAME_SIZE];
-    char shadowModel[ENTITY_NAME_SIZE];
     char idleAnimation[ENTITY_NAME_SIZE];
     char moveAnimation[ENTITY_NAME_SIZE];
     char backwardAnimation[ENTITY_NAME_SIZE];
@@ -120,6 +113,8 @@ struct EntityArchetype
     int collisionMode;
     int controlMode;
     int weapon;
+    int tactic;
+    int burstCount;
     int targetMode;
     int maxTargets;
     int health;
@@ -145,6 +140,7 @@ struct EntityArchetype
     float collisionHeight;
     float weaponRange;
     float weaponMinRange;
+    float tacticRadius;
     float projectileSpeed;
     float accuracy;
     float forgetRange;

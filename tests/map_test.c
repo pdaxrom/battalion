@@ -1,3 +1,6 @@
+/*
+ * Copyright (c) 2026 Battalion contributors.
+ */
 #include "map.h"
 #include "map_package.h"
 
@@ -16,7 +19,6 @@ static int samePackage(const struct BattalionMapPackage *left,
         strcmp(left->name, right->name) != 0 ||
         left->roadCount != right->roadCount ||
         left->structureCount != right->structureCount ||
-        left->unitCount != right->unitCount ||
         left->actorCount != right->actorCount)
         return 0;
     for (index = 0; index < left->roadCount; index++)
@@ -29,11 +31,6 @@ static int samePackage(const struct BattalionMapPackage *left,
             left->structures[index].z != right->structures[index].z ||
             left->structures[index].type != right->structures[index].type ||
             left->structures[index].shape != right->structures[index].shape)
-            return 0;
-    for (index = 0; index < left->unitCount; index++)
-        if (left->units[index].x != right->units[index].x ||
-            left->units[index].z != right->units[index].z ||
-            left->units[index].type != right->units[index].type)
             return 0;
     for (index = 0; index < left->actorCount; index++)
         {
@@ -195,6 +192,32 @@ static int checkPath(const char *selector, const char *expectedPath,
     return 1;
     }
 
+static int checkLegacyUnitsRejected(void)
+    {
+    const char *path;
+    struct BattalionMapPackage map;
+    char error[160];
+    FILE *file;
+    int accepted;
+
+    path = "build/tests/map-legacy-units.json";
+    file = fopen(path, "wb");
+    if (file == NULL)
+        return 0;
+    fputs("{\"format\":\"battalion-map\",\"version\":2,"
+          "\"id\":\"legacy\",\"name\":\"legacy\","
+          "\"roads\":[],\"structures\":[],"
+          "\"units\":[{\"x\":0,\"z\":0,\"type\":0}],"
+          "\"actors\":[]}", file);
+    fclose(file);
+    battalionMapPackageInit(&map);
+    accepted = battalionMapPackageLoad(path, &map, error, sizeof(error));
+    battalionMapPackageFree(&map);
+    if (accepted)
+        fprintf(stderr, "legacy units array was silently accepted\n");
+    return !accepted;
+    }
+
 int main(void)
     {
     char error[160];
@@ -242,6 +265,8 @@ int main(void)
         !checkPackage("1") || !checkPackage("2"))
         return 1;
     if (!checkActors())
+        return 1;
+    if (!checkLegacyUnitsRejected())
         return 1;
     return 0;
     }

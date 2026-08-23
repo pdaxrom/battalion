@@ -19,10 +19,10 @@ assets/
   fonts/             external stroke-font glyphs and metrics
   maps/              versioned JSON battlefield packages
   models/            Khronos glTF 2.0 binary models and animation clips
-    vehicles/        tanks, aircraft, and vehicle shadows
+    vehicles/        tanks and aircraft
     monsters/        monsters, Heroes, and Mecha
     buildings/       structures and structure animations
-    terrain/         trees, water, hills, ground, and replaceable road tiles
+    terrain/         trees, water, hills, ground, grid, and road tiles
       roads/         textured road surfaces and their lane markers
     effects/         projectiles, explosions, fire, and generic effects
     ui/              title geometry

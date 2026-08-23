@@ -1,6 +1,7 @@
 # A generic guard/patrol tank. Maps provide instances and patrol paths.
 battalion-entity 1
 id tank-standard
+display-name Standard Tank
 kind vehicle
 controllable yes
 control-mode steered
@@ -10,8 +11,6 @@ animation-speed 0.05
 aim-yaw-node turret
 aim-pitch-node barrel
 muzzle-node muzzle
-destroyed-model tank-slag
-shadow-model tank-shadow
 faction army
 hostile-faction monster
 movement ground
@@ -44,7 +43,7 @@ on-enter noise investigate base-alarm
 on-enter damaged attack base-alarm
 on-trigger base-alarm activate none
 on-trigger base-alarm attack none
-spawn-weight 0
+spawn-weight 20
 spawn-after 0
 max-active 0
 player-energy 50

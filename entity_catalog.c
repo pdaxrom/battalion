@@ -1,14 +1,6 @@
-/****************************************************************/
-/* code copyright 1995-1996 Andrew Johnson - ALL RIGHTS RESERVED*/
-/*                          ajohnson@eecs.uic.edu               */
-/*                                                              */
-/*                      Electronic Visualization Lab (M/C 154)  */
-/*                      University of Illinois at Chicago       */
-/*                      851 South Morgan St. Room 1120 SEO      */
-/*                      Chicago, IL 60607-7053                  */
-/*                                                              */
-/*                      (312) 996-3002     (312) 413-7585 FAX   */
-/***********************************************************************/
+/*
+ * Copyright (c) 2026 Battalion contributors.
+ */
 /* Data-driven gameplay entity archetypes.                             */
 /***********************************************************************/
 
@@ -184,6 +176,15 @@ static int weaponValue(const char *text)
     return -1;
     }
 
+static int tacticValue(const char *text)
+    {
+    if (strcmp(text, "standoff") == 0)
+        return ENTITY_TACTIC_STANDOFF;
+    if (strcmp(text, "flyby") == 0)
+        return ENTITY_TACTIC_FLYBY;
+    return 0;
+    }
+
 static int reactionValue(const char *text)
     {
     if (strcmp(text, "observe") == 0)
@@ -234,6 +235,8 @@ static void initializeArchetype(struct EntityArchetype *entry)
     entry->collisionMode = ENTITY_COLLISION_SOLID;
     entry->controlMode = ENTITY_CONTROL_FREE;
     entry->weapon = ENTITY_WEAPON_NONE;
+    entry->tactic = ENTITY_TACTIC_STANDOFF;
+    entry->burstCount = 1;
     entry->networkCode = -1;
     strcpy(entry->weaponColor, "blue");
     entry->targetMode = ENTITY_TARGET_NEAREST;
@@ -254,6 +257,7 @@ static void initializeArchetype(struct EntityArchetype *entry)
     entry->collisionHeight = 0.3f;
     entry->weaponRange = 6.0f;
     entry->weaponMinRange = 0.5f;
+    entry->tacticRadius = 20.0f;
     entry->projectileSpeed = 0.08f;
     entry->accuracy = 10.0f;
     entry->forgetRange = 12.0f;
@@ -406,12 +410,6 @@ static int assignDirective(struct EntityArchetype *entry,
         *hasModel = 1;
         return 1;
         }
-    if (strcmp(directive, "destroyed-model") == 0)
-        return entry->destroyedModel[0] == '\0' &&
-               copyName(entry->destroyedModel, value);
-    if (strcmp(directive, "shadow-model") == 0)
-        return entry->shadowModel[0] == '\0' &&
-               copyName(entry->shadowModel, value);
     if (strcmp(directive, "idle-animation") == 0)
         return entry->idleAnimation[0] == '\0' &&
                copyName(entry->idleAnimation, value);
@@ -489,6 +487,16 @@ static int assignDirective(struct EntityArchetype *entry,
         entry->weapon = parsed;
         return 1;
         }
+    if (strcmp(directive, "tactic") == 0)
+        {
+        parsed = tacticValue(value);
+        if (parsed == 0)
+            return 0;
+        entry->tactic = parsed;
+        return 1;
+        }
+    if (strcmp(directive, "burst-count") == 0)
+        return parseInteger(value, &entry->burstCount);
     if (strcmp(directive, "weapon-color") == 0)
         return copyName(entry->weaponColor, value);
     if (strcmp(directive, "target-mode") == 0)
@@ -560,6 +568,8 @@ static int assignDirective(struct EntityArchetype *entry,
         return parseFloat(value, &entry->weaponRange);
     if (strcmp(directive, "weapon-min-range") == 0)
         return parseFloat(value, &entry->weaponMinRange);
+    if (strcmp(directive, "tactic-radius") == 0)
+        return parseFloat(value, &entry->tacticRadius);
     if (strcmp(directive, "projectile-speed") == 0)
         return parseFloat(value, &entry->projectileSpeed);
     if (strcmp(directive, "accuracy") == 0)
@@ -669,6 +679,7 @@ static int validArchetype(const struct EntityArchetype *entry,
     if (entry->maxTargets < 1 ||
         entry->maxTargets > ENTITY_MAX_HOSTILE_FACTIONS ||
         entry->health < 1 || entry->score < 0 || entry->fireInterval < 1 ||
+        entry->burstCount < 1 || entry->burstCount > 32 ||
         entry->lostFrames < 0 || entry->spawnWeight < 0 ||
         entry->spawnAfter < 0 || entry->maxActive < 0 ||
         entry->scale <= 0.0f ||
@@ -680,6 +691,7 @@ static int validArchetype(const struct EntityArchetype *entry,
         entry->collisionHeight <= 0.0f || entry->weaponRange < 0.0f ||
         entry->weaponMinRange < 0.0f ||
         entry->weaponMinRange > entry->weaponRange ||
+        entry->tacticRadius < 0.0f ||
         entry->projectileSpeed <= 0.0f || entry->accuracy < 0.0f ||
         entry->forgetRange < 0.0f || entry->animationSpeed <= 0.0f ||
         (entry->controllable &&

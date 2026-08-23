@@ -1,3 +1,6 @@
+/*
+ * Copyright (c) 2026 Battalion contributors.
+ */
 #include "audio_catalog.h"
 
 #include <dirent.h>
@@ -74,8 +77,9 @@ int main(void)
         return 1;
         }
     entry = audioCatalogFind(&catalog, "beam", "pcm");
-    if (catalog.count != 20 || entry == NULL || entry->slot != 0 ||
+    if (catalog.count != 19 || entry == NULL || entry->slot != 0 ||
         strcmp(entry->path, "sounds/beam.wav") != 0 ||
+        audioCatalogFind(&catalog, "slag", "pcm") != NULL ||
         audioCatalogFind(&catalog, "music-5", "pcm") == NULL ||
         audioCatalogFind(&catalog, "monster-beam", "pcm") == NULL ||
         audioCatalogFind(&catalog, "teleporter", "pcm") == NULL ||

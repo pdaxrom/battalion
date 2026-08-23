@@ -35,6 +35,8 @@
  * OpenGL(TM) is a trademark of Silicon Graphics, Inc.
  */
 
+/* Modifications copyright (c) 2026 Battalion contributors. */
+
 #include "tk.h"
 #include "stroke_font_asset.h"
 

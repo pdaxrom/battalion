@@ -53,14 +53,6 @@ value mecha-damage-body-upper 10
 value mecha-damage-body-front 5
 value mecha-damage-body 0
 
-value slag-ground-position -0.015
-value slag-ground-scale 1 0.015 -0.015
-value slag-maser-scale 0.15 0.002 -0.004
-value slag-air-roll 1.5
-value slag-air-pitch 4
-value slag-air-yaw 10
-value slag-air-facing 180
-value slag-chh-facing 0
 value helo-rotor-time-scale 0.025
 value airplane-propeller-time-scale 2
 value masertank-world-scale 0.15

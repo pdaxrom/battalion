@@ -9,6 +9,7 @@
 /*                                                              */
 /*                      (312) 996-3002     (312) 413-7585 FAX   */
 /***********************************************************************/
+/* Modifications copyright (c) 2026 Battalion contributors. */
 /* header file v 1.3                                                   */
 /***********************************************************************/
 
@@ -87,6 +88,7 @@
 #include "tk.h"
 #include "entity_behavior.h"
 #include "world_coordinates.h"
+#include "world_environment.h"
 
 
 #include <time.h>
@@ -214,7 +216,7 @@
 				    /* height of the battlefield */
 #define PLANEY		    -1
 				    /* PLANEY + 0.003 */
-#define SHADOWS		    -0.997
+#define GROUND_OVERLAY_Y    -0.997
 				    /* PLANEY + 0.001 */
 #define ROADS		    -0.999
 
@@ -250,7 +252,6 @@
 #define TANKMASER	    2
 #define EXPLOSION	    3
 #define MONSTERBEAM	    4
-#define SLAG		    5
 #define CRASH		    6
 #define TECHSHOOT	    7
 #define MUSIC		    8	
@@ -260,6 +261,9 @@
 #define MAXDEADMUSIC 5
 
 #define MAXSOUNDS 25
+
+extern int shadowsEnabled;
+extern struct WorldEnvironment worldEnvironment;
 
 /**********************/
 /*limits              */
@@ -340,6 +344,7 @@ struct boom
 	struct monsterInfo * mine;  /* pointer to ownder of boom */
 	float x, y, z;		    /* location of explosion */
 	int count;		    /* explosion timer */
+	int damaging;		    /* visual-only bursts do not alter gameplay */
 	};
 
 struct tree
@@ -363,7 +368,7 @@ struct tank
 	struct tank * next;
 	struct monsterInfo* goforit;
 	float x, y, z;		    /* location of vehicle */
-	float xv, zv;		    /* velocity of vehicle */
+	float xv, yv, zv;	    /* velocity of vehicle / wreck fragment */
 	float range;		    /* distance from vehicle to monster */
 	float minrange;		    /* minimum range vehicle can fire */
 	float finalR;		    /* final range vehicle is attempting */
@@ -376,6 +381,10 @@ struct tank
 	int damage;		    /* amount of damage vehicle can take */
 	int walking;
 	int walkingBackwards;
+	int debrisGrounded;
+	int debrisFromAir;
+	int debrisFireDelay;
+	float debrisSize;
 	int number;
 	char type;		    /* type of vehicle */
 	char subtype;		    /* sub type (for hero) */
@@ -493,10 +502,9 @@ void updateBeam(struct monsterInfo *, struct targetInfo *,
 		const float [3]);
 void updateTanks(struct tank *, float, float, float, int, int, struct tank *, 
 		float, int, int, struct monsterInfo *, struct targetInfo *);
-void updateSlagTanks(struct tank *);
+void updateWrecks(struct tank *);
 void updateBooms(struct boom *, struct tank *);
 int tankHit(struct tank *, float, float, float);
-void addNewTank(struct targetInfo *, float,  float,  int, struct tank *, struct tree *, int, int, struct monsterInfo *);
 
 
 /****************************************************
@@ -549,9 +557,7 @@ void updatetrees(struct tree *, int);
 void updateTanks(struct tank *, float, float, float, int, int, 
 		struct tank*, float, int, int,
 		struct monsterInfo *, struct targetInfo *);
-void updateSlagTanks(struct tank *);
-void addNewTank(struct targetInfo *, float, float, int, struct tank *, 
-		struct tree *, int, int, struct monsterInfo *);
+void updateWrecks(struct tank *);
 void updateBooms(struct boom *, struct tank *);
 
 void buildHillPart(struct tree, int, float, float);
@@ -661,7 +667,7 @@ int assetModelHasNode(const char *, const char *);
 int assetAnimationAvailable(const char *);
 int assetModelUnscaledHeight(const struct EntityArchetype *, float *);
 void drawConfiguredPlayerEntity(const struct EntityArchetype *, int, int, int,
-				int, int, float, float);
+				int, float, float);
 int configuredPlayerEntityBounds(const struct EntityArchetype *, int, int, int,
 				 int, float, float, float [3], float [3]);
 int configuredEntityMuzzlePose(const struct EntityArchetype *, int, int,
@@ -673,10 +679,12 @@ const struct EntityArchetype *networkEntityArchetype(int);
 size_t playerEntityOptionCount(void);
 size_t selectedPlayerArchetypeNumber(void);
 
-void shadow (float,  float,  float,  float);
+void drawEnvironmentSky(const struct WorldEnvironment *);
+void drawEnvironmentShadow(float, float, float, float, float,
+                           const struct WorldEnvironment *);
 
 void makeCHH(int);
-void drawHelo(float, int);
+void drawHelo(float);
 void drawAirplane(int);
 void drawFighter();
 
@@ -716,7 +724,7 @@ void drawHill3(int, int);
 
 void drawtrees(struct tree *, int, int, int, int, int, float, float);
 
-void drawSlagTanks(struct tank *, int, int, float, float);
+void drawWrecks(struct tank *, float, float);
 void drawTanks(struct tank *, int, struct monsterInfo, struct targetInfo *, int, int,int);
 
 void drawMaser(float, float, float, int, float, float, float, float,

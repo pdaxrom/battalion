@@ -1,4 +1,5 @@
 #!/bin/sh tools/irix-make -f Makefile.irix
+# Modifications copyright (c) 2026 Battalion contributors.
 ##########################################################################
 # This is a slightly better Makefile than before ... but its gonna need
 # an overhaul very soon as its getting out of control.
@@ -31,6 +32,7 @@
 .DEFAULT_GOAL := all
 
 PROGRAM := battalion
+EDITOR_PROGRAM := map_editor
 
 CC ?= cc
 PKG_CONFIG ?= pkg-config
@@ -103,7 +105,8 @@ SOURCES := \
 SOURCES += asset.c asset_gltf.c asset_animation.c asset_skin.c asset_render.c \
 	asset_manifest.c asset_bindings.c asset_tga.c asset_values.c stroke_font_asset.c \
 	asset_png.c \
-	audio_catalog.c entity_catalog.c entity_behavior.c world_coordinates.c
+	audio_catalog.c entity_catalog.c entity_behavior.c entity_wreck.c \
+	world_coordinates.c world_environment.c
 
 PLATFORM_CPPFLAGS :=
 PLATFORM_LDFLAGS :=
@@ -235,10 +238,23 @@ AUDIO_CPPFLAGS += -DAUDIO_SMOOTHING_DEFAULT=$(AUDIO_SMOOTHING)
 
 BUILD_DIR ?= build/$(PLATFORM)-$(GRAPHICS)-$(AUDIO)$(AUDIO_SMOOTHING_SUFFIX)
 TARGET := $(BUILD_DIR)/$(PROGRAM)
+EDITOR_TARGET := $(BUILD_DIR)/$(EDITOR_PROGRAM)
 OBJECTS := $(addprefix $(BUILD_DIR)/,$(SOURCES))
 OBJECTS := $(OBJECTS:.c=.o)
 OBJECTS := $(OBJECTS:.m=.o)
 DEPS := $(OBJECTS:.o=.d)
+
+EDITOR_SOURCES := map_editor.c map_editor_gui.c map_editor_model.c \
+	map_package.c entity_catalog.c
+ifeq ($(PLATFORM),macos)
+EDITOR_SOURCES += tk_macos.m renderer/fixed_gl.c renderer/metal.m
+else
+EDITOR_SOURCES += tk_x11.c
+endif
+EDITOR_OBJECTS := $(addprefix $(BUILD_DIR)/,$(EDITOR_SOURCES))
+EDITOR_OBJECTS := $(EDITOR_OBJECTS:.c=.o)
+EDITOR_OBJECTS := $(EDITOR_OBJECTS:.m=.o)
+DEPS += $(EDITOR_OBJECTS:.o=.d)
 
 # The C engine targets ISO C89 and defines tentative globals in headers.
 # Objective-C uses separate flags because current Apple framework headers use
@@ -259,12 +275,17 @@ C89_CHECK_FLAGS ?=
 endif
 CFLAGS ?= -O2
 
-.PHONY: all clean help print-config test c89-check
+.PHONY: all editor clean help print-config test c89-check
 
-all: $(TARGET)
+all: $(TARGET) $(EDITOR_TARGET)
+
+editor: $(EDITOR_TARGET)
 
 $(TARGET): $(OBJECTS)
 	$(CC) $(LDFLAGS) $(PLATFORM_LDFLAGS) $(AUDIO_LDFLAGS) -o $@ $(OBJECTS) $(LDLIBS) $(PLATFORM_LDLIBS) $(AUDIO_LDLIBS)
+
+$(EDITOR_TARGET): $(EDITOR_OBJECTS)
+	$(CC) $(LDFLAGS) $(PLATFORM_LDFLAGS) -o $@ $(EDITOR_OBJECTS) $(LDLIBS) $(PLATFORM_LDLIBS)
 
 $(BUILD_DIR)/%.o: %.c Makefile | $(BUILD_DIR)
 	@mkdir -p $(dir $@)
@@ -287,6 +308,7 @@ print-config:
 	@echo "maps:       external JSON packages (required)"
 	@echo "compiler:   $(CC)"
 	@echo "output:     $(TARGET)"
+	@echo "editor:     $(EDITOR_TARGET)"
 
 help:
 	@echo "Usage: make [PLATFORM=<platform>] [GRAPHICS=<graphics>] [AUDIO=<audio>] [AUDIO_SMOOTHING=0|1]"
@@ -305,6 +327,7 @@ help:
 	@echo "  make PLATFORM=sgi AUDIO_SMOOTHING=0"
 	@echo "  make PLATFORM=linux AUDIO=none"
 	@echo "  make PLATFORM=linux GRAPHICS=mesa"
+	@echo "  make editor"
 	@echo
 	@echo "macOS uses the native Metal backend; XQuartz and OpenGL are not required."
 	@echo "GRAPHICS=gles is part of the renderer design but is not implemented yet."
@@ -313,6 +336,9 @@ c89-check:
 	@if test -n "$(C89_CHECK_FLAGS)"; then \
 		$(CC) $(CPPFLAGS) $(PLATFORM_CPPFLAGS) $(GRAPHICS_CPPFLAGS) \
 			$(AUDIO_CPPFLAGS) $(C89_CHECK_FLAGS) $(filter %.c,$(SOURCES)); \
+		$(CC) $(CPPFLAGS) $(PLATFORM_CPPFLAGS) $(GRAPHICS_CPPFLAGS) \
+			$(C89_CHECK_FLAGS) -Wno-c23-extensions -Wno-unused-function \
+			map_editor.c map_editor_gui.c map_editor_model.c; \
 	else \
 		echo "C89 syntax check skipped: compiler has no known strict-C89 flags"; \
 	fi
@@ -329,9 +355,13 @@ AUDIO_MIXER_TEST := $(TEST_BUILD_DIR)/audio-mixer-test
 ASSET_BINDINGS_TEST := $(TEST_BUILD_DIR)/asset-bindings-test
 ENTITY_CATALOG_TEST := $(TEST_BUILD_DIR)/entity-catalog-test
 ENTITY_BEHAVIOR_TEST := $(TEST_BUILD_DIR)/entity-behavior-test
+ENTITY_WRECK_TEST := $(TEST_BUILD_DIR)/entity-wreck-test
 NO_EMBEDDED_ASSETS_TEST := $(TEST_BUILD_DIR)/no-embedded-assets-test
 WORLD_COORDINATES_TEST := $(TEST_BUILD_DIR)/world-coordinates-test
+WORLD_ENVIRONMENT_TEST := $(TEST_BUILD_DIR)/world-environment-test
 CAMERA_VIEW_TEST := $(TEST_BUILD_DIR)/camera-view-test
+MAP_EDITOR_MODEL_TEST := $(TEST_BUILD_DIR)/map-editor-model-test
+MAP_EDITOR_GUI_TEST := $(TEST_BUILD_DIR)/map-editor-gui-test
 
 $(MAP_TEST): tests/map_test.c map.c map.h map_package.c map_package.h entity_behavior.c entity_behavior.h entity_catalog.c entity_catalog.h Makefile | $(TEST_BUILD_DIR)
 	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< map.c map_package.c entity_behavior.c entity_catalog.c -lm -o $@
@@ -366,19 +396,31 @@ $(ENTITY_CATALOG_TEST): tests/entity_catalog_test.c entity_catalog.c entity_cata
 $(ENTITY_BEHAVIOR_TEST): tests/entity_behavior_test.c entity_behavior.c entity_behavior.h entity_catalog.c entity_catalog.h Makefile | $(TEST_BUILD_DIR)
 	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< entity_behavior.c entity_catalog.c -lm -o $@
 
+$(ENTITY_WRECK_TEST): tests/entity_wreck_test.c entity_wreck.c entity_wreck.h Makefile | $(TEST_BUILD_DIR)
+	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< entity_wreck.c -o $@
+
 $(NO_EMBEDDED_ASSETS_TEST): tests/no_embedded_assets_test.c Makefile | $(TEST_BUILD_DIR)
 	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< -o $@
 
 $(WORLD_COORDINATES_TEST): tests/world_coordinates_test.c world_coordinates.c world_coordinates.h Makefile | $(TEST_BUILD_DIR)
 	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< world_coordinates.c -o $@
 
+$(WORLD_ENVIRONMENT_TEST): tests/world_environment_test.c world_environment.c world_environment.h Makefile | $(TEST_BUILD_DIR)
+	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< world_environment.c -lm -o $@
+
 $(CAMERA_VIEW_TEST): tests/camera_view_test.c camera_view.c camera_view.h Makefile | $(TEST_BUILD_DIR)
 	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< camera_view.c -lm -o $@
+
+$(MAP_EDITOR_MODEL_TEST): tests/map_editor_model_test.c map_editor_model.c map_editor_model.h map_package.c map_package.h entity_catalog.c entity_catalog.h Makefile | $(TEST_BUILD_DIR)
+	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< map_editor_model.c map_package.c entity_catalog.c -lm -o $@
+
+$(MAP_EDITOR_GUI_TEST): tests/map_editor_gui_test.c map_editor_gui.c map_editor_gui.h renderer/fixed_gl.c renderer/fixed_gl.h renderer/backend.h vendor/nuklear/nuklear.h Makefile | $(TEST_BUILD_DIR)
+	$(CC) -I. -DMACOSVERSION -DRENDERER_METAL $(COMPAT_CFLAGS) $(CFLAGS) $< map_editor_gui.c renderer/fixed_gl.c -lm -o $@
 
 $(TEST_BUILD_DIR):
 	mkdir -p $@
 
-test: c89-check $(MAP_TEST) $(ASSET_TEST) $(ASSET_SKIN_TEST) $(ASSET_CATALOG_TEST) $(ASSET_VALUES_TEST) $(STROKE_FONT_TEST) $(AUDIO_CATALOG_TEST) $(AUDIO_MIXER_TEST) $(ASSET_BINDINGS_TEST) $(ENTITY_CATALOG_TEST) $(ENTITY_BEHAVIOR_TEST) $(NO_EMBEDDED_ASSETS_TEST) $(WORLD_COORDINATES_TEST) $(CAMERA_VIEW_TEST)
+test: c89-check $(MAP_TEST) $(ASSET_TEST) $(ASSET_SKIN_TEST) $(ASSET_CATALOG_TEST) $(ASSET_VALUES_TEST) $(STROKE_FONT_TEST) $(AUDIO_CATALOG_TEST) $(AUDIO_MIXER_TEST) $(ASSET_BINDINGS_TEST) $(ENTITY_CATALOG_TEST) $(ENTITY_BEHAVIOR_TEST) $(ENTITY_WRECK_TEST) $(NO_EMBEDDED_ASSETS_TEST) $(WORLD_COORDINATES_TEST) $(WORLD_ENVIRONMENT_TEST) $(CAMERA_VIEW_TEST) $(MAP_EDITOR_MODEL_TEST) $(MAP_EDITOR_GUI_TEST)
 	./$(MAP_TEST)
 	./$(ASSET_TEST)
 	./$(ASSET_SKIN_TEST)
@@ -390,9 +432,13 @@ test: c89-check $(MAP_TEST) $(ASSET_TEST) $(ASSET_SKIN_TEST) $(ASSET_CATALOG_TES
 	./$(ASSET_BINDINGS_TEST)
 	./$(ENTITY_CATALOG_TEST)
 	./$(ENTITY_BEHAVIOR_TEST)
+	./$(ENTITY_WRECK_TEST)
 	./$(NO_EMBEDDED_ASSETS_TEST)
 	./$(WORLD_COORDINATES_TEST)
+	./$(WORLD_ENVIRONMENT_TEST)
 	./$(CAMERA_VIEW_TEST)
+	./$(MAP_EDITOR_MODEL_TEST)
+	./$(MAP_EDITOR_GUI_TEST)
 
 clean:
 	rm -rf build

@@ -1,0 +1,68 @@
+# Data-driven replacement for legacy unit type 5.
+battalion-entity 1
+id hero-typhoon
+display-name Hero Typhoon
+kind vehicle
+model hero-typhoon
+render-node head-back
+render-node head-front
+render-node eye-right-intact
+render-node eye-left-intact
+render-node mouth-intact
+render-node neck-intact
+render-node body-upper-intact
+render-node body-lower-intact
+render-node chest-intact
+render-node shoulder-right-intact
+render-node shoulder-left-intact
+render-node arm-right-upper-intact
+render-node arm-right-lower-intact
+render-node hand-right-intact
+render-node arm-left-upper-intact
+render-node arm-left-lower-intact
+render-node hand-left-intact
+render-node leg-right-upper-intact
+render-node leg-right-lower-intact
+render-node foot-right-intact
+render-node leg-left-upper-intact
+render-node leg-left-lower-intact
+render-node foot-left-intact
+muzzle-node muzzle
+idle-animation hero-typhoon-walk
+move-animation hero-typhoon-walk
+attack-animation hero-typhoon-fire
+animation-speed 0.05
+faction army
+hostile-faction monster
+movement ground
+burst-count 2
+speed 0.03
+turn-rate 0.16
+health 100
+score 100
+scale 1
+vertical-offset 0.58
+collision-radius 0.3
+collision-height 1.2
+weapon plasma
+weapon-color white
+weapon-range 4
+weapon-min-range 0.5
+projectile-speed 0.12
+fire-interval 80
+accuracy 75
+forget-range 14
+lost-frames 240
+sensor nearby proximity 2 360 hostile
+sensor sight vision 10 140 hostile
+sensor noise hearing 14 360 hostile
+sensor damaged damage 0 360 hostile
+on-enter nearby attack hero-alert
+on-enter sight attack hero-alert
+on-enter noise investigate hero-alert
+on-enter damaged attack hero-alert
+on-trigger hero-alert activate none
+on-trigger hero-alert attack none
+spawn-weight 2
+spawn-after 3000
+max-active 2

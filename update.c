@@ -9,6 +9,7 @@
 /*                                                              */
 /*                      (312) 996-3002     (312) 413-7585 FAX   */
 /***********************************************************************/
+/* Modifications copyright (c) 2026 Battalion contributors. */
 /* update.c  v 1.2                                                     */
 /* update routines for battalion                                       */
 /***********************************************************************/
@@ -408,12 +409,6 @@ void updateBeam(struct monsterInfo * g, struct targetInfo * t,
 	    
 	    if (ttank->damage <= 0)
 		{
-		/**********************************/
-		/* if so, slag it!                */
-		/**********************************/
-
-		doSoundAt(SLAG, ttank->x, ttank->y, ttank->z);
-	    
 		ttank->damage = -99;
 		}		
 	    }

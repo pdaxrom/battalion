@@ -20,25 +20,17 @@ file entity-catalog entities/catalog.txt
 
 model tank models/vehicles/tank.glb
 animation tank-tracks tank tracks loop
-model tank-slag models/vehicles/tank-slag.glb
 model tank-maser models/vehicles/tank-maser.glb
-model tank-maser-slag models/vehicles/tank-maser-slag.glb
 model tank-launcher models/vehicles/tank-launcher.glb
-model tank-launcher-slag models/vehicles/tank-launcher-slag.glb
-model tank-shadow models/vehicles/tank-shadow.glb
 
 model helo models/vehicles/helo.glb
-model helo-slag models/vehicles/helo-slag.glb
 animation helo-rotors helo rotors loop
-animation helo-slag-rotors helo-slag rotors loop
 
 model airplane models/vehicles/airplane.glb
 animation airplane-propellers airplane propellers loop
 model fighter-body models/vehicles/fighter-body.glb
-model plane-shadow models/vehicles/plane-shadow.glb
-model fighter-shadow models/vehicles/fighter-shadow.glb
-model plane-dots-high models/vehicles/plane-dots-high.glb
-model plane-dots-low models/vehicles/plane-dots-low.glb
+model plane-dots-high models/terrain/plane-dots-high.glb
+model plane-dots-low models/terrain/plane-dots-low.glb
 model plane-ground-low models/terrain/plane-ground-low.glb
 model plane-ground-high models/terrain/plane-ground-high.glb
 model plane-ground-large models/terrain/plane-ground-large.glb
@@ -184,4 +176,3 @@ animation boom-low-explode boom-low explode once
 model sphere-low models/effects/sphere-low.glb
 model sphere-high models/effects/sphere-high.glb
 model fire models/effects/fire.glb
-model shadow-rectangle models/effects/shadow-rectangle.glb

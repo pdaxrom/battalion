@@ -1,19 +1,4 @@
-##########################################################################
-# This is a slightly better Makefile than before ... but its gonna need
-# an overhaul very soon as its getting out of control.
-#
-# Makefile for v 1.3 of battalion (OpenGL/Mesa version)
-#
-# ajohnson@eecs.uic.edu
-#
-# if you are compiling this on an SGI the makefile should work fine,
-# as it is. otherwise you may have to do a little bit of tweaking.
-#
-# the most important thing to know before you try and use this file is
-# whether you have OpenGL or Brian Paul's Mesa graphics library installed
-# on your machine. Without either of these you are not going to get very
-# far.
-#
+# Copyright (c) 2026 Battalion contributors.
 
 # Native IRIX 6.x make companion.  The public entry point remains Makefile;
 # SGI make reaches this file through tools/irix-make, while GNU make keeps

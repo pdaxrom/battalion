@@ -1,0 +1,40 @@
+# Data-driven replacement for legacy unit type 1.
+battalion-entity 1
+id tank-maser
+display-name Maser Tank
+kind vehicle
+model tank-maser
+muzzle-node muzzle
+faction army
+hostile-faction monster
+movement ground
+speed 0.036
+turn-rate 0.2
+health 1
+score 12
+scale 0.15
+vertical-offset 0
+collision-radius 0.25
+collision-height 0.45
+weapon beam
+weapon-color blue
+weapon-range 3
+weapon-min-range 0.5
+projectile-speed 0.1
+fire-interval 1
+accuracy 1000
+forget-range 12
+lost-frames 180
+sensor nearby proximity 2 360 hostile
+sensor sight vision 8 120 hostile
+sensor noise hearing 12 360 hostile
+sensor damaged damage 0 360 hostile
+on-enter nearby attack army-alert
+on-enter sight attack army-alert
+on-enter noise investigate army-alert
+on-enter damaged attack army-alert
+on-trigger army-alert activate none
+on-trigger army-alert attack none
+spawn-weight 28
+spawn-after 750
+max-active 0

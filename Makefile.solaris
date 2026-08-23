@@ -1,6 +1,7 @@
 #
 # Makefile for the Solaris version of battalion 1.3
 # (to produce Mesa + OpenGL + TGS binaries)
+# Modifications copyright (c) 2026 Battalion contributors.
 #
 # 9-July-96
 #

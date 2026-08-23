@@ -34,6 +34,8 @@
  *
  * OpenGL(TM) is a trademark of Silicon Graphics, Inc.
  */
+
+/* Modifications copyright (c) 2026 Battalion contributors. */
 #ifdef MACOSVERSION
 # include "renderer/fixed_gl.h"
 #else
@@ -87,6 +89,8 @@ extern "C" {
 #define	TK_LEFTBUTTON		1
 #define	TK_RIGHTBUTTON		2
 #define	TK_MIDDLEBUTTON		4
+#define TK_WHEELUP 8
+#define TK_WHEELDOWN 16
 #define	TK_SHIFT		1
 #define	TK_CONTROL		2
 
@@ -103,8 +107,12 @@ extern "C" {
 #define TK_RETURN		0x0D
 #define TK_ESCAPE		0x1B
 #define TK_SPACE		0x20
+#define TK_BACKSPACE 0x08
+#define TK_DELETE 0x7F
 #define TK_PAGEUP		0x100
 #define TK_PAGEDOWN		0x101
+#define TK_HOME 0x102
+#define TK_END 0x103
 #define TK_LEFT			0x25
 #define TK_UP			0x26
 #define TK_RIGHT		0x27
@@ -113,6 +121,7 @@ extern "C" {
 #define TK_F2			0x111
 #define TK_F3			0x112
 #define TK_F4			0x113
+#define TK_F5			0x114
 #define TK_A			'A'
 #define TK_B			'B'
 #define TK_C			'C'

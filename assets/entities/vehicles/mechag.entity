@@ -1,0 +1,60 @@
+# Data-driven replacement for legacy unit type 3.
+battalion-entity 1
+id mechag
+display-name Mechagoogelon
+kind vehicle
+model mecha
+render-node head-back-intact
+render-node head-intact
+render-node eye-intact
+render-node eye-bar-intact
+render-node nose
+render-node body-upper-intact
+render-node body-front-intact
+render-node body-intact
+render-node arm-right-intact
+render-node arm-left-intact
+render-node leg-right-intact
+render-node leg-left-intact
+render-node foot-right-intact
+render-node foot-left-intact
+render-node tail-front-intact
+render-node tail-back-intact
+muzzle-node muzzle
+idle-animation mecha-eye-scan
+move-animation mecha-eye-scan
+attack-animation mecha-eye-scan
+animation-speed 0.05
+faction army
+hostile-faction monster
+movement ground
+speed 0.03
+turn-rate 0.15
+health 50
+score 60
+scale 1
+vertical-offset 0.4
+collision-radius 0.5
+collision-height 1.3
+weapon beam
+weapon-color red
+weapon-range 4.5
+weapon-min-range 0.5
+projectile-speed 0.1
+fire-interval 1
+accuracy 1000
+forget-range 14
+lost-frames 240
+sensor nearby proximity 2 360 hostile
+sensor sight vision 10 140 hostile
+sensor noise hearing 14 360 hostile
+sensor damaged damage 0 360 hostile
+on-enter nearby attack army-alert
+on-enter sight attack army-alert
+on-enter noise investigate army-alert
+on-enter damaged attack army-alert
+on-trigger army-alert activate none
+on-trigger army-alert attack none
+spawn-weight 3
+spawn-after 1250
+max-active 2

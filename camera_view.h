@@ -1,3 +1,6 @@
+/*
+ * Copyright (c) 2026 Battalion contributors.
+ */
 #ifndef BATTALION_CAMERA_VIEW_H
 #define BATTALION_CAMERA_VIEW_H
 

@@ -1,14 +1,6 @@
-/****************************************************************/
-/* code copyright 1995-1996 Andrew Johnson - ALL RIGHTS RESERVED*/
-/*                          ajohnson@eecs.uic.edu               */
-/*                                                              */
-/*                      Electronic Visualization Lab (M/C 154)  */
-/*                      University of Illinois at Chicago       */
-/*                      851 South Morgan St. Room 1120 SEO      */
-/*                      Chicago, IL 60607-7053                  */
-/*                                                              */
-/*                      (312) 996-3002     (312) 413-7585 FAX   */
-/***********************************************************************/
+/*
+ * Copyright (c) 2026 Battalion contributors.
+ */
 
 #include "entity_behavior.h"
 
@@ -45,6 +37,8 @@ int main(void)
     struct EntityAgent damageAgent;
     struct EntityArchetype phaseArchetype;
     struct EntityArchetype bodyFacingArchetype;
+    struct EntityArchetype flybyArchetype;
+    struct EntityAgent flybyAgent;
     struct EntityContact contacts[2];
     char error[256];
     int index;
@@ -86,6 +80,22 @@ int main(void)
                    3.14159265358979323846f * 0.5f))
         {
         fprintf(stderr, "turret listener orientation failed\n");
+        return 1;
+        }
+    flybyArchetype = *tank;
+    flybyArchetype.tactic = ENTITY_TACTIC_FLYBY;
+    flybyArchetype.tacticRadius = 5.0f;
+    flybyArchetype.speed = 1.0f;
+    flybyArchetype.weaponRange = 10.0f;
+    entityAgentInitialize(&flybyAgent, &flybyArchetype,
+                          0.0f, 0.0f, 0.0f,
+                          NULL, 0, ENTITY_PATROL_LOOP);
+    contact(&contacts[0], "flyby-target", 0.0f, 2.0f, 1, 1);
+    entityAgentStep(&flybyAgent, contacts, 1);
+    if (flybyAgent.reaction != ENTITY_REACTION_ATTACK ||
+        flybyAgent.z < 0.99f)
+        {
+        fprintf(stderr, "flyby tactic stopped inside weapon range\n");
         return 1;
         }
     bodyFacingArchetype = *tank;

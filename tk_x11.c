@@ -35,6 +35,8 @@
  * OpenGL(TM) is a trademark of Silicon Graphics, Inc.
  */
 
+/* Modifications copyright (c) 2026 Battalion contributors. */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -85,7 +87,15 @@ static int mouseDeltaY;
 
 static int keyFromKeysym(KeySym key)
 {
+    if (key >= XK_space && key <= XK_asciitilde)
+        return (int)key;
     switch (key) {
+      case XK_Shift_L: return TK_SHIFT_L;
+      case XK_Shift_R: return TK_SHIFT_R;
+      case XK_BackSpace: return TK_BACKSPACE;
+      case XK_Delete: return TK_DELETE;
+      case XK_Home: return TK_HOME;
+      case XK_End: return TK_END;
       case XK_Control_L: return TK_CONTROL_L;
       case XK_Control_R: return TK_CONTROL_R;
       case XK_Left: return TK_LEFT;
@@ -98,6 +108,7 @@ static int keyFromKeysym(KeySym key)
       case XK_F2: return TK_F2;
       case XK_F3: return TK_F3;
       case XK_F4: return TK_F4;
+      case XK_F5: return TK_F5;
       case XK_H: return TK_H;
       case XK_h: return TK_h;
       case XK_Tab: return TK_TAB;
@@ -394,6 +405,10 @@ static GLenum DoNextEvent(void)
 		{
 		mask |= TK_RIGHTBUTTON;
 		}
+	    if (current.xbutton.button == 4)
+		mask |= TK_WHEELUP;
+	    if (current.xbutton.button == 5)
+		mask |= TK_WHEELDOWN;
 		
 	    return MouseDownFunc ? (*MouseDownFunc)(current.xbutton.x, current.xbutton.y, mask) : GL_FALSE;
 
@@ -414,6 +429,10 @@ static GLenum DoNextEvent(void)
 		{
 		mask |= TK_RIGHTBUTTON;
 		}
+	    if (current.xbutton.button == 4)
+		mask |= TK_WHEELUP;
+	    if (current.xbutton.button == 5)
+		mask |= TK_WHEELDOWN;
 		
 	    return MouseUpFunc ? (*MouseUpFunc)(current.xbutton.x, current.xbutton.y, mask) : GL_FALSE;
 
