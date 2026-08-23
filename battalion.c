@@ -3277,6 +3277,9 @@ void setPlayConditions()
 
     struct tree unitHill;
 
+    if (mode == DEMOMODE)
+	showDemoMenu = 0;
+
     unitHill.type	    = 3;
     unitHill.y		    = PLANEY;
     unitHill.deathCount	    = 0;
