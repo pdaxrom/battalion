@@ -18,6 +18,8 @@
 
 void audioMixerInitialize(void);
 void audioMixerShutdown(void);
+void audioMixerSetSmoothingEnabled(int enabled);
+int audioMixerGetSmoothingEnabled(void);
 int audioMixerLoadWav(int slot, const char *path, char *error,
                       unsigned long errorSize);
 void audioMixerSetListener(float x, float y, float z, float headingRadians);

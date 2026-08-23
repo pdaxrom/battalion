@@ -520,6 +520,8 @@ void soundKiller(int);
 void doSound(int);
 void doSoundAt(int, float, float, float);
 void audioSetListener(float, float, float, float);
+void audioSetSmoothingEnabled(int);
+int audioGetSmoothingEnabled(void);
 void InitAudio(const char *, const char *, int);
 void OutAudio(int);
 

@@ -30,6 +30,8 @@ int main(void)
     float nearLeft;
     float farLeft;
     short frames[512 * 2];
+    short transitionFrames[512 * 2];
+    short settlingFrames[1024 * 2];
     char error[160];
     long leftEnergy;
     long rightEnergy;
@@ -65,6 +67,43 @@ int main(void)
     leftEnergy = channelEnergy(frames, 512, 0);
     rightEnergy = channelEnergy(frames, 512, 1);
     assert(rightEnergy > leftEnergy * 2);
+    audioMixerShutdown();
+
+    audioMixerInitialize();
+    audioMixerSetSmoothingEnabled(1);
+    assert(audioMixerGetSmoothingEnabled());
+    assert(audioMixerLoadWav(0, "assets/sounds/beam.wav",
+                             error, sizeof(error)));
+    audioMixerSetListener(0.0f, 0.0f, 0.0f, 0.0f);
+    assert(audioMixerPlay(0, 2, 0, 0, 1,
+                          10.0f, 0.0f, 0.0f, 1.0f));
+    audioMixerRender(frames, 512, 44100);
+    audioMixerSetListener(0.0f, 0.0f, 0.0f, 3.14159265f);
+    audioMixerRender(transitionFrames, 512, 44100);
+    leftEnergy = channelEnergy(transitionFrames, 512, 0);
+    rightEnergy = channelEnergy(transitionFrames, 512, 1);
+    assert(rightEnergy > leftEnergy);
+    audioMixerRender(settlingFrames, 1024, 44100);
+    audioMixerRender(frames, 512, 44100);
+    leftEnergy = channelEnergy(frames, 512, 0);
+    rightEnergy = channelEnergy(frames, 512, 1);
+    assert(leftEnergy > rightEnergy * 2);
+    audioMixerShutdown();
+
+    audioMixerInitialize();
+    audioMixerSetSmoothingEnabled(0);
+    assert(!audioMixerGetSmoothingEnabled());
+    assert(audioMixerLoadWav(0, "assets/sounds/beam.wav",
+                             error, sizeof(error)));
+    audioMixerSetListener(0.0f, 0.0f, 0.0f, 0.0f);
+    assert(audioMixerPlay(0, 3, 0, 0, 1,
+                          10.0f, 0.0f, 0.0f, 1.0f));
+    audioMixerRender(frames, 512, 44100);
+    audioMixerSetListener(0.0f, 0.0f, 0.0f, 3.14159265f);
+    audioMixerRender(frames, 512, 44100);
+    leftEnergy = channelEnergy(frames, 512, 0);
+    rightEnergy = channelEnergy(frames, 512, 1);
+    assert(leftEnergy > rightEnergy * 2);
     audioMixerShutdown();
     printf("audio mixer tests passed\n");
     return 0;

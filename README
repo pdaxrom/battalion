@@ -84,6 +84,9 @@ command builds strict ANSI C89 with OpenGL and the native SGI stereo audio
 backend. Use `AUDIO=none` for a silent build. macOS uses CoreAudio, Linux uses
 OSS, and Solaris/SunOS use `/dev/audio`. All native backends share the
 same positional stereo mixer described in `docs/audio.md`.
+Spatial gain smoothing is enabled by default. Pass `AUDIO_SMOOTHING=0` while
+building, or `--no-audio-smoothing` while running, to reduce mixer work on an
+older machine without disabling sound.
 
 Game content is external and required at runtime. The `assets/manifest.txt`
 file declares models, textures, animation clips, and auxiliary files. Stable

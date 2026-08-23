@@ -583,7 +583,7 @@ vehicle can be stationary, and an object can have sensors.
 | `height` | none | Desired rest-pose Y extent in world units; computes uniform scale after loading the GLB. Mutually exclusive with `scale`. |
 | `scale` | `1` | Optional explicit uniform render scale. Must be positive and cannot be combined with `height`. |
 | `vertical-offset` | `0` | Model-origin height relative to the battlefield plane. |
-| `aim-yaw-node` | none | Named GLB node receiving live yaw. Requires pitch node. |
+| `aim-yaw-node` | none | Named GLB node receiving live yaw. Requires pitch node. For a controllable entity it also defines the horizontal listener/camera facing independently of the body. |
 | `aim-pitch-node` | none | Named GLB node receiving live pitch. Requires yaw node. |
 | `render-node` | none | Repeat to draw only named model subtrees; with no entries the active scene is drawn. |
 

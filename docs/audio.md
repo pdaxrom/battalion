@@ -14,6 +14,8 @@ The spatial mixer is currently used by:
 - Solaris and SunOS through `/dev/audio`.
 
 A build with `AUDIO=none` disables output without changing gameplay.
+Spatial gain smoothing is enabled by default and is implemented in the shared
+mixer, so its behaviour is identical on every backend.
 
 ## Building
 
@@ -35,13 +37,32 @@ make PLATFORM=linux AUDIO=oss
 make PLATFORM=sgi AUDIO=sgi
 ```
 
+For older machines, smoothing can be disabled at build time without disabling
+sound:
+
+```sh
+make PLATFORM=sgi AUDIO_SMOOTHING=0
+make PLATFORM=linux AUDIO_SMOOTHING=0
+```
+
+The resulting binary may also be overridden at runtime. Use
+`--no-audio-smoothing` to disable interpolation or `--audio-smoothing` to
+enable it. The build setting only selects the default. With smoothing disabled,
+listener changes update channel gains immediately and the per-sample ramp does
+no work.
+
 ## Runtime model
 
 `audioSetListener()` receives the player world position and facing direction.
-`doSoundAt()` submits a sound at a world position. The common mixer derives an
-equal-power stereo pan from the source direction and reduces volume with
-distance. Sources at or beyond the maximum audible distance are silent. Music
-is intentionally centered and is not attenuated.
+For an entity declaring `aim-yaw-node`, this direction follows the live head,
+sensor, or turret yaw rather than the body heading. A steered entity without an
+independent yaw node follows its body. This rule is descriptor-driven and does
+not name individual creatures or vehicles. `doSoundAt()` submits a sound at a
+world position. The common mixer derives an equal-power stereo pan from the
+source direction and reduces volume with distance. Active sounds smoothly
+approach new left/right gains over 30 ms when the listener turns or moves.
+Sources at or beyond the maximum audible distance are silent. Music is
+intentionally centered and is not attenuated.
 
 World positions are currently supplied for projectile shots, rockets, energy
 beams, explosions, object destruction, and vehicle/monster destruction.

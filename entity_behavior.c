@@ -45,6 +45,20 @@ int entitySteeredHeadingDelta(int leftPressed, int rightPressed,
     return (int)((leftPressed - rightPressed) * steerRate);
     }
 
+float entityListenerHeadingRadians(const struct EntityArchetype *archetype,
+                                   int aimHeadingTenths,
+                                   int bodyHeadingTenths)
+    {
+    int heading;
+
+    heading = aimHeadingTenths;
+    if (archetype != NULL &&
+        archetype->controlMode == ENTITY_CONTROL_STEERED &&
+        archetype->aimYawNode[0] == '\0')
+        heading = bodyHeadingTenths;
+    return heading * (float)ENTITY_PI / 1800.0f;
+    }
+
 void entityAimDirection(int horizontalTenths, int verticalTenths,
                         float length, float *x, float *y, float *z)
     {

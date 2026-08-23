@@ -7,6 +7,7 @@
 platform=sgi
 graphics=opengl
 audio=sgi
+audio_smoothing=1
 
 for argument in "$@"
 do
@@ -14,6 +15,7 @@ do
         PLATFORM=*) platform=`expr "x$argument" : 'xPLATFORM=\(.*\)'` ;;
         GRAPHICS=*) graphics=`expr "x$argument" : 'xGRAPHICS=\(.*\)'` ;;
         AUDIO=*) audio=`expr "x$argument" : 'xAUDIO=\(.*\)'` ;;
+        AUDIO_SMOOTHING=*) audio_smoothing=`expr "x$argument" : 'xAUDIO_SMOOTHING=\(.*\)'` ;;
     esac
 done
 
@@ -22,6 +24,15 @@ case "$platform" in
     irix) ;;
     *)
         echo "IRIX build supports PLATFORM=sgi (or PLATFORM=irix)" >&2
+        exit 2
+        ;;
+esac
+
+case "$audio_smoothing" in
+    0) ;;
+    1) ;;
+    *)
+        echo "IRIX build supports AUDIO_SMOOTHING=0 or AUDIO_SMOOTHING=1" >&2
         exit 2
         ;;
 esac
@@ -48,9 +59,14 @@ case "$audio" in
         ;;
     sgi)
         audio_objects="build/$platform-$graphics-$audio/audio_spatial.o build/$platform-$graphics-$audio/audio_mixer.o build/$platform-$graphics-$audio/audio_backend_sgi.o"
+        if test "$audio_smoothing" = 0
+        then
+            audio_objects="build/$platform-$graphics-$audio-nosmooth/audio_spatial.o build/$platform-$graphics-$audio-nosmooth/audio_mixer.o build/$platform-$graphics-$audio-nosmooth/audio_backend_sgi.o"
+            set -- "$@" "BUILD_DIR=build/$platform-$graphics-$audio-nosmooth"
+        fi
         set -- "$@" "AUDIO_SOURCES=audio_spatial.c audio_mixer.c audio_backend_sgi.c"
         set -- "$@" "AUDIO_OBJECTS=$audio_objects"
-        set -- "$@" AUDIO_CPPFLAGS=-DSPATIALAUDIO
+        set -- "$@" "AUDIO_CPPFLAGS=-DSPATIALAUDIO -DAUDIO_SMOOTHING_DEFAULT=$audio_smoothing"
         set -- "$@" "AUDIO_LDLIBS=-laudio -lpthread"
         ;;
     *)

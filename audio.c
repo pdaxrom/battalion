@@ -110,6 +110,16 @@ void audioSetListener(float x, float y, float z, float headingRadians)
     (void)headingRadians;
     }
 
+void audioSetSmoothingEnabled(int enabled)
+    {
+    (void)enabled;
+    }
+
+int audioGetSmoothingEnabled(void)
+    {
+    return 0;
+    }
+
 void OutAudio(int slot)
     {
     (void)slot;

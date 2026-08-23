@@ -116,6 +116,9 @@ void entityAgentStep(struct EntityAgent *agent,
                      size_t contactCount);
 int entitySteeredHeadingDelta(int leftPressed, int rightPressed,
                               float steerRate);
+float entityListenerHeadingRadians(const struct EntityArchetype *archetype,
+                                   int aimHeadingTenths,
+                                   int bodyHeadingTenths);
 void entityAimDirection(int horizontalTenths, int verticalTenths,
                         float length, float *x, float *y, float *z);
 

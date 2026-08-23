@@ -22,6 +22,11 @@
 
 #define AUDIO_REFERENCE_DISTANCE 2.0f
 #define AUDIO_MAX_DISTANCE 48.0f
+#define AUDIO_SMOOTHING_MILLISECONDS 30UL
+
+#ifndef AUDIO_SMOOTHING_DEFAULT
+#define AUDIO_SMOOTHING_DEFAULT 1
+#endif
 
 struct AudioMixerSample
     {
@@ -44,6 +49,11 @@ struct AudioMixerVoice
     float gain;
     float leftGain;
     float rightGain;
+    float targetLeftGain;
+    float targetRightGain;
+    float leftGainStep;
+    float rightGainStep;
+    unsigned long gainRampFrames;
     double position;
     };
 
@@ -54,6 +64,8 @@ static float listenerX;
 static float listenerY;
 static float listenerZ;
 static float listenerHeading;
+static unsigned long mixerOutputRate = 44100UL;
+static int smoothingEnabled;
 
 static unsigned short readLittle16(const unsigned char *bytes)
     {
@@ -127,18 +139,41 @@ void audioMixerComputeSpatialGains(float lx, float ly, float lz,
                  (float)sqrt((double)(0.5f * (1.0f + pan)));
     }
 
-static void updateVoiceGains(struct AudioMixerVoice *voice)
+static void updateVoiceTarget(struct AudioMixerVoice *voice, int transition)
     {
     if (voice->positioned)
         audioMixerComputeSpatialGains(listenerX, listenerY, listenerZ,
                                       listenerHeading,
                                       voice->x, voice->y, voice->z,
                                       voice->gain,
-                                      &voice->leftGain, &voice->rightGain);
+                                      &voice->targetLeftGain,
+                                      &voice->targetRightGain);
     else
         {
-        voice->leftGain = voice->gain;
-        voice->rightGain = voice->gain;
+        voice->targetLeftGain = voice->gain;
+        voice->targetRightGain = voice->gain;
+        }
+
+    if (transition && smoothingEnabled)
+        {
+        voice->gainRampFrames =
+            (mixerOutputRate * AUDIO_SMOOTHING_MILLISECONDS) / 1000UL;
+        if (voice->gainRampFrames == 0)
+            voice->gainRampFrames = 1;
+        voice->leftGainStep =
+            (voice->targetLeftGain - voice->leftGain) /
+            (float)voice->gainRampFrames;
+        voice->rightGainStep =
+            (voice->targetRightGain - voice->rightGain) /
+            (float)voice->gainRampFrames;
+        }
+    else
+        {
+        voice->leftGain = voice->targetLeftGain;
+        voice->rightGain = voice->targetRightGain;
+        voice->leftGainStep = 0.0f;
+        voice->rightGainStep = 0.0f;
+        voice->gainRampFrames = 0;
         }
     }
 
@@ -148,7 +183,32 @@ void audioMixerInitialize(void)
     memset(mixerSamples, 0, sizeof(mixerSamples));
     memset(mixerVoices, 0, sizeof(mixerVoices));
     listenerX = listenerY = listenerZ = listenerHeading = 0.0f;
+    mixerOutputRate = 44100UL;
+    smoothingEnabled = AUDIO_SMOOTHING_DEFAULT ? 1 : 0;
     pthread_mutex_unlock(&mixerMutex);
+    }
+
+void audioMixerSetSmoothingEnabled(int enabled)
+    {
+    int index;
+
+    pthread_mutex_lock(&mixerMutex);
+    smoothingEnabled = enabled ? 1 : 0;
+    if (!smoothingEnabled)
+        for (index = 0; index < AUDIO_MIXER_MAX_VOICES; index++)
+            if (mixerVoices[index].active)
+                updateVoiceTarget(&mixerVoices[index], 0);
+    pthread_mutex_unlock(&mixerMutex);
+    }
+
+int audioMixerGetSmoothingEnabled(void)
+    {
+    int enabled;
+
+    pthread_mutex_lock(&mixerMutex);
+    enabled = smoothingEnabled;
+    pthread_mutex_unlock(&mixerMutex);
+    return enabled;
     }
 
 void audioMixerShutdown(void)
@@ -286,7 +346,7 @@ void audioMixerSetListener(float x, float y, float z, float headingRadians)
     listenerHeading = headingRadians;
     for (index = 0; index < AUDIO_MIXER_MAX_VOICES; index++)
         if (mixerVoices[index].active)
-            updateVoiceGains(&mixerVoices[index]);
+            updateVoiceTarget(&mixerVoices[index], 1);
     pthread_mutex_unlock(&mixerMutex);
     }
 
@@ -295,6 +355,7 @@ int audioMixerPlay(int slot, int soundType, int loop, int unique,
     {
     int index;
     int selected;
+    int continuing;
     struct AudioMixerVoice *voice;
 
     if (slot < 0 || slot >= AUDIO_MIXER_MAX_SAMPLES)
@@ -320,7 +381,8 @@ int audioMixerPlay(int slot, int soundType, int loop, int unique,
     if (selected < 0)
         selected = 0;
     voice = &mixerVoices[selected];
-    if (!(unique && voice->active && voice->soundType == soundType))
+    continuing = unique && voice->active && voice->soundType == soundType;
+    if (!continuing)
         voice->position = 0.0;
     voice->active = 1;
     voice->slot = slot;
@@ -331,7 +393,7 @@ int audioMixerPlay(int slot, int soundType, int loop, int unique,
     voice->y = y;
     voice->z = z;
     voice->gain = gain;
-    updateVoiceGains(voice);
+    updateVoiceTarget(voice, continuing);
     pthread_mutex_unlock(&mixerMutex);
     return 1;
     }
@@ -394,6 +456,7 @@ void audioMixerRender(short *stereoFrames, unsigned long frameCount,
     memset(stereoFrames, 0, frameCount * 2 * sizeof(short));
     if (pthread_mutex_trylock(&mixerMutex) != 0)
         return;
+    mixerOutputRate = outputRate;
     for (frame = 0; frame < frameCount; frame++)
         {
         mixedLeft = 0.0;
@@ -425,6 +488,17 @@ void audioMixerRender(short *stereoFrames, unsigned long frameCount,
                 }
             mixedLeft += (double)leftSample * voice->leftGain;
             mixedRight += (double)rightSample * voice->rightGain;
+            if (voice->gainRampFrames > 0)
+                {
+                voice->leftGain += voice->leftGainStep;
+                voice->rightGain += voice->rightGainStep;
+                voice->gainRampFrames--;
+                if (voice->gainRampFrames == 0)
+                    {
+                    voice->leftGain = voice->targetLeftGain;
+                    voice->rightGain = voice->targetRightGain;
+                    }
+                }
             step = (double)sample->sampleRate / (double)outputRate;
             voice->position += step;
             }

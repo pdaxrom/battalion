@@ -44,6 +44,7 @@ int main(void)
     struct EntityAgent phaseAgent;
     struct EntityAgent damageAgent;
     struct EntityArchetype phaseArchetype;
+    struct EntityArchetype bodyFacingArchetype;
     struct EntityContact contacts[2];
     char error[256];
     int index;
@@ -81,6 +82,21 @@ int main(void)
         return 1;
         }
     tank = entityCatalogFind(&catalog, "tank-standard");
+    if (!nearValue(entityListenerHeadingRadians(tank, 900, 0),
+                   3.14159265358979323846f * 0.5f))
+        {
+        fprintf(stderr, "turret listener orientation failed\n");
+        return 1;
+        }
+    bodyFacingArchetype = *tank;
+    bodyFacingArchetype.aimYawNode[0] = '\0';
+    bodyFacingArchetype.aimPitchNode[0] = '\0';
+    if (!nearValue(entityListenerHeadingRadians(&bodyFacingArchetype,
+                                                900, 0), 0.0f))
+        {
+        fprintf(stderr, "body listener orientation failed\n");
+        return 1;
+        }
     path[0].x = 0.0f;
     path[0].z = 0.0f;
     path[1].x = 2.0f;

@@ -4930,7 +4930,9 @@ void doUpdate()
 
     audioSetListener(Googelon.x,
 	(Googelon.bottom + Googelon.height) * 0.5f,
-	Googelon.z, Googelon.headHorzRotate * BIG_DEG_TO_RAD);
+	Googelon.z, entityListenerHeadingRadians(
+	    playerEntityArchetype, Googelon.headHorzRotate,
+	    playerBodyHeading));
 
     /*************************************************/
     /* reclaim space from finished sounds            */
@@ -6634,9 +6636,9 @@ void showCommands(char * progName)
     fprintf (stderr, "\n\n");
 
 #ifdef SOLARIS
-    fprintf (stderr, "Usage: %s [-a] [-b] [-d level] [-m] [-s] [--map name] [--stereo mode] [-help]\n", progName);
+    fprintf (stderr, "Usage: %s [-a] [-b] [-d level] [-m] [-s] [--map name] [--stereo mode] [--no-audio-smoothing] [-help]\n", progName);
 #else
-    fprintf (stderr, "Usage: %s [-a] [-b] [-d level] [-m] [-s] [--map name] [--stereo mode] [-c] [-h #] [-n] [-p #] [-help]\n", progName);
+    fprintf (stderr, "Usage: %s [-a] [-b] [-d level] [-m] [-s] [--map name] [--stereo mode] [--no-audio-smoothing] [-c] [-h #] [-n] [-p #] [-help]\n", progName);
 #endif
 
     fprintf (stderr, "  -a)lone        fight alone\n");
@@ -6649,6 +6651,8 @@ void showCommands(char * progName)
     fprintf (stderr, "  --view n       select view 0, 1, 2, 4, or 5\n");
     fprintf (stderr, "  --stereo mode  select off, top-bottom, or side-by-side\n");
     fprintf (stderr, "                  V cycles stereo mode while running\n");
+    fprintf (stderr, "  --no-audio-smoothing  disable spatial audio interpolation\n");
+    fprintf (stderr, "  --audio-smoothing     enable spatial audio interpolation\n");
     fprintf (stderr, "  -help          show this list of command line options\n\n");
 
     battalionMapPrintAvailable(dataPath, stderr);
@@ -6835,6 +6839,12 @@ main (int argc, char*argv[])
 	    else
 		showCommands(argv[0]);
 	    }
+
+	else if (strcmp(argv[argument], "--no-audio-smoothing") == 0)
+	    audioSetSmoothingEnabled(0);
+
+	else if (strcmp(argv[argument], "--audio-smoothing") == 0)
+	    audioSetSmoothingEnabled(1);
 
 	else if ((strcmp(argv[argument], "-detail") == 0) ||
 		 (strcmp(argv[argument], "-d") == 0))

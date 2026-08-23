@@ -18,12 +18,13 @@ CC = cc
 PLATFORM = solaris
 GRAPHICS = opengl
 AUDIO = sun
+AUDIO_SMOOTHING = 1
 BUILD_DIR = build/$(PLATFORM)-$(GRAPHICS)-$(AUDIO)
 TARGET = $(BUILD_DIR)/$(PROGRAM)
 
 CPPFLAGS =
 PLATFORM_CPPFLAGS = -DSOLARIS -I/usr/openwin/include
-AUDIO_CPPFLAGS = -DSPATIALAUDIO
+AUDIO_CPPFLAGS = -DSPATIALAUDIO -DAUDIO_SMOOTHING_DEFAULT=$(AUDIO_SMOOTHING)
 COMPAT_CFLAGS = -Xa
 CFLAGS = -O2
 LDFLAGS =
@@ -63,7 +64,7 @@ HEADERS = battalion.h tk.h map.h map_package.h camera_view.h asset.h \
 
 all: $(TARGET)
 
-$(TARGET): $(SOURCES) $(HEADERS) Makefile.solaris
+$(TARGET): FORCE $(SOURCES) $(HEADERS) Makefile.solaris
 	@if test ! -d "$(BUILD_DIR)"; then mkdir -p "$(BUILD_DIR)"; fi
 	@for source in $(SOURCES); do \
 		base=`basename "$$source" .c`; \
@@ -77,12 +78,15 @@ print-config:
 	@echo "platform:   $(PLATFORM)"
 	@echo "graphics:   $(GRAPHICS)"
 	@echo "audio:      $(AUDIO)"
+	@echo "smoothing:  $(AUDIO_SMOOTHING)"
 	@echo "compiler:   $(CC)"
 	@echo "output:     $(TARGET)"
 
 help:
-	@echo "Usage: make -f Makefile.solaris"
+	@echo "Usage: make -f Makefile.solaris [AUDIO_SMOOTHING=0|1]"
 	@echo "Builds native OpenGL and positional stereo through /dev/audio."
+
+FORCE:
 
 clean:
 	rm -f $(OBJECTS) $(TARGET)

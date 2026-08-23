@@ -275,6 +275,16 @@ void audioSetListener(float x, float y, float z, float headingRadians)
     audioMixerSetListener(x, y, z, headingRadians);
     }
 
+void audioSetSmoothingEnabled(int enabled)
+    {
+    audioMixerSetSmoothingEnabled(enabled);
+    }
+
+int audioGetSmoothingEnabled(void)
+    {
+    return audioMixerGetSmoothingEnabled();
+    }
+
 static int effectSlot(int soundType)
     {
     switch (soundType)

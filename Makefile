@@ -175,6 +175,11 @@ endif
 
 AUDIO ?= $(DEFAULT_AUDIO)
 SUPPORTED_AUDIO := none coreaudio oss sun sgi
+AUDIO_SMOOTHING ?= 1
+
+ifneq ($(filter $(AUDIO_SMOOTHING),0 1),$(AUDIO_SMOOTHING))
+$(error AUDIO_SMOOTHING must be 0 or 1)
+endif
 
 ifeq ($(filter $(AUDIO),$(SUPPORTED_AUDIO)),)
 $(error Unsupported AUDIO '$(AUDIO)'. Choose one of: $(SUPPORTED_AUDIO))
@@ -220,7 +225,15 @@ AUDIO_CPPFLAGS := -DSPATIALAUDIO
 AUDIO_LDLIBS := -laudio -lpthread
 endif
 
-BUILD_DIR ?= build/$(PLATFORM)-$(GRAPHICS)-$(AUDIO)
+AUDIO_SMOOTHING_SUFFIX :=
+ifeq ($(AUDIO_SMOOTHING),0)
+ifneq ($(AUDIO),none)
+AUDIO_SMOOTHING_SUFFIX := -nosmooth
+endif
+endif
+AUDIO_CPPFLAGS += -DAUDIO_SMOOTHING_DEFAULT=$(AUDIO_SMOOTHING)
+
+BUILD_DIR ?= build/$(PLATFORM)-$(GRAPHICS)-$(AUDIO)$(AUDIO_SMOOTHING_SUFFIX)
 TARGET := $(BUILD_DIR)/$(PROGRAM)
 OBJECTS := $(addprefix $(BUILD_DIR)/,$(SOURCES))
 OBJECTS := $(OBJECTS:.c=.o)
@@ -269,13 +282,14 @@ print-config:
 	@echo "platform:   $(PLATFORM)"
 	@echo "graphics:   $(GRAPHICS)"
 	@echo "audio:      $(AUDIO)"
+	@echo "smoothing:  $(AUDIO_SMOOTHING)"
 	@echo "assets:     external (assets/manifest.txt)"
 	@echo "maps:       external JSON packages (required)"
 	@echo "compiler:   $(CC)"
 	@echo "output:     $(TARGET)"
 
 help:
-	@echo "Usage: make [PLATFORM=<platform>] [GRAPHICS=<graphics>] [AUDIO=<audio>]"
+	@echo "Usage: make [PLATFORM=<platform>] [GRAPHICS=<graphics>] [AUDIO=<audio>] [AUDIO_SMOOTHING=0|1]"
 	@echo
 	@echo "Platforms: $(SUPPORTED_PLATFORMS)"
 	@echo "Graphics:  $(SUPPORTED_GRAPHICS)"
@@ -288,6 +302,7 @@ help:
 	@echo "  make PLATFORM=macos"
 	@echo "  make PLATFORM=sgi"
 	@echo "  make PLATFORM=solaris"
+	@echo "  make PLATFORM=sgi AUDIO_SMOOTHING=0"
 	@echo "  make PLATFORM=linux AUDIO=none"
 	@echo "  make PLATFORM=linux GRAPHICS=mesa"
 	@echo

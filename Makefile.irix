@@ -24,13 +24,14 @@ CC = cc
 PLATFORM = sgi
 GRAPHICS = opengl
 AUDIO = sgi
+AUDIO_SMOOTHING = 1
 BUILD_DIR = build/$(PLATFORM)-$(GRAPHICS)-$(AUDIO)
 TARGET = $(BUILD_DIR)/$(PROGRAM)
 
 CPPFLAGS =
 PLATFORM_CPPFLAGS = -DSGIVERSION
 GRAPHICS_CPPFLAGS =
-AUDIO_CPPFLAGS = -DSPATIALAUDIO
+AUDIO_CPPFLAGS = -DSPATIALAUDIO -DAUDIO_SMOOTHING_DEFAULT=$(AUDIO_SMOOTHING)
 COMPAT_CFLAGS = -ansi
 CFLAGS = -O2
 LDFLAGS =
@@ -92,13 +93,14 @@ print-config:
 	@echo "platform:   $(PLATFORM)"
 	@echo "graphics:   $(GRAPHICS)"
 	@echo "audio:      $(AUDIO)"
+	@echo "smoothing:  $(AUDIO_SMOOTHING)"
 	@echo "assets:     external (assets/manifest.txt)"
 	@echo "maps:       external JSON packages (required)"
 	@echo "compiler:   $(CC)"
 	@echo "output:     $(TARGET)"
 
 help:
-	@echo "Usage: make [PLATFORM=sgi] [GRAPHICS=opengl|mesa] [AUDIO=none|sgi]"
+	@echo "Usage: make [PLATFORM=sgi] [GRAPHICS=opengl|mesa] [AUDIO=none|sgi] [AUDIO_SMOOTHING=0|1]"
 	@echo "Alias: PLATFORM=irix is also accepted"
 	@echo "AUDIO=sgi is the default and uses positional stereo through SGI AL."
 
