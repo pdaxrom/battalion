@@ -889,14 +889,14 @@ void addProjectile( float x,  float y,  float z, int type,
 
 
     switch(type){
-	case PROJTANK:	    doSound(TANKFIRE);
+	case PROJTANK:	    doSoundAt(TANKFIRE, x, y, z);
 			    break;
 
-	case PROJROCKET:    doSound(HELOROCKET);
+	case PROJROCKET:    doSoundAt(HELOROCKET, x, y, z);
 			    break;
 
 	case PROJTECHS:
-	case PROJHERO:	    doSound(TECHSHOOT);
+	case PROJHERO:	    doSoundAt(TECHSHOOT, x, y, z);
 			    break;
 
 	}
@@ -1402,7 +1402,8 @@ void updatetrees(struct tree * allTrees, int itsChristmas)
 
 		if (temptree->death2 == -1)
 		    {
-		    doSound(CRASH);
+		    doSoundAt(CRASH, temptree->x, temptree->y,
+		              temptree->z);
 
 		    buildingBoomThisFrame[buildingBoomThisFrameCounter++] = temptree->number;
 		    buildingBoomSoFar[buildingBoomSoFarCounter++] = temptree->number;
@@ -1422,7 +1423,7 @@ void updatetrees(struct tree * allTrees, int itsChristmas)
 
 	if (!(temptree->intact) && (((temptree->type == 1) && (temptree->treeshape != 3)) || (temptree->type == 0)))
 	    {
-	    doSound(CRASH);
+	    doSoundAt(CRASH, temptree->x, temptree->y, temptree->z);
 	    dead = 1;
 
 	    buildingBoomThisFrame[buildingBoomThisFrameCounter++] = temptree->number;
@@ -1848,7 +1849,7 @@ static void fireDataEntity(struct tank *tank, struct tank *allTanks,
         {
         tank->maserCount = 2;
         damageDataEntityTarget(tank, allTanks, player, targetList);
-        doSound(TANKMASER);
+        doSoundAt(TANKMASER, tank->x, tank->y, tank->z);
         return;
         }
     bodyHeading = tank->theta * RAD_TO_SMALL_DEG;
@@ -2199,6 +2200,7 @@ void updateTanks(struct tank * allTanks, float width, float height,
 	    if ((ttank->maserCount > 0) && (ttank->rad <= ttank->range))
 		{
 		maserOn = 1;
+		doSoundAt(TANKMASER, ttank->x, ttank->y, ttank->z);
 		ttank->maserCount -= 1;
 
 		nearestMonster->energyRemaining -= 0.5;
@@ -2231,6 +2233,7 @@ void updateTanks(struct tank * allTanks, float width, float height,
 	    if ((ttank->maserCount > 0) && (ttank->rad <= ttank->range))
 		{
 		maserOn = 1;
+		doSoundAt(TANKMASER, ttank->x, ttank->y, ttank->z);
 		ttank->maserCount -= 1;
 
 		nearestMonster->energyRemaining -= 0.5;
@@ -2337,6 +2340,7 @@ void updateTanks(struct tank * allTanks, float width, float height,
 		if ((ttank->maserCount > 10) && (ttank->maserCount < 30) && (ttank->subtype == 1))
 		    {
 		    maserOn = 1;
+		    doSoundAt(TANKMASER, ttank->x, ttank->y, ttank->z);
 
 		    nearestMonster->energyRemaining -= 0.5;
 		    }
@@ -2370,6 +2374,7 @@ void updateTanks(struct tank * allTanks, float width, float height,
 	    if (ttank->maserCount > 0)
 		{
 	    	maserOn = 1;
+		doSoundAt(TANKMASER, ttank->x, ttank->y, ttank->z);
 		ttank->maserCount -= 1;
 		if (ttank->maserCount == 0)
 		    ttank->count = firingDelay;
@@ -2466,9 +2471,7 @@ void updateTanks(struct tank * allTanks, float width, float height,
     /* if some vehicle is firing a maser then do maser sound  */
     /**********************************************************/
 
-    if (maserOn)
-	doSound(TANKMASER);
-    else
+    if (!maserOn)
 	soundKiller(TANKMASER);
     }
 
@@ -3172,7 +3175,7 @@ void updateBooms(struct boom * allBooms, struct tank * tanklist)
 	/***********************/
 
 	if ((bboom->count == 2))
-	    doSound(EXPLOSION);
+	    doSoundAt(EXPLOSION, bboom->x, bboom->y, bboom->z);
 
 	/**********************************/
 	/* check for another tank hit     */
@@ -4534,7 +4537,8 @@ void updateDeadMonster(float x, float z, struct monsterInfo * thaMonster)
 	{
 	if (thaMonster->monster != VAPOUR)
 	    {
-	    doSound(CRASH);
+	    doSoundAt(CRASH, x,
+	              (thaMonster->bottom + thaMonster->height) * 0.5f, z);
 	    }
 
 	if (thaMonster->monster == FLUTTER)
@@ -4923,6 +4927,10 @@ void doUpdate()
 
     if (playerWeaponReloadRemaining > 0)
 	playerWeaponReloadRemaining -= 1;
+
+    audioSetListener(Googelon.x,
+	(Googelon.bottom + Googelon.height) * 0.5f,
+	Googelon.z, Googelon.headHorzRotate * BIG_DEG_TO_RAD);
 
     /*************************************************/
     /* reclaim space from finished sounds            */

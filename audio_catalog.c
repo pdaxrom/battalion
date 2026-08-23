@@ -9,7 +9,7 @@
 /*                                                              */
 /*                      (312) 996-3002     (312) 413-7585 FAX   */
 /***********************************************************************/
-/* External audio catalog shared by historical audio backends.         */
+/* External audio catalog shared by the native audio backends.         */
 /***********************************************************************/
 
 #include "audio_catalog.h"

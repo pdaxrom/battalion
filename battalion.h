@@ -66,12 +66,6 @@
 # define bzero(dst,len) memset(dst, 0, len)
 #endif
 
-#ifdef SUNAUDIO
-/* Audio support */
-# include <multimedia/libaudio.h>
-# include <multimedia/audio_device.h>
-#endif
-
 #if defined(HPVERSION) || defined(SGIVERSION)
 /* to get non-blocking I/O under HP-UX and strict-ANSI IRIX builds */
 /* from Neil Harkin <T.N.Harkin@csc.liv.ac.uk> */
@@ -98,16 +92,6 @@
 #include <time.h>
 #include <sys/time.h>
 
-
-/* audio routines */
-/*****************/
-
-#ifdef SGIVERSION
-
-#include <audio.h>
-#include <audiofile.h>
-
-#endif
 
 /* added for the OpenGL version */
 #ifndef TRUE
@@ -459,26 +443,6 @@ struct fireType
 	float col;		    /* color of flame */
 	};
 
-struct aSound
-	{
-	short *sampleBuffer;
-	long samplesPerFrame;
-	long numberSamples;
-	long samplesPerBuffer;
-	long audioRate;
-	};
-
-struct sound
-	{
-#ifdef SGIVERSION
-	ALport audio_port;
-	int sampleIndex;
-	long samplePosition;
-#endif
-	struct sound * next;
-	int type;
-	};
-
 struct enemy
 	{
 	float r;		    /* range to enemy */
@@ -554,6 +518,8 @@ void initSounds(void);
 void flushSounds(void);
 void soundKiller(int);
 void doSound(int);
+void doSoundAt(int, float, float, float);
+void audioSetListener(float, float, float, float);
 void InitAudio(const char *, const char *, int);
 void OutAudio(int);
 

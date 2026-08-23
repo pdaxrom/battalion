@@ -6,7 +6,7 @@
 
 platform=sgi
 graphics=opengl
-audio=none
+audio=sgi
 
 for argument in "$@"
 do
@@ -39,10 +39,19 @@ case "$graphics" in
 esac
 
 case "$audio" in
-    none) ;;
+    none)
+        audio_objects="build/$platform-$graphics-$audio/audio.o"
+        set -- "$@" AUDIO_SOURCES=audio.c
+        set -- "$@" "AUDIO_OBJECTS=$audio_objects"
+        set -- "$@" AUDIO_CPPFLAGS=
+        set -- "$@" AUDIO_LDLIBS=
+        ;;
     sgi)
-        set -- "$@" AUDIO_CPPFLAGS=-DSGIAUDIO
-        set -- "$@" "AUDIO_LDLIBS=-laudio -laudiofile"
+        audio_objects="build/$platform-$graphics-$audio/audio_spatial.o build/$platform-$graphics-$audio/audio_mixer.o build/$platform-$graphics-$audio/audio_backend_sgi.o"
+        set -- "$@" "AUDIO_SOURCES=audio_spatial.c audio_mixer.c audio_backend_sgi.c"
+        set -- "$@" "AUDIO_OBJECTS=$audio_objects"
+        set -- "$@" AUDIO_CPPFLAGS=-DSPATIALAUDIO
+        set -- "$@" "AUDIO_LDLIBS=-laudio -lpthread"
         ;;
     *)
         echo "IRIX build supports AUDIO=none or AUDIO=sgi" >&2

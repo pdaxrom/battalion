@@ -72,9 +72,10 @@ texture coordinates, normals and lane markers are authored GLB assets rather
 than procedural geometry in `graphics.c`. The renderer palette lives in
 `config/palette.values`, HUD layout values live in `config/ui.values`, and the
 complete SGI stroke font lives in `fonts/stroke.font` rather than compiled C
-tables. `audio/catalog.txt` maps semantic sound and music names to the files
-and mixer slots used by the historical SGI, Sun and OSS backends; audio file
-names and music sequence lengths are no longer compiled into `audio.c`.
+tables. `audio/catalog.txt` maps semantic sound and music names to portable
+PCM files and mixer slots. The shared spatial mixer feeds the native CoreAudio,
+SGI AL, OSS, and Sun `/dev/audio` outputs; audio file names and music sequence
+lengths are not compiled into gameplay code.
 Beams, particles, impact scars, and HUD rectangles are runtime primitives
 because their vertices depend on live per-frame state; their reusable visual
 parameters and layout remain external in `config/`.

@@ -1,55 +1,25 @@
 # Runtime audio assets. Each entry is: key, backend, mixer slot, path.
 battalion-audio 1
 
-entry beam sun 0 sounds/beam.au
-entry boom sun 1 sounds/boom.au
-entry crash sun 2 sounds/crash.au
-entry monster-beam sun 3 sounds/monsterbeam.au
-entry rocket sun 4 sounds/rocket.au
-entry slag sun 5 sounds/slag.au
-entry tank sun 6 sounds/tank.au
-entry tech sun 7 sounds/tech.au
-entry music-1 sun 10 music/1.au
-entry music-2 sun 11 music/2.au
-entry music-3 sun 12 music/1.au
-entry music-4 sun 13 music/2.au
-entry music-5 sun 14 music/1.au
-entry death-1 sun 15 music/2.au
-entry death-2 sun 16 music/1.au
-entry death-3 sun 17 music/2.au
-entry death-4 sun 18 music/1.au
-entry death-5 sun 19 music/2.au
+# Portable PCM assets used by every native audio backend.
+entry beam pcm 0 sounds/beam.wav
+entry boom pcm 1 sounds/boom.wav
+entry crash pcm 2 sounds/crash.wav
+entry monster-beam pcm 3 sounds/monsterbeam.wav
+entry rocket pcm 4 sounds/rocket.wav
+entry slag pcm 5 sounds/slag.wav
+entry tank pcm 6 sounds/tank.wav
+entry tech pcm 7 sounds/tech.wav
+entry music-1 pcm 10 music/mbatt1.wav
+entry music-2 pcm 11 music/mbatt2.wav
+entry music-3 pcm 12 music/mbatt3.wav
+entry music-4 pcm 13 music/mbatt4.wav
+entry music-5 pcm 14 music/mbatt1.wav
+entry death-1 pcm 15 music/mbatt2.wav
+entry death-2 pcm 16 music/mbatt3.wav
+entry death-3 pcm 17 music/mbatt4.wav
+entry death-4 pcm 18 music/mbatt1.wav
+entry death-5 pcm 19 music/mbatt2.wav
 
-entry beam oss 0 sounds/beam.raw
-entry boom oss 1 sounds/boom.raw
-entry crash oss 2 sounds/crash.raw
-entry monster-beam oss 3 sounds/monsterbeam.raw
-entry rocket oss 4 sounds/rocket.raw
-entry slag oss 5 sounds/slag.raw
-entry tank oss 6 sounds/tank.raw
-entry tech oss 7 sounds/tech.raw
-entry music-1 oss 10 music/1.raw
-entry music-2 oss 11 music/2.raw
-
-entry beam sgi 0 sounds/beam.wav
-entry boom sgi 1 sounds/boom.wav
-entry crash sgi 2 sounds/crash.wav
-entry monster-beam sgi 3 sounds/monsterbeam.wav
-entry rocket sgi 4 sounds/rocket.wav
-entry slag sgi 5 sounds/slag.wav
-entry tank sgi 6 sounds/tank.wav
-entry tech sgi 7 sounds/tech.wav
-entry music-1 sgi 10 music/mbatt1.wav
-entry music-2 sgi 11 music/mbatt2.wav
-entry music-3 sgi 12 music/mbatt3.wav
-entry music-4 sgi 13 music/mbatt4.wav
-entry music-5 sgi 14 music/mbatt1.wav
-entry death-1 sgi 15 music/mbatt2.wav
-entry death-2 sgi 16 music/mbatt3.wav
-entry death-3 sgi 17 music/mbatt4.wav
-entry death-4 sgi 18 music/mbatt1.wav
-entry death-5 sgi 19 music/mbatt2.wav
-
-# PCM assets retained for a modern file-audio backend.
-entry electrical wav 0 sounds/electrical.wav
-entry teleporter wav 1 sounds/teleporter.wav
+entry electrical pcm 8 sounds/electrical.wav
+entry teleporter pcm 9 sounds/teleporter.wav

@@ -73,11 +73,12 @@ int main(void)
         fprintf(stderr, "audio catalog failed to load: %s\n", error);
         return 1;
         }
-    entry = audioCatalogFind(&catalog, "beam", "oss");
-    if (catalog.count != 48 || entry == NULL || entry->slot != 0 ||
-        strcmp(entry->path, "sounds/beam.raw") != 0 ||
-        audioCatalogFind(&catalog, "music-5", "sgi") == NULL ||
-        audioCatalogFind(&catalog, "teleporter", "wav") == NULL ||
+    entry = audioCatalogFind(&catalog, "beam", "pcm");
+    if (catalog.count != 20 || entry == NULL || entry->slot != 0 ||
+        strcmp(entry->path, "sounds/beam.wav") != 0 ||
+        audioCatalogFind(&catalog, "music-5", "pcm") == NULL ||
+        audioCatalogFind(&catalog, "monster-beam", "pcm") == NULL ||
+        audioCatalogFind(&catalog, "teleporter", "pcm") == NULL ||
         !verifyAudioDirectory(&catalog, "assets/sounds") ||
         !verifyAudioDirectory(&catalog, "assets/music"))
         {

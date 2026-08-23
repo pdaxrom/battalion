@@ -10,127 +10,79 @@
 
 #--------------- Solaris battalion 1.2 --------------------
 #
-# Makefile targets to build binaries are "mesa", "ogl" and "tgs".
-# The ogl and tgs targets create their object files (but not the binary)
-# in subdirectories "opengl" and "tgs" to separate them from Mesa object
-# files.
-#
-# Other targets:
-#
-# Run "make buildlinks.ogl" ONCE to create the opengl directory and the
-# symbolic links in it. This will destroy whatever is in the directory!
-# "make buildlinks.tgs" does the same thing for the TGS version.
-#
-# "make clean" removes Mesa object files, "make clean.ogl" removes
-# OpenGL object files and "make clean.tgl" removes TGS object files.
-#
-# "make clean.bin" removes the Mesa, OpenGL and TGS binaries.
+# Native Solaris make companion. The normal cross-platform entry point is
+# `gmake PLATFORM=solaris`; this file exists for systems with Sun make only.
 
-COREOBJS = battalion.o map.o audio.o net.o graphics.o camera.o text.o \
-	update.o tk_x11.o font.o dynamic_primitives.o map_package.o
-ASSETOBJS = asset.o asset_gltf.o asset_animation.o asset_render.o \
-	asset_manifest.o asset_bindings.o asset_tga.o asset_values.o stroke_font_asset.o \
-	audio_catalog.o entity_catalog.o entity_behavior.o
-OBJS = $(COREOBJS) $(ASSETOBJS)
-HDRS = battalion.h tk.h asset.h asset_animation.h asset_bindings.h asset_manifest.h \
-	asset_render.h asset_tga.h asset_values.h map.h map_package.h \
-	dynamic_primitives.h stroke_font_asset.h audio_catalog.h entity_catalog.h \
-	entity_behavior.h
+PROGRAM = battalion
+CC = cc
+PLATFORM = solaris
+GRAPHICS = opengl
+AUDIO = sun
+BUILD_DIR = build/$(PLATFORM)-$(GRAPHICS)-$(AUDIO)
+TARGET = $(BUILD_DIR)/$(PROGRAM)
 
-MESABIN	= battalion.mesa
-OGLBIN	= battalion.opengl
-TGSBIN	= battalion.tgs
+CPPFLAGS =
+PLATFORM_CPPFLAGS = -DSOLARIS -I/usr/openwin/include
+AUDIO_CPPFLAGS = -DSPATIALAUDIO
+COMPAT_CFLAGS = -Xa
+CFLAGS = -O2
+LDFLAGS =
+LDLIBS = -L/usr/openwin/lib -lGL -lGLU -lXext -lX11 -lnsl -lsocket \
+	-lm -lpthread
 
-# The subdirectory to create OpenGL objects files in
-OGLDIR = opengl
+SOURCES = battalion.c map.c net.c graphics.c camera.c camera_view.c \
+	text.c update.c tk_x11.c font.c dynamic_primitives.c map_package.c \
+	asset.c asset_gltf.c asset_animation.c asset_skin.c asset_render.c \
+	asset_manifest.c asset_bindings.c asset_tga.c asset_values.c \
+	stroke_font_asset.c asset_png.c audio_catalog.c entity_catalog.c \
+	entity_behavior.c world_coordinates.c audio_spatial.c audio_mixer.c \
+	audio_backend_sun.c
 
-# The TGS subdirectory
-TGSDIR = leo
+OBJECTS = $(BUILD_DIR)/battalion.o $(BUILD_DIR)/map.o \
+	$(BUILD_DIR)/net.o $(BUILD_DIR)/graphics.o \
+	$(BUILD_DIR)/camera.o $(BUILD_DIR)/camera_view.o \
+	$(BUILD_DIR)/text.o $(BUILD_DIR)/update.o \
+	$(BUILD_DIR)/tk_x11.o $(BUILD_DIR)/font.o \
+	$(BUILD_DIR)/dynamic_primitives.o $(BUILD_DIR)/map_package.o \
+	$(BUILD_DIR)/asset.o $(BUILD_DIR)/asset_gltf.o \
+	$(BUILD_DIR)/asset_animation.o $(BUILD_DIR)/asset_skin.o \
+	$(BUILD_DIR)/asset_render.o $(BUILD_DIR)/asset_manifest.o \
+	$(BUILD_DIR)/asset_bindings.o $(BUILD_DIR)/asset_tga.o \
+	$(BUILD_DIR)/asset_values.o $(BUILD_DIR)/stroke_font_asset.o \
+	$(BUILD_DIR)/asset_png.o $(BUILD_DIR)/audio_catalog.o \
+	$(BUILD_DIR)/entity_catalog.o $(BUILD_DIR)/entity_behavior.o \
+	$(BUILD_DIR)/world_coordinates.o $(BUILD_DIR)/audio_spatial.o \
+	$(BUILD_DIR)/audio_mixer.o $(BUILD_DIR)/audio_backend_sun.o
 
-# Sun audio library
-LIBAUDIO  = /usr/demo/SOUND
+HEADERS = battalion.h tk.h map.h map_package.h camera_view.h asset.h \
+	asset_animation.h asset_skin.h asset_render.h asset_manifest.h \
+	asset_bindings.h asset_tga.h asset_values.h asset_png.h \
+	stroke_font_asset.h audio_catalog.h audio_backend.h audio_mixer.h \
+	entity_catalog.h entity_behavior.h dynamic_primitives.h \
+	world_coordinates.h
 
-#--- Generic options ---
-OPT	 = -Xa -xCC -DSOLARIS -DSUNAUDIO
-# Optimization flags. xunroll=10 seems to be optimal at
-# least for a Voyager (with microSPARC CPU).
-OPT	+= -fast -xO4 -fsimple=2 -dalign -xlibmil -xunroll=10
-INCLS	 = -I/usr/openwin/include -I$(LIBAUDIO)/include
-CFLAGS	 = $(OPT) $(TARGETOPT) $(INCLS)
+all: $(TARGET)
 
-#--- Mesa version: "make" or "make mesa" ---
-#
-MESAHOME  = /usr/local
-$(MESABIN) := TARGETOPT = -DMESAVERSION -DDETAIL=0 -xtarget=ss20/61
-#$(MESABIN) := TARGETOPT = -DMESAVERSION -DDETAIL=0 -xtarget=ssvyger
-$(MESABIN) := INCLS += -I$(MESAHOME)/include
-#-- Uncomment only one of the MESALIBS definitions below
-# Link Mesa statically
-MESALIBS =  -L$(MESAHOME)/lib -Bstatic -lMesaGL -lMesaGLU -Bdynamic \
-	-L/usr/openwin/lib -lXext -lX11 -lnsl -lsocket \
-	-L$(LIBAUDIO)/lib -laudio -lmopt -lm -lposix4 -R/usr/openwin/lib
-# Link Mesa dynamically
-#MESALIBS =  -L$(MESAHOME)/lib -lMesaGL -lMesaGLU -L/usr/openwin/lib -lXext \
-#	-lX11 -lnsl -lsocket -lmopt -lm -R/usr/openwin/lib:/usr/local/lib
+$(TARGET): $(SOURCES) $(HEADERS) Makefile.solaris
+	@if test ! -d "$(BUILD_DIR)"; then mkdir -p "$(BUILD_DIR)"; fi
+	@for source in $(SOURCES); do \
+		base=`basename "$$source" .c`; \
+		object="$(BUILD_DIR)/$$base.o"; \
+		echo "$(CC) $(CPPFLAGS) $(PLATFORM_CPPFLAGS) $(AUDIO_CPPFLAGS) $(COMPAT_CFLAGS) $(CFLAGS) -c $$source -o $$object"; \
+		$(CC) $(CPPFLAGS) $(PLATFORM_CPPFLAGS) $(AUDIO_CPPFLAGS) $(COMPAT_CFLAGS) $(CFLAGS) -c "$$source" -o "$$object" || exit 1; \
+	done
+	$(CC) $(LDFLAGS) -o $(TARGET) $(OBJECTS) $(LDLIBS)
 
-#--- Sun OpenGL version: "make ogl" ---
-#
-$(OGLBIN) := TARGETOPT = -DDETAIL=2 -xtarget=ultra -xarch=v8plusa -xchip=ultra
-OGLLIBS = -L/usr/openwin/lib -lGL -lGLU -lXext -lX11 -lnsl -lsocket \
-	  -L$(LIBAUDIO)/lib -laudio -lmopt -lm -lposix4 -R/usr/openwin/lib
+print-config:
+	@echo "platform:   $(PLATFORM)"
+	@echo "graphics:   $(GRAPHICS)"
+	@echo "audio:      $(AUDIO)"
+	@echo "compiler:   $(CC)"
+	@echo "output:     $(TARGET)"
 
-#--- TGS version for ZX: "make tgs" ---
-#
-TGSHOME = /gp/opengl/tgs
-$(TGSBIN) := TARGETOPT = -DDETAIL=2 -xtarget=ss20/61
-$(TGSBIN) := INCLS = -I$(TGSHOME)/include -I/usr/openwin/include \
-	  -I$(LIBAUDIO)/include
-TGSLIBS = -L$(TGSHOME)/lib -lGLU -lGL -L/usr/openwin/lib -ldga \
-	  -lXext -lX11 -lnsl -lsocket \
-	  -L$(LIBAUDIO)/lib -laudio -lmopt -lm -lposix4 -R/usr/openwin/lib
-
-#--------------------------------------------------------
-
-# Defines the default target
-all:	mesa
-
-mesa: $(MESABIN)
-
-ogl:
-	cd $(OGLDIR); $(MAKE) $(OGLBIN)
-
-tgs:
-	cd $(TGSDIR); $(MAKE) $(TGSBIN)
-
-$(MESABIN): $(OBJS) $(HDRS)
-	$(CC) $(CFLAGS) $(OBJS) $(MESALIBS) -o $@
-
-$(OGLBIN): $(OBJS) $(HDRS)
-	$(CC) $(CFLAGS) $(OBJS) $(OGLLIBS) -o ../$@
-
-$(TGSBIN): $(OBJS) $(HDRS)
-	$(CC) $(CFLAGS) $(OBJS) $(TGSLIBS) -o ../$@
-
-$(OBJS): $(HDRS)
+help:
+	@echo "Usage: make -f Makefile.solaris"
+	@echo "Builds native OpenGL and positional stereo through /dev/audio."
 
 clean:
-	rm -f $(OBJS)
-
-clean.ogl:
-	cd $(OGLDIR); rm -f $(OBJS)
-
-clean.tgs:
-	cd $(TGSDIR); rm -f $(OBJS)
-
-clean.bin:
-	rm -f $(MESABIN) $(OGLBIN) $(TGSBIN)
-
-buildlinks.ogl:
-	rm -rf $(OGLDIR)
-	mkdir $(OGLDIR)
-	cd $(OGLDIR); ln -s ../*.c ../*.h .; ln -s ../Makefile.solaris Makefile
-
-buildlinks.tgs:
-	rm -rf $(TGSDIR)
-	mkdir $(TGSDIR)
-	cd $(TGSDIR); ln -s ../*.c ../*.h .; ln -s ../Makefile.solaris Makefile
+	rm -f $(OBJECTS) $(TARGET)

@@ -231,7 +231,8 @@ void updateBeam(struct monsterInfo * g, struct targetInfo * t,
 	return;
     beamRange = archetype->weaponRange;
 
-    doSound(MONSTERBEAM);
+    doSoundAt(MONSTERBEAM, muzzleOrigin[0], muzzleOrigin[1],
+	      muzzleOrigin[2]);
 
     R = beamRange;
     loc1[0] = muzzleOrigin[0];
@@ -411,7 +412,7 @@ void updateBeam(struct monsterInfo * g, struct targetInfo * t,
 		/* if so, slag it!                */
 		/**********************************/
 
-		doSound(SLAG);
+		doSoundAt(SLAG, ttank->x, ttank->y, ttank->z);
 	    
 		ttank->damage = -99;
 		}		

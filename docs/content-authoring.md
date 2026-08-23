@@ -1212,6 +1212,12 @@ and classic OpenGL; no effect should rely on one backend's implicit blend state.
 ### Effect audio
 
 Semantic sound and music files are declared by `assets/audio/catalog.txt`.
+Portable spatial sounds use the `pcm` backend and 16-bit mono or stereo PCM
+WAV files. Gameplay supplies a world-space source position; the shared mixer
+applies distance attenuation and stereo direction on macOS, Linux, IRIX,
+Solaris, and SunOS. Sound effects should normally be mono so the runtime can
+position them accurately. See `docs/audio.md` for the backend contract and
+asset requirements.
 Entity descriptors currently do not have arbitrary sound-event directives.
 Replacing an existing sound is data-only; defining a new gameplay sound event
 requires a reusable audio-event capability before descriptors can select it.

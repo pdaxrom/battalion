@@ -138,21 +138,25 @@ SOURCES += tk_macos.m renderer/fixed_gl.c renderer/metal.m
 PLATFORM_CPPFLAGS += -DMACOSVERSION -DRENDERER_METAL
 PLATFORM_LDLIBS += -framework AppKit -framework Metal -framework MetalKit \
 	-framework QuartzCore -framework CoreGraphics -lm
+DEFAULT_AUDIO := coreaudio
 endif
 
 ifeq ($(PLATFORM),solaris)
 PLATFORM_CPPFLAGS += -DSOLARIS $(X11_CFLAGS) $(OPENGL_CFLAGS)
 PLATFORM_LDLIBS += $(OPENGL_LIBS) $(X11_LIBS) -lnsl -lsocket -lm
+DEFAULT_AUDIO := sun
 endif
 
 ifeq ($(PLATFORM),sunos)
 PLATFORM_CPPFLAGS += -DSUNVERSION $(X11_CFLAGS) $(OPENGL_CFLAGS)
 PLATFORM_LDLIBS += $(OPENGL_LIBS) $(X11_LIBS) -lm
+DEFAULT_AUDIO := sun
 endif
 
 ifeq ($(PLATFORM),sgi)
 PLATFORM_CPPFLAGS += -DSGIVERSION $(X11_CFLAGS) $(OPENGL_CFLAGS)
 PLATFORM_LDLIBS += $(OPENGL_LIBS) $(X11_LIBS) -lm
+DEFAULT_AUDIO := sgi
 endif
 
 ifeq ($(PLATFORM),hpux)
@@ -170,36 +174,50 @@ GRAPHICS_CPPFLAGS := -DMESAVERSION
 endif
 
 AUDIO ?= $(DEFAULT_AUDIO)
-SUPPORTED_AUDIO := none oss sun sgi
+SUPPORTED_AUDIO := none coreaudio oss sun sgi
 
 ifeq ($(filter $(AUDIO),$(SUPPORTED_AUDIO)),)
 $(error Unsupported AUDIO '$(AUDIO)'. Choose one of: $(SUPPORTED_AUDIO))
+endif
+
+ifeq ($(AUDIO),coreaudio)
+ifneq ($(PLATFORM),macos)
+$(error AUDIO=coreaudio is only supported with PLATFORM=macos)
+endif
+SOURCES := $(filter-out audio.c,$(SOURCES))
+SOURCES += audio_spatial.c audio_mixer.c audio_backend_macos.m
+AUDIO_CPPFLAGS := -DSPATIALAUDIO
+AUDIO_LDLIBS := -framework AudioUnit
 endif
 
 ifeq ($(AUDIO),oss)
 ifneq ($(PLATFORM),linux)
 $(error AUDIO=oss is only supported with PLATFORM=linux)
 endif
-AUDIO_CPPFLAGS := -DLINUXAUDIO
-SOURCES += soundIt.c
+SOURCES := $(filter-out audio.c,$(SOURCES))
+SOURCES += audio_spatial.c audio_mixer.c audio_backend_oss.c
+AUDIO_CPPFLAGS := -DSPATIALAUDIO -pthread
+AUDIO_LDLIBS := -pthread
 endif
 
 ifeq ($(AUDIO),sun)
 ifneq ($(filter $(PLATFORM),solaris sunos),$(PLATFORM))
 $(error AUDIO=sun requires PLATFORM=solaris or PLATFORM=sunos)
 endif
-SUN_AUDIO_PREFIX ?= /usr/demo/SOUND
-AUDIO_CPPFLAGS := -DSUNAUDIO -I$(SUN_AUDIO_PREFIX)/include
-AUDIO_LDFLAGS := -L$(SUN_AUDIO_PREFIX)/lib
-AUDIO_LDLIBS := -laudio
+SOURCES := $(filter-out audio.c,$(SOURCES))
+SOURCES += audio_spatial.c audio_mixer.c audio_backend_sun.c
+AUDIO_CPPFLAGS := -DSPATIALAUDIO
+AUDIO_LDLIBS := -lpthread
 endif
 
 ifeq ($(AUDIO),sgi)
 ifneq ($(PLATFORM),sgi)
 $(error AUDIO=sgi requires PLATFORM=sgi)
 endif
-AUDIO_CPPFLAGS := -DSGIAUDIO
-AUDIO_LDLIBS := -laudio -laudiofile
+SOURCES := $(filter-out audio.c,$(SOURCES))
+SOURCES += audio_spatial.c audio_mixer.c audio_backend_sgi.c
+AUDIO_CPPFLAGS := -DSPATIALAUDIO
+AUDIO_LDLIBS := -laudio -lpthread
 endif
 
 BUILD_DIR ?= build/$(PLATFORM)-$(GRAPHICS)-$(AUDIO)
@@ -269,7 +287,7 @@ help:
 	@echo "  make PLATFORM=linux"
 	@echo "  make PLATFORM=macos"
 	@echo "  make PLATFORM=sgi"
-	@echo "  make PLATFORM=sgi AUDIO=sgi"
+	@echo "  make PLATFORM=solaris"
 	@echo "  make PLATFORM=linux AUDIO=none"
 	@echo "  make PLATFORM=linux GRAPHICS=mesa"
 	@echo
@@ -292,6 +310,7 @@ ASSET_CATALOG_TEST := $(TEST_BUILD_DIR)/asset-catalog-test
 ASSET_VALUES_TEST := $(TEST_BUILD_DIR)/asset-values-test
 STROKE_FONT_TEST := $(TEST_BUILD_DIR)/stroke-font-test
 AUDIO_CATALOG_TEST := $(TEST_BUILD_DIR)/audio-catalog-test
+AUDIO_MIXER_TEST := $(TEST_BUILD_DIR)/audio-mixer-test
 ASSET_BINDINGS_TEST := $(TEST_BUILD_DIR)/asset-bindings-test
 ENTITY_CATALOG_TEST := $(TEST_BUILD_DIR)/entity-catalog-test
 ENTITY_BEHAVIOR_TEST := $(TEST_BUILD_DIR)/entity-behavior-test
@@ -320,6 +339,9 @@ $(STROKE_FONT_TEST): tests/stroke_font_test.c stroke_font_asset.c stroke_font_as
 $(AUDIO_CATALOG_TEST): tests/audio_catalog_test.c audio_catalog.c audio_catalog.h Makefile | $(TEST_BUILD_DIR)
 	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< audio_catalog.c -o $@
 
+$(AUDIO_MIXER_TEST): tests/audio_mixer_test.c audio_mixer.c audio_mixer.h Makefile | $(TEST_BUILD_DIR)
+	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< audio_mixer.c -lm -pthread -o $@
+
 $(ASSET_BINDINGS_TEST): tests/asset_bindings_test.c asset_bindings.c asset_bindings.h Makefile | $(TEST_BUILD_DIR)
 	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< asset_bindings.c -o $@
 
@@ -341,7 +363,7 @@ $(CAMERA_VIEW_TEST): tests/camera_view_test.c camera_view.c camera_view.h Makefi
 $(TEST_BUILD_DIR):
 	mkdir -p $@
 
-test: c89-check $(MAP_TEST) $(ASSET_TEST) $(ASSET_SKIN_TEST) $(ASSET_CATALOG_TEST) $(ASSET_VALUES_TEST) $(STROKE_FONT_TEST) $(AUDIO_CATALOG_TEST) $(ASSET_BINDINGS_TEST) $(ENTITY_CATALOG_TEST) $(ENTITY_BEHAVIOR_TEST) $(NO_EMBEDDED_ASSETS_TEST) $(WORLD_COORDINATES_TEST) $(CAMERA_VIEW_TEST)
+test: c89-check $(MAP_TEST) $(ASSET_TEST) $(ASSET_SKIN_TEST) $(ASSET_CATALOG_TEST) $(ASSET_VALUES_TEST) $(STROKE_FONT_TEST) $(AUDIO_CATALOG_TEST) $(AUDIO_MIXER_TEST) $(ASSET_BINDINGS_TEST) $(ENTITY_CATALOG_TEST) $(ENTITY_BEHAVIOR_TEST) $(NO_EMBEDDED_ASSETS_TEST) $(WORLD_COORDINATES_TEST) $(CAMERA_VIEW_TEST)
 	./$(MAP_TEST)
 	./$(ASSET_TEST)
 	./$(ASSET_SKIN_TEST)
@@ -349,6 +371,7 @@ test: c89-check $(MAP_TEST) $(ASSET_TEST) $(ASSET_SKIN_TEST) $(ASSET_CATALOG_TES
 	./$(ASSET_VALUES_TEST)
 	./$(STROKE_FONT_TEST)
 	./$(AUDIO_CATALOG_TEST)
+	./$(AUDIO_MIXER_TEST)
 	./$(ASSET_BINDINGS_TEST)
 	./$(ENTITY_CATALOG_TEST)
 	./$(ENTITY_BEHAVIOR_TEST)
