@@ -438,6 +438,7 @@ static int playerBodyHeading;
 static int playerProjectileTriggerLatched;
 static int playerWeaponReloadRemaining;
 static int showHelp;
+static int showDemoMenu;
 static int commandKeys[6];
 
 static void clearPlayerInput(void);
@@ -3698,6 +3699,7 @@ void initialization()
     no3D	    = 0;
     mode3D	    = 0;
     showOptions	    = 0;
+    showDemoMenu    = 0;
     backdrop	    = 0;
     showframes	    = 0;
     paused	    = 0;
@@ -4280,6 +4282,7 @@ void demoKeys(int key)
 			break;
 
 	case TK_ESCAPE: showOptions = 0;
+			showDemoMenu = 1;
 			break;
 
 	}
@@ -4927,6 +4930,9 @@ void doUpdate()
 
     if (playerWeaponReloadRemaining > 0)
 	playerWeaponReloadRemaining -= 1;
+
+    if (mode == DEMOMODE && Googelon.moveCount >= 150)
+	showDemoMenu = 1;
 
     audioSetListener(Googelon.x,
 	(Googelon.bottom + Googelon.height) * 0.5f,
@@ -5954,7 +5960,7 @@ textLineWidth = 1.01;
 	    {
 	    if (!(Googelon.timeDead > 100) && !showOptions)
 		{
-		if (Googelon.moveCount < 150)
+		if (!showDemoMenu)
 		    showScores(itsChristmas, G, V, T, F, Googelon, mainCounter, offsetX, lod);
 		else if (!showHelp)
 		    showText2((long) (viewR-viewL), getSoundOn(), noSound, getMusicOn(),
