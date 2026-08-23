@@ -8,7 +8,6 @@ texture tree-wood textures/treewood.tga linear clamp
 texture road textures/road.tga linear repeat
 texture office-logo textures/logo.tga nearest clamp
 
-file animation-values config/animation.values
 file effect-values config/effects.values
 file palette-values config/palette.values
 file ui-values config/ui.values
@@ -17,6 +16,7 @@ file audio-catalog audio/catalog.txt
 file render-bindings config/render.bindings
 file sgi-showcase battalion.sho
 file entity-catalog entities/catalog.txt
+file faction-catalog factions/catalog.txt
 
 model tank models/vehicles/tank.glb
 animation tank-tracks tank tracks loop
@@ -169,10 +169,5 @@ model hill-inside-0-xmas models/terrain/hill-inside-0-xmas.glb
 model hill-inside-1 models/terrain/hill-inside-1.glb
 model hill-inside-1-xmas models/terrain/hill-inside-1-xmas.glb
 
-model boom-high models/effects/boom-high.glb
-model boom-low models/effects/boom-low.glb
-animation boom-high-explode boom-high explode once
-animation boom-low-explode boom-low explode once
 model sphere-low models/effects/sphere-low.glb
 model sphere-high models/effects/sphere-high.glb
-model fire models/effects/fire.glb

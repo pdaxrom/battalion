@@ -2,20 +2,35 @@
 battalion-entity 1
 id helo-standard
 display-name Helicopter
+description Controllable helicopter with animated rotors and rocket armament.
+property callsign string none
+editor-category vehicles
+editor-color yellow
+wreck-fire-projectile projectile-flame
+destruction-projectile projectile-debris
+destruction-effect explosion-standard
+destruction-sound crash
+destruction-debris-count 7
+destruction-fire-count 3
+destruction-effect-count 1
+debris-life 420
 kind vehicle
+collision-footprint model
 controllable yes
 control-mode free
 model helo
-model-yaw-offset 180
+model-yaw-offset 0
+aim-yaw-node gun-yaw
+aim-pitch-node gun-pitch
 muzzle-node muzzle
 idle-animation helo-rotors
 move-animation helo-rotors
 attack-animation helo-rotors
 animation-speed 0.05
 faction army
-hostile-faction monster
 movement air
 speed 0.045
+player-speed 0.12
 turn-rate 0.2
 health 2
 score 8
@@ -23,15 +38,17 @@ scale 1
 vertical-offset 1
 collision-radius 0.3
 collision-height 0.4
-weapon rocket
+weapon projectile
+projectile projectile-rocket
+fire-sound rocket
 weapon-color white
 weapon-range 6
 weapon-min-range 0.5
-projectile-speed 0.1
+projectile-speed 0.3
 fire-interval 90
 accuracy 1000
-forget-range 14
-lost-frames 180
+forget-range 60
+lost-frames 1200
 target-mode nearest
 max-targets 1
 sensor sight vision 10 140 hostile
@@ -42,6 +59,7 @@ on-enter noise investigate air-alert
 on-enter damaged attack air-alert
 on-trigger air-alert activate none
 on-trigger air-alert attack none
+on-trigger spawned pursue none
 spawn-weight 17
 spawn-after 0
 max-active 0

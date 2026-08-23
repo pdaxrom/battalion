@@ -380,6 +380,14 @@ void tkExec(void)
     frameDriver = nil;
 }
 
+float tkDisplayScale(void)
+{
+    if (metalView && metalView.bounds.size.width > 0.0)
+        return (float)(metalView.drawableSize.width /
+                       metalView.bounds.size.width);
+    return 1.0f;
+}
+
 void tkCloseWindow(void)
 {
     if (pointerIsGrabbed)

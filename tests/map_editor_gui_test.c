@@ -10,6 +10,12 @@
 static int drawCalls;
 static int drawVertices;
 static int scissorDraws;
+static float testDisplayScale = 2.0f;
+
+float tkDisplayScale(void)
+    {
+    return testDisplayScale;
+    }
 
 int rendererBackendInitialize(void *nativeView)
     {
@@ -85,7 +91,8 @@ int main(void)
         fprintf(stderr, "map editor gui init failed\n");
         return 1;
         }
-    if (gui.font.height != MAP_EDITOR_GUI_FONT_HEIGHT)
+    if (gui.font.height !=
+        MAP_EDITOR_GUI_FONT_DEVICE_PIXELS / testDisplayScale)
         {
         fprintf(stderr, "unexpected map editor font height: %.1f\n",
                 gui.font.height);

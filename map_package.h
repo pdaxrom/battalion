@@ -11,19 +11,19 @@
 
 #include <stddef.h>
 
-struct BattalionMapRoad
+#define BATTALION_MAP_DESCRIPTION_SIZE 256
+#define BATTALION_MAP_PROPERTY_VALUE_SIZE 128
+
+struct BattalionMapPoint
     {
     float x;
     float z;
-    int type;
     };
 
-struct BattalionMapStructure
+struct BattalionMapProperty
     {
-    float x;
-    float z;
-    int type;
-    int shape;
+    char name[ENTITY_NAME_SIZE];
+    char value[BATTALION_MAP_PROPERTY_VALUE_SIZE];
     };
 
 #define BATTALION_MAP_TRIGGER_ID 1
@@ -36,18 +36,30 @@ struct BattalionMapTrigger
     int targetType;
     };
 
-struct BattalionMapActor
+struct BattalionMapObject
     {
     char id[ENTITY_NAME_SIZE];
     char archetype[ENTITY_NAME_SIZE];
+    char description[BATTALION_MAP_DESCRIPTION_SIZE];
     char group[ENTITY_NAME_SIZE];
+    char faction[ENTITY_NAME_SIZE];
+    char patrolRoute[ENTITY_NAME_SIZE];
+    char safeZone[ENTITY_NAME_SIZE];
     float x;
+    float y;
     float z;
     float heading;
+    float scale;
     int active;
     int patrolMode;
+    int alarmResponse;
+    float safeWaitSeconds;
     struct EntityWaypoint *waypoints;
     size_t waypointCount;
+    struct BattalionMapPoint *geometry;
+    size_t geometryCount;
+    struct BattalionMapProperty *properties;
+    size_t propertyCount;
     struct BattalionMapTrigger *triggers;
     size_t triggerCount;
     };
@@ -57,12 +69,8 @@ struct BattalionMapPackage
     int version;
     char id[32];
     char name[128];
-    struct BattalionMapRoad *roads;
-    size_t roadCount;
-    struct BattalionMapStructure *structures;
-    size_t structureCount;
-    struct BattalionMapActor *actors;
-    size_t actorCount;
+    struct BattalionMapObject *objects;
+    size_t objectCount;
     };
 
 void battalionMapPackageInit(struct BattalionMapPackage *map);

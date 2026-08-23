@@ -234,8 +234,6 @@ static void drawText(const struct nk_command_text *text)
 
     setColor(text->foreground);
     scale = text->height / 8.0f;
-    if (scale < 1.0f)
-        scale = 1.0f;
     glBegin(GL_QUADS);
     for (character = 0; character < text->length; character++)
         for (row = 0; row < 7; row++)
@@ -260,7 +258,7 @@ int mapEditorGuiInitialize(struct MapEditorGui *gui)
     {
     memset(gui, 0, sizeof(*gui));
     gui->font.userdata = nk_handle_ptr(NULL);
-    gui->font.height = MAP_EDITOR_GUI_FONT_HEIGHT;
+    gui->font.height = MAP_EDITOR_GUI_FONT_DEVICE_PIXELS / tkDisplayScale();
     gui->font.width = textWidth;
     if (!nk_init_default(&gui->context, &gui->font))
         return 0;

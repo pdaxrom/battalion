@@ -1,0 +1,31 @@
+battalion-entity 1
+id projectile-flame
+display-name Flame Particle Plume
+description Data-driven animated flame and smoke plume attached to its projectile controller.
+kind projectile
+editor-placeable no
+placement none
+render-style particle-plume
+particle-start-color yellow
+particle-middle-color orange
+particle-end-color black
+particle-count 18
+particle-cycle-frames 34
+particle-size 0.045
+particle-speed 0.008
+particle-spread 0.07
+particle-gravity 0
+collision-mode none
+movement air
+projectile-collides-ground yes
+projectile-continuous yes
+projectile-trail-marker no
+projectile-gravity 0
+projectile-damage 2
+projectile-arming-frames 0
+projectile-damages-actors no
+projectile-collides-actors yes
+projectile-collides-map-objects yes
+projectile-destroys-map-objects yes
+destructible no
+casts-shadow no

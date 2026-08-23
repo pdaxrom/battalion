@@ -1,0 +1,24 @@
+# Copyright (c) 2026 Battalion contributors.
+battalion-entity 1
+id logic-guard-zone
+display-name Guard Zone
+description Configurable protected area that detects hostile faction contacts.
+kind zone
+render-style none
+editor-category logic
+editor-color red-50
+editor-placeable yes
+placement area
+property security-level string public
+faction army
+collision-mode none
+movement stationary
+speed 0
+destructible no
+casts-shadow no
+target-mode all
+max-targets 8
+sensor protected-area area 0 360 hostile
+on-enter protected-area alert base-alarm
+on-stay protected-area alert none
+on-exit protected-area observe intruder-left

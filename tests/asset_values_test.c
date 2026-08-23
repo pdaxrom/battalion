@@ -18,34 +18,17 @@ int main(void)
     char error[160];
 
     assetValuesInitialize(&values);
-    if (!assetValuesLoad("assets/config/animation.values", &values,
-                         error, sizeof(error)))
-        {
-        fprintf(stderr, "animation values failed to load: %s\n", error);
-        return 1;
-        }
-    value = assetValuesFind(&values, "googelon-leg-left");
-    if (value == NULL || value->componentCount != 3 ||
-        !nearValue(value->components[0], 0.2f) ||
-        !nearValue(value->components[2], 1.0f) ||
-        assetValuesFind(&values, "missing-value") != NULL)
-        {
-        fprintf(stderr, "unexpected animation controller values\n");
-        assetValuesDestroy(&values);
-        return 1;
-        }
-    assetValuesDestroy(&values);
     if (!assetValuesLoad("assets/config/effects.values", &values,
                          error, sizeof(error)))
         {
         fprintf(stderr, "effect values failed to load: %s\n", error);
         return 1;
         }
-    value = assetValuesFind(&values, "monster-beam-lines");
+    value = assetValuesFind(&values, "beam-line-counts");
     if (value == NULL || value->componentCount != 3 ||
-        !nearValue(value->components[0], 4.0f) ||
-        !nearValue(value->components[2], 40.0f) ||
-        assetValuesFind(&values, "beam-scar-line-width") == NULL)
+        !nearValue(value->components[0], 1.0f) ||
+        !nearValue(value->components[2], 8.0f) ||
+        assetValuesFind(&values, "trail-line-width") == NULL)
         {
         fprintf(stderr, "unexpected dynamic effect values\n");
         assetValuesDestroy(&values);

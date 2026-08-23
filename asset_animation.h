@@ -33,5 +33,7 @@ int assetPoseSample(const struct AssetModel *model, size_t animationIndex,
                     float timeSeconds, int loop, struct AssetPose *pose);
 int assetPoseApply(const struct AssetModel *model, size_t animationIndex,
                    float timeSeconds, int loop, struct AssetPose *pose);
+int assetPoseRotateNode(struct AssetPose *pose, size_t nodeIndex,
+                        float degrees, int axis);
 
 #endif

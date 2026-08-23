@@ -12,6 +12,8 @@
 #define ENTITY_PI 3.14159265358979323846
 #define ENTITY_TWO_PI (2.0 * ENTITY_PI)
 
+static void clearTarget(struct EntityAgent *agent);
+
 static float distanceSquared(float x1, float z1, float x2, float z2)
     {
     float x;
@@ -66,14 +68,20 @@ void entityAimDirection(int horizontalTenths, int verticalTenths,
     *z = horizontalLength * (float)cos(horizontal);
     }
 
-static int factionMatches(const struct EntityArchetype *archetype,
+static int factionMatches(const struct FactionCatalog *factions,
+                          const char *sourceFaction,
                           const struct EntitySensor *sensor,
                           const struct EntityContact *contact)
     {
     if (strcmp(sensor->factionFilter, "any") == 0)
         return 1;
     if (strcmp(sensor->factionFilter, "hostile") == 0)
-        return entityArchetypeIsHostileTo(archetype, contact->faction);
+        return factionCatalogHostile(factions, sourceFaction,
+                                     contact->faction);
+    if (strcmp(sensor->factionFilter, "ally") == 0)
+        return factionCatalogRelation(factions, sourceFaction,
+                                      contact->faction) ==
+               FACTION_RELATION_ALLY;
     return strcmp(sensor->factionFilter, contact->faction) == 0;
     }
 
@@ -86,8 +94,14 @@ static int sensorDetects(const struct EntityAgent *agent,
     float difference;
     float halfAngle;
 
-    if (!contact->active || !factionMatches(agent->archetype, sensor, contact))
+    if (!contact->active ||
+        !factionMatches(agent->factions, agent->faction,
+                        sensor, contact))
         return 0;
+    if (sensor->type == ENTITY_SENSOR_AREA)
+        return agent->areaContains != NULL &&
+               agent->areaContains(agent->areaContext,
+                                   contact->x, contact->z);
     squared = distanceSquared(agent->x, agent->z, contact->x, contact->z);
     if (squared > sensor->range * sensor->range)
         return 0;
@@ -200,10 +214,18 @@ void entityAgentInitialize(struct EntityAgent *agent,
                            const struct EntityArchetype *archetype,
                            float x, float z, float heading,
                            const struct EntityWaypoint *waypoints,
-                           size_t waypointCount, int patrolMode)
+                           size_t waypointCount, int patrolMode,
+                           const struct FactionCatalog *factions,
+                           const char *faction)
     {
     memset(agent, 0, sizeof(*agent));
     agent->archetype = archetype;
+    agent->factions = factions;
+    if (faction != NULL)
+        {
+        strncpy(agent->faction, faction, sizeof(agent->faction) - 1);
+        agent->faction[sizeof(agent->faction) - 1] = '\0';
+        }
     agent->waypoints = waypoints;
     agent->waypointCount = waypointCount;
     agent->waypointDirection = 1;
@@ -213,6 +235,34 @@ void entityAgentInitialize(struct EntityAgent *agent,
     agent->x = agent->homeX = x;
     agent->z = agent->homeZ = z;
     agent->heading = heading;
+    }
+
+void entityAgentSetAreaSensor(struct EntityAgent *agent,
+                              EntityAreaContains contains,
+                              void *context)
+    {
+    if (agent == NULL)
+        return;
+    agent->areaContains = contains;
+    agent->areaContext = context;
+    }
+
+void entityAgentSetAlarmPolicy(struct EntityAgent *agent, int response,
+                               float safeZoneX, float safeZoneZ,
+                               float waitSeconds, unsigned long randomSeed)
+    {
+    if (agent == NULL)
+        return;
+    agent->alarmResponse = response;
+    agent->safeZoneX = safeZoneX;
+    agent->safeZoneZ = safeZoneZ;
+    agent->hasSafeZone = response == ENTITY_ALARM_RETREAT ||
+                         response == ENTITY_ALARM_RANDOM;
+    agent->retreatWaitSteps = (int)(waitSeconds *
+        (float)ENTITY_SIMULATION_STEPS_PER_SECOND + 0.5f);
+    if (agent->retreatWaitSteps < 0)
+        agent->retreatWaitSteps = 0;
+    agent->alarmRandomState = randomSeed != 0 ? randomSeed : 1UL;
     }
 
 int entityAgentQueueTrigger(struct EntityAgent *agent, const char *event,
@@ -242,14 +292,84 @@ void entityAgentNotifyDamage(struct EntityAgent *agent,
     agent->targetZ = source->z;
     }
 
+static int triggerHasAlarmReaction(const struct EntityAgent *agent,
+                                   const char *event)
+    {
+    size_t index;
+    const struct EntityReactionRule *rule;
+
+    for (index = 0; index < agent->archetype->reactionRuleCount; index++)
+        {
+        rule = &agent->archetype->reactionRules[index];
+        if (rule->source == ENTITY_RULE_TRIGGER &&
+            strcmp(rule->event, event) == 0 &&
+            rule->reaction != ENTITY_REACTION_ACTIVATE &&
+            rule->reaction != ENTITY_REACTION_DEACTIVATE)
+            return 1;
+        }
+    return 0;
+    }
+
+static int randomAlarmResponse(struct EntityAgent *agent)
+    {
+    agent->alarmRandomState =
+        (agent->alarmRandomState * 1103515245UL + 12345UL) & 0x7fffffffUL;
+    return ENTITY_ALARM_CONTINUE + (int)(agent->alarmRandomState % 3UL);
+    }
+
+static void applyAlarmPolicy(struct EntityAgent *agent,
+                             const struct EntityContact *contact)
+    {
+    int response;
+
+    response = agent->alarmResponse;
+    if (response == ENTITY_ALARM_INHERIT)
+        return;
+    if (response == ENTITY_ALARM_RANDOM)
+        response = randomAlarmResponse(agent);
+    agent->lastAlarmResponse = response;
+    agent->retreatState = ENTITY_RETREAT_NONE;
+    agent->retreatWaitRemaining = 0;
+    if (response == ENTITY_ALARM_CONTINUE)
+        {
+        clearTarget(agent);
+        return;
+        }
+    if (response == ENTITY_ALARM_ATTACK)
+        {
+        agent->active = 1;
+        agent->reaction = ENTITY_REACTION_ATTACK;
+        if (contact != NULL && contact->active)
+            {
+            agent->target = *contact;
+            agent->targetX = contact->x;
+            agent->targetY = contact->y;
+            agent->targetZ = contact->z;
+            agent->hasTarget = 1;
+            }
+        return;
+        }
+    if (response == ENTITY_ALARM_RETREAT && agent->hasSafeZone)
+        {
+        clearTarget(agent);
+        agent->active = 1;
+        agent->retreatState = ENTITY_RETREAT_MOVING;
+        }
+    }
+
 static void processTriggers(struct EntityAgent *agent)
     {
     size_t index;
+    int alarm;
 
     for (index = 0; index < agent->pendingCount; index++)
+        {
+        alarm = triggerHasAlarmReaction(agent, agent->pending[index].name);
         applyRules(agent, ENTITY_RULE_TRIGGER, agent->pending[index].name,
-                   ENTITY_SENSOR_PHASE_ANY,
-                   &agent->pending[index].contact);
+                   ENTITY_SENSOR_PHASE_ANY, &agent->pending[index].contact);
+        if (alarm)
+            applyAlarmPolicy(agent, &agent->pending[index].contact);
+        }
     agent->pendingCount = 0;
     }
 
@@ -468,7 +588,15 @@ static void desiredDestination(struct EntityAgent *agent,
                                float *targetX, float *targetZ, int *move)
     {
     *move = 0;
-    if (agent->hasTarget &&
+    if (agent->retreatState == ENTITY_RETREAT_MOVING && agent->hasSafeZone)
+        {
+        *targetX = agent->safeZoneX;
+        *targetZ = agent->safeZoneZ;
+        *move = 1;
+        }
+    else if (agent->retreatState == ENTITY_RETREAT_WAITING)
+        return;
+    else if (agent->hasTarget &&
         (agent->reaction == ENTITY_REACTION_INVESTIGATE ||
          agent->reaction == ENTITY_REACTION_PURSUE ||
          agent->reaction == ENTITY_REACTION_ATTACK))
@@ -512,6 +640,15 @@ static void moveAgent(struct EntityAgent *agent)
         return;
     squared = distanceSquared(agent->x, agent->z,
                               destinationX, destinationZ);
+    if (agent->retreatState == ENTITY_RETREAT_MOVING &&
+        squared <= agent->archetype->speed * agent->archetype->speed)
+        {
+        agent->x = destinationX;
+        agent->z = destinationZ;
+        agent->retreatState = ENTITY_RETREAT_WAITING;
+        agent->retreatWaitRemaining = agent->retreatWaitSteps;
+        return;
+        }
     if (!agent->hasTarget && squared <=
         agent->archetype->speed * agent->archetype->speed)
         {
@@ -553,7 +690,8 @@ static void updateWeapon(struct EntityAgent *agent)
 
     if (agent->cooldown > 0)
         agent->cooldown--;
-    if (!agent->active || agent->reaction != ENTITY_REACTION_ATTACK ||
+    if (!agent->active || agent->retreatState != ENTITY_RETREAT_NONE ||
+        agent->reaction != ENTITY_REACTION_ATTACK ||
         !agent->hasTarget || agent->archetype->weapon == ENTITY_WEAPON_NONE)
         return;
     squared = distanceSquared(agent->x, agent->z,
@@ -589,19 +727,22 @@ void entityAgentStep(struct EntityAgent *agent,
         agent->previousDetectionCount = 0;
         return;
         }
+    if (agent->retreatState == ENTITY_RETREAT_WAITING)
+        {
+        if (agent->retreatWaitRemaining > 0)
+            agent->retreatWaitRemaining--;
+        if (agent->retreatWaitRemaining <= 0)
+            {
+            agent->retreatState = ENTITY_RETREAT_NONE;
+            clearTarget(agent);
+            }
+        }
     detected = processSensors(agent, contacts, contactCount);
     if (detected)
         agent->lostCounter = 0;
     else if (agent->hasTarget)
         {
         target = findContact(contacts, contactCount, agent->target.id);
-        if (target != NULL && target->active)
-            {
-            agent->target = *target;
-            agent->targetX = target->x;
-            agent->targetY = target->y;
-            agent->targetZ = target->z;
-            }
         if (target != NULL && !target->active)
             clearTarget(agent);
         else
@@ -622,4 +763,63 @@ void entityAgentStep(struct EntityAgent *agent,
         }
     moveAgent(agent);
     updateWeapon(agent);
+    }
+
+int entityAgentResolveObstacle(struct EntityAgent *agent,
+                               float oldX, float oldZ,
+                               EntityPositionBlocked blocked,
+                               void *context, int preferredDirection)
+    {
+    float candidateHeading;
+    float distance;
+    float heading;
+    float step;
+    float x;
+    float z;
+    int attempt;
+    int direction;
+    int pass;
+    int maximumAttempts;
+
+    if (agent == NULL || blocked == NULL)
+        return 0;
+    if (agent->x == oldX && agent->z == oldZ)
+        return 1;
+    if (!blocked(context, agent->x, agent->z))
+        return 1;
+    distance = (float)sqrt((double)((agent->x - oldX) *
+                                   (agent->x - oldX) +
+                                   (agent->z - oldZ) *
+                                   (agent->z - oldZ)));
+    heading = agent->heading;
+    agent->x = oldX;
+    agent->z = oldZ;
+    step = agent->archetype->turnRate;
+    if (step < 0.05f)
+        step = 0.05f;
+    if (step > (float)ENTITY_PI * 0.25f)
+        step = (float)ENTITY_PI * 0.25f;
+    maximumAttempts = (int)((float)ENTITY_PI / step);
+    if (maximumAttempts > 24)
+        maximumAttempts = 24;
+    direction = preferredDirection < 0 ? -1 : 1;
+    for (attempt = 1; attempt <= maximumAttempts; attempt++)
+        for (pass = 0; pass < 2; pass++)
+            {
+            candidateHeading = normalizeAngle(
+                heading + direction * step * (float)attempt);
+            x = oldX + (float)sin((double)candidateHeading) * distance;
+            z = oldZ + (float)cos((double)candidateHeading) * distance;
+            if (!blocked(context, x, z))
+                {
+                agent->x = x;
+                agent->z = z;
+                agent->heading = candidateHeading;
+                return 1;
+                }
+            direction = -direction;
+            }
+    agent->heading = normalizeAngle(
+        heading + (preferredDirection < 0 ? -step : step));
+    return 0;
     }

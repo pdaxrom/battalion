@@ -2,7 +2,23 @@
 battalion-entity 1
 id tank-standard
 display-name Standard Tank
+description Generic guard and patrol tank using the catalog shell projectile.
+property callsign string none
+editor-category vehicles
+editor-color yellow
+wreck-fire-projectile projectile-flame
+destruction-projectile projectile-debris
+destruction-effect explosion-standard
+destruction-sound crash
+destruction-debris-count 7
+destruction-fire-count 3
+destruction-effect-count 1
+debris-life 420
 kind vehicle
+collision-footprint model
+move-sound engine-rumble
+move-sound-interval 18
+contact-audio-tag tracked
 controllable yes
 control-mode steered
 model tank
@@ -12,7 +28,6 @@ aim-yaw-node turret
 aim-pitch-node barrel
 muzzle-node muzzle
 faction army
-hostile-faction monster
 movement ground
 speed 0.03
 turn-rate 0.2
@@ -22,15 +37,17 @@ scale 1
 vertical-offset 0
 collision-radius 0.25
 collision-height 0.3
-weapon shell
+weapon projectile
+projectile projectile-shell
+fire-sound tank
 weapon-color white
 weapon-range 6
 weapon-min-range 0.5
 projectile-speed 0.3
 fire-interval 120
 accuracy 1000
-forget-range 12
-lost-frames 180
+forget-range 60
+lost-frames 1200
 target-mode all
 max-targets 4
 sensor nearby proximity 2 360 hostile
@@ -42,7 +59,8 @@ on-enter sight attack base-alarm
 on-enter noise investigate base-alarm
 on-enter damaged attack base-alarm
 on-trigger base-alarm activate none
-on-trigger base-alarm attack none
+on-trigger base-alarm investigate none
+on-trigger spawned pursue none
 spawn-weight 20
 spawn-after 0
 max-active 0

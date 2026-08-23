@@ -1,0 +1,22 @@
+# Arbitrary faction ids and directional relationships.
+battalion-factions 1
+
+faction player health-green
+faction army yellow
+faction monster red
+faction civilian white
+
+player-faction player
+
+relation player army hostile
+relation player monster ally
+relation player civilian ally
+
+relation army player hostile
+relation army monster hostile
+
+relation monster player ally
+relation monster army hostile
+
+relation civilian player ally
+relation civilian monster hostile

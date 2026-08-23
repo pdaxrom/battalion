@@ -57,15 +57,15 @@ no work.
 For an entity declaring `aim-yaw-node`, this direction follows the live head,
 sensor, or turret yaw rather than the body heading. A steered entity without an
 independent yaw node follows its body. This rule is descriptor-driven and does
-not name individual creatures or vehicles. `doSoundAt()` submits a sound at a
-world position. The common mixer derives an equal-power stereo pan from the
+not name individual creatures or vehicles. `doSoundKeyAt()` submits a semantic
+catalog key at a world position. The common mixer derives an equal-power stereo pan from the
 source direction and reduces volume with distance. Active sounds smoothly
 approach new left/right gains over 30 ms when the listener turns or moves.
 Sources at or beyond the maximum audible distance are silent. Music is
 intentionally centered and is not attenuated.
 
-World positions are currently supplied for projectile shots, rockets, energy
-beams, explosions, object destruction, and vehicle/monster destruction.
+World positions are currently supplied for weapon fire, explosions,
+destruction, moving actors, and surface contact.
 
 ## Assets
 
@@ -75,8 +75,28 @@ effects should normally be mono because spatial panning is applied at runtime.
 Music may be stereo. Source sample rates may differ; the mixer converts them to
 the backend output rate while playing.
 
-All native backends use the same `pcm` entries, so replacing a sound does not
-require platform-specific code or duplicate source assets.
+An entry has this form:
+
+```text
+entry <key> pcm <slot> <path> [unique|overlap]
+```
+
+`unique` prevents a second voice of the same semantic sound while the first is
+still playing. `overlap` is the default. All native backends use the same
+`pcm` entries, so replacing a sound does not require platform-specific code or
+duplicate source assets.
+
+## Entity and surface audio
+
+Archetypes reference catalog keys through `fire-sound` and `move-sound`.
+`move-sound-interval` controls submission cadence. A moving archetype may also
+declare a reusable `contact-audio-tag`; a surface archetype maps that tag to a
+sound with repeatable `surface-sound <tag> <sound> <interval>` rules.
+
+For example, a tracked vehicle can declare `contact-audio-tag tracked`, while
+a road tile declares `surface-sound tracked road-clank 20`. The runtime matches
+the tag when the vehicle occupies the map surface. Neither descriptor names the
+other archetype, and gameplay source contains no object-id lookup table.
 
 ## Adding another output backend
 

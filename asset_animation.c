@@ -85,6 +85,40 @@ static void normalizeQuaternion(float value[4])
     value[3] /= length;
     }
 
+static void multiplyQuaternion(const float left[4], const float right[4],
+                               float result[4])
+    {
+    result[0] = left[3] * right[0] + left[0] * right[3] +
+                left[1] * right[2] - left[2] * right[1];
+    result[1] = left[3] * right[1] - left[0] * right[2] +
+                left[1] * right[3] + left[2] * right[0];
+    result[2] = left[3] * right[2] + left[0] * right[1] -
+                left[1] * right[0] + left[2] * right[3];
+    result[3] = left[3] * right[3] - left[0] * right[0] -
+                left[1] * right[1] - left[2] * right[2];
+    }
+
+int assetPoseRotateNode(struct AssetPose *pose, size_t nodeIndex,
+                        float degrees, int axis)
+    {
+    float controller[4];
+    float result[4];
+    float radians;
+    float sine;
+
+    if (pose == NULL || nodeIndex >= pose->nodeCount || axis < 0 || axis > 2)
+        return 0;
+    radians = degrees * 0.017453292519943295769f * 0.5f;
+    sine = (float)sin((double)radians);
+    controller[0] = controller[1] = controller[2] = 0.0f;
+    controller[axis] = sine;
+    controller[3] = (float)cos((double)radians);
+    multiplyQuaternion(pose->nodes[nodeIndex].rotation, controller, result);
+    normalizeQuaternion(result);
+    memcpy(pose->nodes[nodeIndex].rotation, result, sizeof(result));
+    return 1;
+    }
+
 static void sampleTrack(const struct AssetAnimationTrack *track, float time,
                         float *destination)
     {

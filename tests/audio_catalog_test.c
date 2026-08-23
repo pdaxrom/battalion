@@ -77,12 +77,15 @@ int main(void)
         return 1;
         }
     entry = audioCatalogFind(&catalog, "beam", "pcm");
-    if (catalog.count != 19 || entry == NULL || entry->slot != 0 ||
+    if (catalog.count != 21 || entry == NULL || entry->slot != 0 ||
+        !entry->unique ||
         strcmp(entry->path, "sounds/beam.wav") != 0 ||
         audioCatalogFind(&catalog, "slag", "pcm") != NULL ||
         audioCatalogFind(&catalog, "music-5", "pcm") == NULL ||
-        audioCatalogFind(&catalog, "monster-beam", "pcm") == NULL ||
+        audioCatalogFind(&catalog, "beam-heavy", "pcm") == NULL ||
         audioCatalogFind(&catalog, "teleporter", "pcm") == NULL ||
+        audioCatalogFind(&catalog, "engine-rumble", "pcm") == NULL ||
+        audioCatalogFind(&catalog, "road-clank", "pcm") == NULL ||
         !verifyAudioDirectory(&catalog, "assets/sounds") ||
         !verifyAudioDirectory(&catalog, "assets/music"))
         {

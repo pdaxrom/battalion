@@ -55,7 +55,8 @@ enum CommandOp {
     CMD_MULT_MATRIX,
     CMD_ENABLE, CMD_DISABLE, CMD_BLEND_FUNC, CMD_CULL_FACE, CMD_DEPTH_FUNC,
     CMD_DEPTH_MASK, CMD_DEPTH_RANGE, CMD_SHADE_MODEL, CMD_POLYGON_MODE, CMD_LINE_WIDTH,
-    CMD_POINT_SIZE, CMD_FOGI, CMD_HINT, CMD_PUSH_ATTRIB, CMD_POP_ATTRIB,
+    CMD_POINT_SIZE, CMD_FOGI, CMD_FOGF, CMD_HINT, CMD_PUSH_ATTRIB,
+    CMD_POP_ATTRIB,
     CMD_CLEAR_COLOR, CMD_CLEAR_DEPTH, CMD_CLEAR, CMD_VIEWPORT, CMD_SCISSOR,
     CMD_CALL_LIST, CMD_LIST_BASE, CMD_BIND_TEXTURE, CMD_TEX_IMAGE, CMD_TEX_PARAMETER,
     CMD_TEX_ENV
@@ -624,6 +625,10 @@ void glFogi(GLenum name, GLint value)
 {
     Command *c; if (isRecording()) { c=appendCommand(CMD_FOGI); c->i[0]=(GLint)name; c->i[1]=value; }
 }
+void glFogf(GLenum name, GLfloat value)
+{
+    Command *c; if (isRecording()) { c=appendCommand(CMD_FOGF); c->i[0]=(GLint)name; c->f[0]=value; }
+}
 void glHint(GLenum target, GLenum mode)
 {
     Command *c; if (isRecording()) { c=appendCommand(CMD_HINT); c->i[0]=(GLint)target; c->i[1]=(GLint)mode; }
@@ -744,6 +749,7 @@ static void executeCommand(Command *c)
       case CMD_LINE_WIDTH: glLineWidth(c->f[0]); break;
       case CMD_POINT_SIZE: glPointSize(c->f[0]); break;
       case CMD_FOGI: glFogi((GLenum)c->i[0],c->i[1]); break;
+      case CMD_FOGF: glFogf((GLenum)c->i[0],c->f[0]); break;
       case CMD_HINT: glHint((GLenum)c->i[0],(GLenum)c->i[1]); break;
       case CMD_PUSH_ATTRIB: glPushAttrib((GLbitfield)c->i[0]); break;
       case CMD_POP_ATTRIB: glPopAttrib(); break;

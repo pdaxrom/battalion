@@ -1,0 +1,17 @@
+# Copyright (c) 2026 Battalion contributors.
+battalion-entity 1
+id logic-safe-zone
+display-name Safe Zone
+description Destination area where alerted patrol actors can retreat and wait.
+kind zone
+render-style none
+editor-category logic
+editor-color blue-2
+editor-placeable yes
+placement area
+faction civilian
+collision-mode none
+movement stationary
+speed 0
+destructible no
+casts-shadow no

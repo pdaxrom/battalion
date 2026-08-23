@@ -1,0 +1,25 @@
+battalion-entity 1
+id building-water-tower
+display-name Water Tower
+description Authored GLB structure with editable transform, properties, and trigger routes.
+kind structure
+editor-category buildings
+editor-color brown
+editor-placeable yes
+placement tile
+model building-9
+collision-mode solid
+collision-footprint model
+movement stationary
+collision-radius 0.25
+collision-height 1.2
+destructible yes
+destruction-projectile projectile-debris
+destruction-effect explosion-standard
+destruction-sound crash
+destruction-debris-count 7
+destruction-fire-count 3
+destruction-effect-count 1
+debris-life 420
+destruction-fire-projectile projectile-flame
+casts-shadow yes

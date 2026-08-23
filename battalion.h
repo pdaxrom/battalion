@@ -17,20 +17,22 @@
 #define IM_NOT_DEAD_YET_TIME	60
 #define IM_NOT_DEAD_SEND_TIME	19
 #define MAXLINE			256
-#define COMPUTER_MONSTER	-1
-#define MONSTER_UPDATE_RATE	5
+#define LOCAL_AI_PLAYER	-1
+#define PLAYER_STATE_RATE	5
 #define DEFAULT_PORT 		6000
 #define MAXCLIENTS	    	10
+#define BATTALION_NETWORK_PROTOCOL 2
 
-#define MESG_BUILDING		"bld"
-#define MESG_UPDATE		"upd"
-#define MESG_REQUEST		"req"
-#define MESG_NOTDEADYET		"Iliv"
-#define MESG_REAQUIRE		"yo"
+/* These wire tokens are frozen for compatibility with the UDP protocol. */
+#define MESG_OBJECT_DESTROYED	"bld"
+#define MESG_PLAYER_STATE	"upd"
+#define MESG_JOIN		"req"
+#define MESG_HEARTBEAT		"Iliv"
+#define MESG_REACQUIRE		"yo"
 #define MESG_ACKNOWLEDGE	"ack"
-#define MESG_NEW_TANK		"newTank"
-#define MESG_UPDATE_TANK	"updateTank"
-#define MESG_CLIENT_CLIENT_UPDATE "client"
+#define MESG_ACTOR_SPAWN	"newTank"
+#define MESG_ACTOR_STATE	"updateTank"
+#define MESG_RELAY		"client"
 
 #include <stdlib.h>
 #include <stddef.h>
@@ -125,15 +127,6 @@
 
 
 /**********************/
-/* monster ID numbers */
-/**********************/
-
-#define GOOGELON	    0
-#define VAPOUR		    1
-#define	TECHS		    2
-#define FLUTTER		    3
-
-/**********************/
 /* misc stuff         */
 /**********************/
 
@@ -186,8 +179,6 @@
 #define BEAMKILL	    0.31
 
 #define BLASTR		    0.5
-#define TREEBLASTR	    0.25
-#define TREEBLASTHEIGHTR    1
 #define BLASTRX2	    1
 #define BLASTRX04	    0.2
 #define BLASTRX05	    0.25
@@ -195,7 +186,7 @@
 #define BLASTRX07	    0.35
 #define BLASTRX075	    0.375
 
-#define TANKV		    0.03
+#define ACTORV		    0.03
 #define MAXLIFE		    100
 #define BLASTPOINTS	    2
 
@@ -211,30 +202,25 @@
 
     #define PLANESIZE	    8
 
-#endif	    
+#endif
 
 				    /* height of the battlefield */
 #define PLANEY		    -1
 				    /* PLANEY + 0.003 */
 #define GROUND_OVERLAY_Y    -0.997
 				    /* PLANEY + 0.001 */
-#define ROADS		    -0.999
-
-#define MAXROADSONPLANE	    1000
-#define ROADLINETHICKNESS   0.04
-#define ROADLINELENGTH	    0.13   
 
 /**********************/
 /* views              */
 /**********************/
 
 #define OMNISCIENTVIEW	    0
-#define MONSTERVIEW	    1
+#define PLAYERVIEW	    1
 #define ARMYVIEW	    2
 #define MAPVIEW		    4
 #define FIRSTPERSONVIEW     5
 
-#define NOTANKONPLANE	    -9999
+#define NOACTORONPLANE	    -9999
 
 /**********************/
 /* modes              */
@@ -247,14 +233,7 @@
 /* sounds             */
 /**********************/
 
-#define TANKFIRE	    0
-#define HELOROCKET	    1
-#define TANKMASER	    2
-#define EXPLOSION	    3
-#define MONSTERBEAM	    4
-#define CRASH		    6
-#define TECHSHOOT	    7
-#define MUSIC		    8	
+#define MUSIC		    8
 
 /* #define MAXMUSIC 36 */
 #define MAXMUSIC 5
@@ -268,14 +247,8 @@ extern struct WorldEnvironment worldEnvironment;
 /**********************/
 /*limits              */
 /**********************/
-	    
-#define MAXTREESONPLANE	    800
-#define MAXFIRESONPLANE	    150
-#define MAXTANKSONPLANE	    200
 
 #define MAXPATH		    400
-#define MAXBEAMS	     50
-
 /**********************/
 /* conversions        */
 /**********************/
@@ -289,96 +262,65 @@ extern struct WorldEnvironment worldEnvironment;
 #define DEG_TO_RAD	    0.0174532925
 			    /* Pi / 180 */
 
-/**********************/
-/* vehicles           */
-/**********************/
-
-#define TANK	    0
-#define MASERTANK   1
-#define HELO	    2
-#define MECHAG	    3
-#define CHH	    4
-#define HERO	    5
-#define AIRPLANE    6
-#define LAUNCHER    7
-#define FIGHTER     8
-#define DATAENTITY  9
-
-#define PARTIALM  100
-#define PARTIALH  101
-#define PARTIALC  102
-
-#define BUILDING    99
-#define MONSTER     75
-
-/**********************/
-/* projectiles        */
-/**********************/
-
-#define PROJTANK    0
-#define PROJROCKET  1
-#define PROJTECHS   2
-#define PROJFIRE    3
-#define PROJHERO    4
-#define PROJSCAR    5
-#define PROJWATER   6
-
 #define  computeAngle(x, y, z, w) (atan2( (z - w) ,  (x - y)) + PI)
 
 #define  randy(x) (((rand() % 2001) - 1000) * x * 0.001)
 
 
-struct projectile
+struct runtimeProjectile
 	{
-	struct projectile * next;   /* pointer to next projectile */
-	struct monsterInfo * mine;  /* pointer to ownder of projectile */
+	struct runtimeProjectile * next;   /* pointer to next projectile */
+	struct runtimePlayer *owner;
 	float x, y, z;		    /* location of projectile */
 	float xv, yv, zv;	    /* velocity of projectile */
 	char count;		    /* time after launch before arming */
-	char type;		    /* type of projectile */
+	const struct EntityArchetype *archetype;
 	};
 
-struct boom
+struct runtimeExplosion
 	{
-	struct boom * next;	    /* pointer to next explosion */
-	struct monsterInfo * mine;  /* pointer to ownder of boom */
+	struct runtimeExplosion * next;	    /* pointer to next explosion */
+	struct runtimePlayer *owner;
 	float x, y, z;		    /* location of explosion */
 	int count;		    /* explosion timer */
 	int damaging;		    /* visual-only bursts do not alter gameplay */
+	const struct EntityArchetype *archetype;
 	};
 
-struct tree
+struct BattalionMapObject;
+
+struct runtimeMapObject
 	{
-	struct tree * next;	    /* pointer to next structure */
+	struct runtimeMapObject *next;
 	float x, y, z;		    /* location of structure */
 	float rad,  theta;
 	float height;
 	int deathCount;
 	int death2;
 	int number;
-	char type; 
-	char treeshape; 
-	char intact;		    /* is structure intact? */
+	char intact;
+	float heading;
+	float instanceScale;
+	const struct EntityArchetype *dataArchetype;
+	const struct BattalionMapObject *dataObject;
 	};
 
-struct BattalionMapActor;
-
-struct tank
+struct runtimeActor
 	{
-	struct tank * next;
-	struct monsterInfo* goforit;
+	struct runtimeActor * next;
+	struct runtimePlayer *targetPlayer;
 	float x, y, z;		    /* location of vehicle */
 	float xv, yv, zv;	    /* velocity of vehicle / wreck fragment */
-	float range;		    /* distance from vehicle to monster */
-	float minrange;		    /* minimum range vehicle can fire */
-	float finalR;		    /* final range vehicle is attempting */
+	float range;
+	float minrange;
+	float finalR;
 	float rad, theta;
 	float aimYaw, aimPitch;
-	float speed;		    /* speed of vehicle */
+	float speed;
 	float rand1, rand2, rand3;
-	int count; 
-	int maserCount;
-	int damage;		    /* amount of damage vehicle can take */
+	int count;
+	int weaponActiveFrames;
+	int damage;
 	int walking;
 	int walkingBackwards;
 	int debrisGrounded;
@@ -386,22 +328,16 @@ struct tank
 	int debrisFireDelay;
 	float debrisSize;
 	int number;
-	char type;		    /* type of vehicle */
 	char subtype;		    /* sub type (for hero) */
 	const struct EntityArchetype *dataArchetype;
-	const struct BattalionMapActor *dataActor;
+	const struct EntityArchetype *visualArchetype;
+	const struct BattalionMapObject *dataObject;
 	char dataId[ENTITY_NAME_SIZE];
 	char dataGroup[ENTITY_NAME_SIZE];
 	struct EntityAgent dataAgent;
 	};
 
-struct road
-	{
-	float x, y;		    /* location of road */
-	char type;		    /* type: 0 vert, 1 horz, 2 cross */
-	};
-
-struct monsterInfo
+struct runtimePlayer
 	{
 	const struct EntityArchetype *dataArchetype;
 	float a[MAXTRIBUTES][5];    /* reserved by the fixed network record */
@@ -411,28 +347,27 @@ struct monsterInfo
 	float speed;		    /* movement speed */
 	float xspeed;		    /* turning rate */
 	float moveCost;		    /* energy loss from moving */
-	float height;		    /* height of monster */
-	float width;		    /* width of monster */
-	float bottom;		    /* bottom of monster */
+	float height;		    /* height of player */
+	float width;		    /* width of player */
+	float bottom;		    /* bottom of player */
 	float regenRate;	    /* rate of energy gain */
 	int moveCount;		    /* for leg and wing rotation */
-	int monsterID;		    /* code # of monster */
+	int playerId;
 	int headHorzRotate;	    /* horizontal head angle */
 	int headVertRotate;	    /* vertical head angle */
-	int monsterScore;	    /* monster's score */
-	int deadCount;		    /* time monster is dying */
-	int timeDead;		    /* time monster has been dead */
-	int monster;		    /* type of monster */
-	int monsterIsDead;	    /* is monster alive or dead? */
+	int score;
+	int deadCount;
+	int timeDead;		    /* time player has been dead */
+	int dead;
 	int beamOn;		    /* is the energy weapon on */
-	int monsterGo;		    /* is the monster going forward? */
-	int monsterBack;	    /* is the monster going backward? */
-	int monsterMoving;	    /* is the monster moving? */
+	int movingForward;
+	int movingBackward;
+	int moving;
 	};
 
 struct targetInfo
 	{
-	struct monsterInfo monster;
+	struct runtimePlayer player;
 	struct targetInfo * next;
 	float x,z;
 	float net_energyRemaining;
@@ -444,21 +379,13 @@ struct targetInfo
 	int lastUpdateFrame;
 	};
 
-struct fireType
-	{
-	float x, z;		    /* location of flame */
-	float xwid, zwid;	    /* width of flame */
-	float height;		    /* height of flame */
-	float col;		    /* color of flame */
-	};
-
 struct enemy
 	{
 	float r;		    /* range to enemy */
 	float y;		    /* height of enemy */
 	float ang;		    /* angle to enemy */
 	};
-	
+
 struct score
     	{
 	int number;
@@ -486,8 +413,7 @@ void grabPointer();
  ***************************/
 
 void showError(char *);
-float buildingHeight(int,  int);
-struct monsterInfo resetMonsterParameters(struct monsterInfo);
+struct runtimePlayer resetPlayerState(struct runtimePlayer);
 
 int same(char *, char *);
 int different(char *, char *);
@@ -495,16 +421,16 @@ int different(char *, char *);
 
 float centerText(char *,  float);
 
-void updatetrees(struct tree *, int);
-void updateBeam(struct monsterInfo *, struct targetInfo *,
-		struct tank *, struct tree **, int, struct monsterInfo *,
+void updateMapObjects(struct runtimeMapObject *, int);
+void updateBeam(struct runtimePlayer *, struct targetInfo *,
+		struct runtimeActor *, struct runtimeMapObject *, struct runtimePlayer *,
 		const struct EntityArchetype *, const float [3],
 		const float [3]);
-void updateTanks(struct tank *, float, float, float, int, int, struct tank *, 
-		float, int, int, struct monsterInfo *, struct targetInfo *);
-void updateWrecks(struct tank *);
-void updateBooms(struct boom *, struct tank *);
-int tankHit(struct tank *, float, float, float);
+void updateActors(struct runtimeActor *, float, float, float, int, struct runtimeActor *,
+		float, int, int, struct runtimePlayer *, struct targetInfo *);
+void updateWrecks(struct runtimeActor *);
+void updateRuntimeExplosions(struct runtimeExplosion *, struct runtimeActor *);
+int actorHit(const struct runtimeActor *, float, float, float);
 
 
 /****************************************************
@@ -525,8 +451,9 @@ void checkSound(char *);
 void initSounds(void);
 void flushSounds(void);
 void soundKiller(int);
+void soundKillerKey(const char *);
 void doSound(int);
-void doSoundAt(int, float, float, float);
+void doSoundKeyAt(const char *, float, float, float);
 void audioSetListener(float, float, float, float);
 void audioSetSmoothingEnabled(int);
 int audioGetSmoothingEnabled(void);
@@ -542,25 +469,26 @@ void OutAudio(int);
 void goToHighDetail();
 void goToLowDetail();
 
-void updateScores(char *, int, int, int, char *);
+void updateScores(char *, int, int, char *);
 
-void quickTanks(void);
 
-int checkForBlock(struct tank *, float rad, float theta, float y);
+int checkForBlock(struct runtimeActor *, float rad, float theta, float y);
 
-void addScore(int, struct monsterInfo *);
-void addBoom(float x, float y, float z,struct monsterInfo *);
-void addProjectile( float x, float y, float z, int type, 
-		    float xv, float yv, float zv, float accuracy,struct monsterInfo *);
-void updateProjectiles(void);
-void updatetrees(struct tree *, int);
-void updateTanks(struct tank *, float, float, float, int, int, 
-		struct tank*, float, int, int,
-		struct monsterInfo *, struct targetInfo *);
-void updateWrecks(struct tank *);
-void updateBooms(struct boom *, struct tank *);
-
-void buildHillPart(struct tree, int, float, float);
+void addScore(int, struct runtimePlayer *);
+void spawnProjectile(float x, float y, float z,
+		   const struct EntityArchetype *archetype,
+		   float xv, float yv, float zv, float accuracy,
+		   struct runtimePlayer *);
+const struct EntityArchetype *gameEntityArchetype(const char *id);
+const struct FactionCatalog *runtimeFactionCatalog(void);
+const char *runtimePlayerFaction(void);
+void updateRuntimeProjectiles(void);
+void updateMapObjects(struct runtimeMapObject *, int);
+void updateActors(struct runtimeActor *, float, float, float, int,
+		struct runtimeActor*, float, int, int,
+		struct runtimePlayer *, struct targetInfo *);
+void updateWrecks(struct runtimeActor *);
+void updateRuntimeExplosions(struct runtimeExplosion *, struct runtimeActor *);
 
 void setPlayConditions(void);
 void addRandomTarget(void);
@@ -580,22 +508,22 @@ GLenum processKey(int, GLenum);
 GLenum processKeyRelease(int);
 void checkInput (void);
 
-void updateDeadMonster(float, float, struct monsterInfo * );
+void updateDeadPlayer(float, float, struct runtimePlayer * );
 void updateTargets(void);
 
 void doUpdate (void);
 
-void goToMonsterView(int);
+void goToPlayerView(int);
 void goToFirstPersonView(int);
 void goToArmyView(int);
 void goToMapView(void);
 void goToOverView(int);
 
-void drawAMonster(float, struct monsterInfo, float, int, int);
+void drawPlayerEntity(float, struct runtimePlayer, float, int, int);
 
 void doDrawing (int);
 
-struct monsterInfo autopilot(float, float, struct monsterInfo);
+struct runtimePlayer autopilot(float, float, struct runtimePlayer);
 
 void reshape( int, int);
 static void doDisplay(void);
@@ -613,27 +541,27 @@ void setUnconnected(void);
 void setPortNumber(int);
 void setHostAddr(char *);
 
-void addNewNetworkTank(char *, struct tank *, void *, int);
-void updateNetworkTank(char *, struct tank *);
-void tellAboutAllTanks(struct sockaddr_in *, int, struct tank *);
+void addNewNetworkActor(char *, struct runtimeActor *, void *, int);
+void updateNetworkActor(char *, struct runtimeActor *);
+void tellAboutAllActors(struct sockaddr_in *, int, struct runtimeActor *);
 
-void updateClientMonster(char *, void *);
+void updateRelayedPlayer(char *, void *);
 
 
 int setUpClient(void);
 int setUpNetwork(void);
-void updateNetworkBuildings(char *, struct tree *);
-void updateNetworkMonsters(char *, long, void *);
+void updateNetworkMapObjects(char *, struct runtimeMapObject *);
+void updateNetworkPlayers(char *, long, void *);
 int sendMessage(char *, struct sockaddr_in *, int);
-void processClient(time_t, int, int, struct tree *, struct tank *,
-    void * arena, int sizeTank, struct monsterInfo, int, int *);
-void tellAboutAllDeadBuildings(struct sockaddr_in *, int, int, int *);
-void processNetwork(time_t, int, int, struct tree *, struct tank *,
-    void *, struct monsterInfo, int, int, int *, int *);
-void addNetworkTarget(long, int, float, float, float, float, float,
-    int, void *);
+void processClient(time_t, int, int, struct runtimeMapObject *, struct runtimeActor *,
+    void * arena, int sizeActor, struct runtimePlayer, int, int *);
+void tellAboutDestroyedMapObjects(struct sockaddr_in *, int, int, int *);
+void processNetwork(time_t, int, int, struct runtimeMapObject *, struct runtimeActor *,
+    void *, struct runtimePlayer, int, int, int *, int *);
+void addNetworkPlayer(long, const struct EntityArchetype *, float, float,
+    float, float, float, int, void *);
 
-GLuint makeMonsterLookat(void);
+GLuint makePlayerLookat(void);
 GLuint makeOverviewLookat(void);
 
 /*****************************************
@@ -648,12 +576,10 @@ void showText2(long, int, int, int, int, int, int, int, int, int);
 void showText3(int);
 void showText4(void);
 
-void doOptions(struct monsterInfo, long, int, int, float, int);
-void doSummary(int,  int, long, int,
-		int, int, int,
-		int, int, int, int, int, int, int,int);
+void doOptions(struct runtimePlayer, long, int, int, float, int);
+void doSummary(int, long, int, int, int, int);
 
-void showScores(int, struct score*, struct score*, struct score*, struct score*, struct monsterInfo, int,float, int);
+void showScores(int, struct score *, struct runtimePlayer, int, float, int);
 
 /*****************************************
  * graphics.c
@@ -661,11 +587,17 @@ void showScores(int, struct score*, struct score*, struct score*, struct score*,
  *****************************************/
 
 void makeObjects(char *);
+const float *assetPaletteColor(const char *);
 const char *assetFilePath(const char *);
 GLuint assetModelDisplayList(const char *);
 int assetModelHasNode(const char *, const char *);
 int assetAnimationAvailable(const char *);
+int assetEntityCatalogAvailable(const struct EntityCatalog *, char *, size_t);
 int assetModelUnscaledHeight(const struct EntityArchetype *, float *);
+int assetModelUnscaledVerticalBounds(const struct EntityArchetype *,
+                                     float *, float *);
+int assetModelUnscaledBounds(const struct EntityArchetype *,
+                             float [3], float [3]);
 void drawConfiguredPlayerEntity(const struct EntityArchetype *, int, int, int,
 				int, float, float);
 int configuredPlayerEntityBounds(const struct EntityArchetype *, int, int, int,
@@ -675,66 +607,27 @@ int configuredEntityMuzzlePose(const struct EntityArchetype *, int, int,
 const struct EntityArchetype *selectedPlayerArchetype(void);
 int playerWeaponUsesReload(void);
 float playerWeaponReadiness(void);
-const struct EntityArchetype *networkEntityArchetype(int);
 size_t playerEntityOptionCount(void);
 size_t selectedPlayerArchetypeNumber(void);
+const struct EntityArchetype *playerEntityOptionAt(size_t ordinal);
+const struct EntityArchetype *runtimePlayerArchetype(
+    const struct runtimePlayer *player);
 
 void drawEnvironmentSky(const struct WorldEnvironment *);
 void drawEnvironmentShadow(float, float, float, float, float,
                            const struct WorldEnvironment *);
 
-void makeCHH(int);
-void drawHelo(float);
-void drawAirplane(int);
-void drawFighter();
+void drawWorldGround(float, float, int, int, int);
 
-void drawMonster(struct monsterInfo, int, int, int);
-void drawSimpleMonster(struct monsterInfo, int, int, int);
+void drawMapObjects(const struct runtimeMapObject *, int, int, int, int,
+                    float, float);
 
-void drawFlutter(struct monsterInfo, int, int, float, int, int);
-void drawTechs(struct monsterInfo, int);
-void drawSimpleTechs(struct monsterInfo, int);
-void drawHeroDude(int, int,  int, int, int);
-void drawHeroDude2(int, int,  int, int, int);
-void drawMechaMonster(int, int, int);
+void drawRuntimeDebris(struct runtimeActor *, float, float, int, int);
+void drawRuntimeActors(struct runtimeActor *, int, struct runtimePlayer,
+                       int, int);
+void drawRuntimeExplosions(struct runtimeExplosion *, int);
+void drawRuntimeBeam(const struct EntityArchetype *, int,
+                     const float [3], const float [3]);
 
-void drawBuilding0(float *, int);
-void drawBuilding6(int, float *,  float *, int);
-void drawBuilding8(float *,float *, int);
-void drawBuilding11(int);
-void drawBuilding22(float *);
-void drawBuilding25(void);
-void drawBuilding26(int, int);
-void drawBuilding29(int,int);
-void drawBuilding33(int, int);
-void drawTower(int, int);
-void drawCoolingTower(int);
-
-void drawHills(int,int);
-void drawWater(int,int);
-
-void drawBattlefield(struct road *, float, float, int, int,int);
-
-void drawLake0(int);
-void drawLake1(int);
-void drawHill0(int);
-void drawHill1(int, int);
-void drawHill2(int, int);
-void drawHill3(int, int);
-
-void drawtrees(struct tree *, int, int, int, int, int, float, float);
-
-void drawWrecks(struct tank *, float, float);
-void drawTanks(struct tank *, int, struct monsterInfo, struct targetInfo *, int, int,int);
-
-void drawMaser(float, float, float, int, float, float, float, float,
-               float, float, float, int, int, int, const float *);
-void drawHeroWeapon(float, float, float, float, float, float *, float, float);
-
-void drawBooms(struct boom *, int);
-void drawBeam(const struct EntityArchetype *, int,
-              const float [3], const float [3]);
-
-void drawRoads(struct road *,  float,  float, int, int, int);
-void drawProjectiles(struct projectile *, int, struct fireType*, int, int, int,
-                     const struct monsterInfo *, int);
+void drawRuntimeProjectiles(struct runtimeProjectile *, int, int, int,
+                            const struct runtimePlayer *, int);

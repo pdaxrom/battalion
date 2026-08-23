@@ -1360,6 +1360,11 @@ Window tkGetXWindow(void)
 */
 
 
+float tkDisplayScale(void)
+    {
+    return 1.0f;
+    }
+
 /*
 static void (*ExposeFunc)(int, int)		    = NULL;
 static void (*ReshapeFunc)(int, int)		    = NULL;

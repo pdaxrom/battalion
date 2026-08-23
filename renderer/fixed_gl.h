@@ -144,6 +144,7 @@ void glPolygonMode(GLenum face, GLenum mode);
 void glLineWidth(GLfloat width);
 void glPointSize(GLfloat size);
 void glFogi(GLenum name, GLint value);
+void glFogf(GLenum name, GLfloat value);
 void glHint(GLenum target, GLenum mode);
 void glPushAttrib(GLbitfield mask);
 void glPopAttrib(void);

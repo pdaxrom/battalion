@@ -1,0 +1,19 @@
+battalion-entity 1
+id hill-inside-1
+display-name Hill Inside Corner High
+description Catalog terrain tile editable through the shared map instance model.
+kind terrain
+editor-category hills
+editor-color green
+editor-placeable yes
+placement tile
+model hill-inside-1
+model-seasonal hill-inside-1-xmas
+grounding origin
+collision-mode solid
+movement stationary
+vertical-offset 0
+collision-radius 0.25
+collision-height 0.4
+destructible no
+casts-shadow no

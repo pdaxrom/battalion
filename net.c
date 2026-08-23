@@ -15,11 +15,11 @@
 /***********************************************************************/
 
 /* the network coding is pretty much alpha-stage stuff. It seems
- * to generally work though the monster positions are slightly off
+ * to generally work though the player positions are slightly off
  * in the remote versions making it hard to hit the other person.
- * 
- * the vapour also has a problem getting kills on the other monsters
- * 
+ *
+ * the phased archetype also has a problem getting kills on the other monsters
+ *
  * ocassionally wehn switching from demo to game mode the screen goes
  * black and everything stops
  */
@@ -34,12 +34,12 @@ struct sockaddr_in clients[MAXCLIENTS];
 struct sockaddr_in cli_addr;
 
 long clientsFrom[MAXCLIENTS];
-int lastClientMonsterUpdate[MAXCLIENTS];
+int lastClientPlayerStateFrame[MAXCLIENTS];
 
 time_t clientsAlive[MAXCLIENTS];
 time_t lastRecvTime;
 time_t lastNotDeadYetTime;
-int lastMonsterUpdate;
+int lastPlayerStateFrame;
 
 int numClients;
 int sockfd;
@@ -48,26 +48,11 @@ int connected;
 
 int waitCounter	    = 0;
 int beamOnSinceLast = 0;
-int tankModulator   = 0;
+int actorModulator   = 0;
 
 char hostAddr[40];
 
 extern struct targetInfo * targets;
-
-static int monsterNetworkCode(struct monsterInfo monster)
-    {
-    const struct EntityArchetype *archetype;
-
-    if (monster.dataArchetype != NULL)
-        return monster.dataArchetype->networkCode;
-    if (monster.monster != DATAENTITY)
-        return monster.monster;
-    archetype = selectedPlayerArchetype();
-    if (archetype == NULL)
-        return -1;
-    return archetype->networkCode;
-    }
-
 
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
@@ -75,21 +60,21 @@ void turnBeamOnSinceLast()
     {
     beamOnSinceLast = 1;
     }
-    
+
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
 void setUnconnected()
     {
     connected = 0;
     }
-    
+
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
 void setPortNumber(int val)
     {
     portNumber = val;
     }
-    
+
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
 void setHostAddr(char * val)
@@ -123,13 +108,13 @@ int setUpClient()
     {
     char hostIP[40];
 
-    lastMonsterUpdate = -1;
+    lastPlayerStateFrame = -1;
     lastRecvTime = lastNotDeadYetTime = 0;
 
     /************************/
     /* Open datagram socket */
     /************************/
-    
+
     if ((sockfd = socket(AF_INET, SOCK_DGRAM,0)) < 0)
 	{
 	printf("battalion client cannot open datagram socket\n");
@@ -139,7 +124,7 @@ int setUpClient()
     /*****************************/
     /* Prepare client to connect */
     /*****************************/
-    
+
     bzero((char *) &cli_addr, sizeof(cli_addr));
     cli_addr.sin_family = AF_INET;
     cli_addr.sin_addr.s_addr = htonl(INADDR_ANY);
@@ -154,7 +139,7 @@ int setUpClient()
     /****************************************************************/
     /* Set up data structure to indicate which server to connect to */
     /****************************************************************/
-    
+
     if ((hostAddr[0] >= '0') && (hostAddr[0] <= '9'))
 	{
 	strcpy (hostIP, hostAddr);
@@ -166,7 +151,7 @@ int setUpClient()
 	    strcpy (hostIP, hostAddr);
 	    }
 	}
-	
+
     bzero((char *) &serv_addr, sizeof(serv_addr));
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_addr.s_addr = inet_addr(hostIP);
@@ -177,7 +162,7 @@ int setUpClient()
     /*******************/
     /* set nonblocking */
     /*******************/
-    
+
     fcntl(sockfd,F_SETFL,FNDELAY);
 
 
@@ -197,7 +182,7 @@ int setUpNetwork()
     /************************/
     /* Open datagram socket */
     /************************/
-    
+
     if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
 	{
 	printf("Server cannot open datagram socket\n");
@@ -207,12 +192,12 @@ int setUpNetwork()
     /******************************************************/
     /* Set up server to allow connection from any address */
     /******************************************************/
-    
+
     bzero((char *) &serv_addr, sizeof(serv_addr));
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    
-    
+
+
     serv_addr.sin_port = htons(portNumber);
 
     if (bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0)
@@ -229,136 +214,141 @@ int setUpNetwork()
     /*******************/
     /* set nonblocking */
     /*******************/
-    
+
     fcntl(sockfd,F_SETFL,FNDELAY);
 
     /******************/
     /* no clients yet */
     /******************/
-    
+
     numClients = 0;
 
     for (i=0; i<MAXCLIENTS;i++)
 	{
 	clientsAlive[i] = 0;
-	lastClientMonsterUpdate[i] = -1;
+	lastClientPlayerStateFrame[i] = -1;
 	}
 
     return(1);
     }
-   
+
  /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
-void updateNetworkBuildings(char * recvline, struct tree * treelist)
+void updateNetworkMapObjects(char * recvline, struct runtimeMapObject * mapObjectList)
     {
     char command[MAXLINE];
     char mesg[MAXLINE];
-    int buildingNumber;
+    int mapObjectNumber;
     int i;
-    struct tree * temptree;
-   
+    struct runtimeMapObject * mapObjectNode;
+
     /*****************************************************/
     /* find out which building was destroyed by a client */
     /*****************************************************/
-    
-    sscanf(recvline, "%s %d", command, &buildingNumber);
 
-    for (temptree = treelist->next; temptree != NULL; temptree = temptree->next)
-	if (temptree->number == buildingNumber)
-	    temptree->intact = 0;
+    sscanf(recvline, "%s %d", command, &mapObjectNumber);
+
+    for (mapObjectNode = mapObjectList->next; mapObjectNode != NULL; mapObjectNode = mapObjectNode->next)
+	if (mapObjectNode->number == mapObjectNumber)
+	    mapObjectNode->intact = 0;
 
     /***********************************************************************/
     /* tell all the clients about the building destroyed by another client */
     /***********************************************************************/
-    
-    sprintf(mesg, "%s %d #", MESG_BUILDING, buildingNumber);
+
+    sprintf(mesg, "%s %d #", MESG_OBJECT_DESTROYED, mapObjectNumber);
 
     for(i=0; i<numClients; i++)
 	sendMessage(mesg, &clients[i], sizeof(clients[i]));
-    
+
     }
 
  /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
-void addNewNetworkTank(char * recvline, struct tank * tanklist, 
-    void * arena, int sizeTank)
+void addNewNetworkActor(char * recvline, struct runtimeActor * actorlist,
+    void * arena, int sizeActor)
     {
     char command[MAXLINE];
+    char archetypeId[ENTITY_NAME_SIZE];
     float x, z;
-    int type, number, maserCount;
-    float finRange, speed;
-    struct tank * temptank;
+    int damage, number, weaponActiveFrames;
+    float heading;
+    const struct EntityArchetype *archetype;
+    struct runtimeActor * tempactor;
     int foundIt;
-    
-    maserCount = 0;
-    sscanf(recvline, "%s %d %f %f %f %f %d %d",
-	command, &number, &x, &z, &finRange, &speed, &type, &maserCount);
+
+    weaponActiveFrames = 0;
+    archetypeId[0] = 0;
+    sscanf(recvline, "%255s %d %f %f %f %d %d %63s",
+	command, &number, &x, &z, &heading, &damage,
+	&weaponActiveFrames, archetypeId);
 
 
        foundIt = 0;
-    for (temptank = tanklist->next; temptank != NULL; temptank = temptank->next)
+    for (tempactor = actorlist->next; tempactor != NULL; tempactor = tempactor->next)
 	{
-	if (number == temptank->number)
+	if (number == tempactor->number)
 	    foundIt = 1;
 	}
 
     if (!foundIt)
 	{
-    fprintf(stderr, "ADDING A NEW TANK %d %f %f %f %f %d \n", number, x, z, finRange, speed, type);
+	    archetype = gameEntityArchetype(archetypeId);
+	    if (!entityArchetypeIsActor(archetype))
+		return;
+	    tempactor = (struct runtimeActor *) amalloc(sizeActor, arena);
+	    if (tempactor == NULL)
+		return;
+	    memset(tempactor, 0, sizeof(*tempactor));
 
-	temptank = (struct tank *) amalloc(sizeTank, arena);
+		tempactor->number	= number;
+		tempactor->x		= x;
+		tempactor->y		= PLANEY + archetype->verticalOffset;
+		tempactor->z		= z;
+		tempactor->range		= archetype->weaponRange;
+		tempactor->minrange	= archetype->weaponMinRange;
+		tempactor->finalR	= archetype->weaponRange;
+		tempactor->theta		= heading;
+		tempactor->damage	= damage;
+		tempactor->speed		= archetype->speed;
+		tempactor->weaponActiveFrames	= weaponActiveFrames;
+		tempactor->dataArchetype = archetype;
+		sprintf(tempactor->dataId, "network-%d", number);
+		entityAgentInitialize(&tempactor->dataAgent, archetype,
+		                      x, z, heading, NULL, 0,
+		                      ENTITY_PATROL_LOOP,
+		                      runtimeFactionCatalog(), archetype->faction);
+		tempactor->dataAgent.active = 0;
 
-	temptank->goforit	= NULL;
-	
-	temptank->number	= number;
-	temptank->x		= x;
-	temptank->y		= -1;
-	temptank->z		= z;
-
-	temptank->xv		= 0;
-	temptank->zv		= 0;
-	temptank->range		= 3;
-	temptank->rad		= 0;
-	temptank->theta		= 0;
-	temptank->count		= 0;
-
-	temptank->finalR	= finRange;
-	temptank->damage	= 1;
-	
-	temptank->minrange	= 0.5;
-	temptank->speed		= speed;
-	temptank->type		= (char) type;
-	temptank->maserCount	= maserCount;
-    
-	temptank->next	= tanklist->next;
-	tanklist->next	= temptank;
+	tempactor->next	= actorlist->next;
+	actorlist->next	= tempactor;
 	}
     }
 
  /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
-void updateNetworkTank(char * recvline, struct tank * tanklist)
+void updateNetworkActor(char * recvline, struct runtimeActor * actorlist)
     {
     char command[MAXLINE];
     float x, z;
-    int number, maserCount;
-    struct tank * temptank, * foundtank;
+    int number, weaponActiveFrames;
+    struct runtimeActor * tempactor, * foundactor;
     int foundIt;
-    
+
     sscanf(recvline, "%s %d %f %f %d",
-	command, &number, &x, &z, &maserCount);
+	command, &number, &x, &z, &weaponActiveFrames);
 
 /* this should have somethin that uses the monsters current location to modify the
- * location of the tank
+ * location of the actor
  */
-    
+
     foundIt = 0;
-    for (temptank = tanklist->next; (temptank != NULL) && (!foundIt); temptank = temptank->next)
+    for (tempactor = actorlist->next; (tempactor != NULL) && (!foundIt); tempactor = tempactor->next)
 	{
-	if (number == temptank->number)
+	if (number == tempactor->number)
 	    {
 	    foundIt = 1;
-	    foundtank = temptank;
+	    foundactor = tempactor;
 	    }
 	}
 
@@ -366,41 +356,39 @@ void updateNetworkTank(char * recvline, struct tank * tanklist)
 	{
 /*
 	fprintf(stderr, "%s \n", recvline);
-	fprintf(stderr, "UPDATING TANK %d %f %f %f %d \n", number, x, y, z, maserCount);
+	fprintf(stderr, "UPDATING ACTOR %d %f %f %f %d \n", number, x, y, z, weaponActiveFrames);
 */
-	foundtank->x	= x;
-	foundtank->z	= z;
-	
-	if (maserCount > 1)
-	    foundtank->maserCount = 10;
+	foundactor->x	= x;
+	foundactor->z	= z;
+
+	if (weaponActiveFrames > 1)
+	    foundactor->weaponActiveFrames = 10;
 	}
     }
 
- 
+
   /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
-void tellAboutAllTanks(struct sockaddr_in * cli, int length
-    , struct tank * tanklist)
+void tellAboutAllActors(struct sockaddr_in * cli, int length
+    , struct runtimeActor * actorlist)
     {
     char mesg[MAXLINE];
-    
-    struct tank * tempTank;
 
-    for (tempTank = tanklist->next; tempTank != NULL; tempTank = tempTank->next)
+    struct runtimeActor * tempActor;
+
+    for (tempActor = actorlist->next; tempActor != NULL; tempActor = tempActor->next)
 	{
-	fprintf(stderr, "sending FULL data on tank %d to a new client\n", tempTank->number);
-
-/* nother copy of this elsewhere */
-
-	sprintf(mesg, "%s %d %3.1f %3.1f %3.1f %3.1f %d %d #", MESG_NEW_TANK,
-						 tempTank->number, 
-						 tempTank->x,
-						 tempTank->z,
-						 tempTank->finalR,
-						 tempTank->speed,
-						 tempTank->type, 
-						 tempTank->maserCount
-						 );
+	if (tempActor->dataArchetype == NULL)
+	    continue;
+	sprintf(mesg, "%s %d %.3f %.3f %.6f %d %d %s #", MESG_ACTOR_SPAWN,
+							 tempActor->number,
+							 tempActor->x,
+							 tempActor->z,
+							 tempActor->theta,
+							 tempActor->damage,
+							 tempActor->weaponActiveFrames,
+							 tempActor->dataArchetype->id
+							 );
 
 	sendMessage(mesg, cli, length);
 	}
@@ -408,31 +396,36 @@ void tellAboutAllTanks(struct sockaddr_in * cli, int length
 
  /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
-void updateNetworkMonsters(char * recvline, long clientFrom, void * arena)
+void updateNetworkPlayers(char * recvline, long clientFrom, void * arena)
     {
     struct targetInfo * tempTarget,  *thaOne;
-    
+
     float n_energy, n_x, n_z;
     int n_frame;
-    int n_monsterType, n_dead, n_beamOn;
-    int n_horzrot, n_vertrot, n_timeDead; 
+    int n_dead, n_beamOn;
+    int n_horzrot, n_vertrot, n_timeDead;
     int exists;
     char command[MAXLINE];
+    char archetypeId[ENTITY_NAME_SIZE];
+    const struct EntityArchetype *archetype;
 
-    sscanf(recvline, "%s %d %d %f %d %d %d %f %f %d %d",
+    if (sscanf(recvline, "%255s %d %63s %f %d %d %d %f %f %d %d",
 	    command,
 	    &n_frame,
-	    &n_monsterType, 
-	    &n_energy, 
-	    &n_horzrot, 
-	    &n_vertrot, 
-	    &n_dead, 
-	    &n_x, 
-	    &n_z, 
+	    archetypeId,
+	    &n_energy,
+	    &n_horzrot,
+	    &n_vertrot,
+	    &n_dead,
+	    &n_x,
+	    &n_z,
 	    &n_beamOn,
-	    &n_timeDead 
-	    );
-    
+	    &n_timeDead) != 11)
+	return;
+    archetype = gameEntityArchetype(archetypeId);
+    if (archetype == NULL || !archetype->controllable)
+	return;
+
     exists = 0;
     for(tempTarget = targets; tempTarget != NULL; tempTarget=tempTarget->next)
 	{
@@ -443,10 +436,10 @@ void updateNetworkMonsters(char * recvline, long clientFrom, void * arena)
 	    }
 	}
 
-    if (exists && (monsterNetworkCode(thaOne->monster) == n_monsterType))
-	{	
+    if (exists && thaOne->player.dataArchetype == archetype)
+	{
 	/*****************************************************************/
-	/* update the values in the currently existing networked monster */
+	/* update the values in the currently existing networked player */
 	/*****************************************************************/
 
 	thaOne->net_headHorzRotate	= n_horzrot;
@@ -459,40 +452,43 @@ void updateNetworkMonsters(char * recvline, long clientFrom, void * arena)
     else if (n_timeDead < 40)
 	{
 	/*******************************/
-	/* add a new networked monster */
+	/* add a new networked player */
 	/*******************************/
-	
-	addNetworkTarget(clientFrom, n_monsterType, n_horzrot, n_vertrot, 
+
+	addNetworkPlayer(clientFrom, archetype, n_horzrot, n_vertrot,
 	    n_energy, n_x, n_z, n_beamOn, arena);
 	}
     }
 
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
-void addNetworkTarget(long fromNum, int monsterType, float horz, float vert, 
+void addNetworkPlayer(long fromNum, const struct EntityArchetype *archetype,
+                        float horz, float vert,
 			float energy, float x, float z, int beamOn, void * arena)
     {
-    struct monsterInfo newMonster;
+    struct runtimePlayer newPlayerState;
     struct targetInfo * nother, *temp;
     int alreadyExists;
     int i;
 
+    if (archetype == NULL || !archetype->controllable)
+	return;
     alreadyExists = 0;
     for (i=0, temp=targets->next; temp != NULL; i++,temp=temp->next)
 	{
 	if (temp->net_clientFrom == fromNum)
 	    {
 	    alreadyExists = 1;
-	    
+
 	    /******************************/
-	    /* monster type has changed ! */
+	    /* player type has changed ! */
 	    /******************************/
-	    
-	    newMonster.monster	= monsterType;
-	    newMonster		= resetMonsterParameters(newMonster);
-	    newMonster.monster = DATAENTITY;
-	    
-	    temp->monster		= newMonster;
+
+	    memset(&newPlayerState, 0, sizeof(newPlayerState));
+	    newPlayerState.dataArchetype = archetype;
+	    newPlayerState		= resetPlayerState(newPlayerState);
+
+	    temp->player		= newPlayerState;
 
 	    temp->net_clientFrom	= fromNum;
 	    temp->net_headHorzRotate	= horz;
@@ -502,30 +498,30 @@ void addNetworkTarget(long fromNum, int monsterType, float horz, float vert,
 	    temp->net_z			= z;
 	    temp->net_beamOn		= beamOn;
 
-	    temp->monster.headHorzRotate = horz;
-	    temp->monster.headVertRotate = vert;
+	    temp->player.headHorzRotate = horz;
+	    temp->player.headVertRotate = vert;
 	    temp->x = x;
 	    temp->z = z;
 
-	    printf("updating a remote monster that has changed its type\n");
+	    printf("updating a remote player that has changed its type\n");
 	    }
 	}
 
     /************************************/
-    /* add a new monster into this game */
+    /* add a new player into this game */
     /************************************/
 
     if (!alreadyExists)
 	{
-	newMonster.monster  = monsterType;
-	newMonster	    = resetMonsterParameters(newMonster);
-	newMonster.monster = DATAENTITY;
-    
+	memset(&newPlayerState, 0, sizeof(newPlayerState));
+	newPlayerState.dataArchetype = archetype;
+	newPlayerState	    = resetPlayerState(newPlayerState);
+
 	nother = (struct targetInfo *) amalloc(sizeof(struct targetInfo), arena);
-	
+
 	if (nother != NULL)
 	    {
-	    nother->monster		= newMonster;
+	    nother->player		= newPlayerState;
 	    nother->net_clientFrom	= fromNum;
 	    nother->net_headHorzRotate	= horz;
 	    nother->net_headVertRotate	= vert;
@@ -534,8 +530,8 @@ void addNetworkTarget(long fromNum, int monsterType, float horz, float vert,
 	    nother->net_z		= z;
 	    nother->net_beamOn		= beamOn;
 
-	    nother->monster.headHorzRotate = horz;
-	    nother->monster.headVertRotate = vert;
+	    nother->player.headHorzRotate = horz;
+	    nother->player.headVertRotate = vert;
 	    nother->x = x;
 	    nother->z = z;
 
@@ -547,35 +543,41 @@ void addNetworkTarget(long fromNum, int monsterType, float horz, float vert,
 
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
-void updateClientMonster(char * recvline, void * arena)
+void updateRelayedPlayer(char * recvline, void * arena)
     {
     struct targetInfo * tempTarget,  *thaOne;
-    
+
     float n_energy, n_x, n_z;
     int n_frame;
-    int n_monsterType, n_dead, n_beamOn;
-    int n_horzrot, n_vertrot, n_timeDead; 
+    int n_dead, n_beamOn;
+    int n_horzrot, n_vertrot, n_timeDead;
     int exists;
     long recvfrom;
     char command[MAXLINE];
     char orig_command[MAXLINE];
+    char archetypeId[ENTITY_NAME_SIZE];
+    const struct EntityArchetype *archetype;
 
-    sscanf(recvline, "%s %ld %s %d %d %f %d %d %d %f %f %d %d",
+    if (sscanf(recvline,
+            "%255s %ld %255s %d %63s %f %d %d %d %f %f %d %d",
 	    command,
 	    &recvfrom,
-	    orig_command, 
+	    orig_command,
 	    &n_frame,
-	    &n_monsterType, 
-	    &n_energy, 
-	    &n_horzrot, 
-	    &n_vertrot, 
-	    &n_dead, 
-	    &n_x, 
-	    &n_z, 
+	    archetypeId,
+	    &n_energy,
+	    &n_horzrot,
+	    &n_vertrot,
+	    &n_dead,
+	    &n_x,
+	    &n_z,
 	    &n_beamOn,
-	    &n_timeDead 
-	    );
-    
+	    &n_timeDead) != 13)
+	return;
+    archetype = gameEntityArchetype(archetypeId);
+    if (archetype == NULL || !archetype->controllable)
+	return;
+
     exists = 0;
     for(tempTarget = targets; tempTarget != NULL; tempTarget=tempTarget->next)
 	{                                 /* note difference here ! */
@@ -586,10 +588,10 @@ void updateClientMonster(char * recvline, void * arena)
 	    }
 	}
 
-    if (exists && (monsterNetworkCode(thaOne->monster) == n_monsterType))
-	{	
+    if (exists && thaOne->player.dataArchetype == archetype)
+	{
 	/*****************************************************************/
-	/* update the values in the currently existing networked monster */
+	/* update the values in the currently existing networked player */
 	/*****************************************************************/
 
 	thaOne->net_headHorzRotate	= n_horzrot;
@@ -602,10 +604,10 @@ void updateClientMonster(char * recvline, void * arena)
     else if (n_timeDead < 40)
 	{
 	/*******************************/
-	/* add a new networked monster */
+	/* add a new networked player */
 	/*******************************/
-	
-	addNetworkTarget(recvfrom, n_monsterType, n_horzrot, n_vertrot, 
+
+	addNetworkPlayer(recvfrom, archetype, n_horzrot, n_vertrot,
 	    n_energy, n_x, n_z, n_beamOn, arena);
 	}
     }
@@ -615,7 +617,7 @@ void updateClientMonster(char * recvline, void * arena)
 int sendMessage(char * mesg,  struct sockaddr_in * cli, int length)
     {
     int n;
-      
+
     n = strlen(mesg)+1;
 
     if (sendto(sockfd, mesg, n, 0, (struct sockaddr *) cli, length) != n)
@@ -626,25 +628,25 @@ int sendMessage(char * mesg,  struct sockaddr_in * cli, int length)
     else
 	return(0);
     }
-    
+
  /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
-   
+
 void processClient(time_t now, int mainCounter, int totalCounter,
-    struct tree * treelist, struct tank * tanklist, void * arena,
-    int sizeTank, struct monsterInfo Googelon,
-    int buildingBoomThisFrameCounter, int buildingBoomThisFrame[20])
+    struct runtimeMapObject * mapObjectList, struct runtimeActor * actorlist, void * arena,
+    int sizeActor, struct runtimePlayer playerEntityState,
+    int destroyedMapObjectFrameCount, int *destroyedMapObjectFrame)
     {
     char recvline[MAXLINE];
     char mesg[MAXLINE];
     char command[MAXLINE];
     int n;
-    int servlen;
+    socklen_t servlen;
     long clientFrom;
     int j;
     int frameNum;
 
     extern int errno;
-     
+
 
     /* send a request every once in a while until connection established */
     /* if I haven't seen any data from the server in a while try to reconnect */
@@ -653,9 +655,9 @@ void processClient(time_t now, int mainCounter, int totalCounter,
     if (now > (lastRecvTime + RECONNECT_TIME))
 	connected = 0;
 
-    if (!connected) 
+    if (!connected)
 	{
-	sprintf(mesg,MESG_REQUEST);
+	sprintf(mesg, "%s %d", MESG_JOIN, BATTALION_NETWORK_PROTOCOL);
 	sendMessage(mesg, &serv_addr, sizeof(serv_addr));
 	}
 
@@ -663,7 +665,7 @@ void processClient(time_t now, int mainCounter, int totalCounter,
 	{
 	lastNotDeadYetTime = now;
 
-	sprintf(mesg,MESG_NOTDEADYET);
+	sprintf(mesg,MESG_HEARTBEAT);
 	sendMessage(mesg, &serv_addr, sizeof(serv_addr));
 	}
 
@@ -672,9 +674,9 @@ void processClient(time_t now, int mainCounter, int totalCounter,
 	/*******************************************************/
 
 
-	for(j=0;j<buildingBoomThisFrameCounter;j++)
+	for(j=0;j<destroyedMapObjectFrameCount;j++)
 	    {
-	    sprintf(mesg, "%s %d #", MESG_BUILDING, buildingBoomThisFrame[j]);
+	    sprintf(mesg, "%s %d #", MESG_OBJECT_DESTROYED, destroyedMapObjectFrame[j]);
 
 	    sendMessage(mesg, &serv_addr, sizeof(serv_addr));
 	    }
@@ -683,33 +685,34 @@ void processClient(time_t now, int mainCounter, int totalCounter,
 	/* ocassionally send to the server */
 	/***********************************/
 
-	if (!(mainCounter % MONSTER_UPDATE_RATE))
+	if (!(mainCounter % PLAYER_STATE_RATE))
 	    {
-	    sprintf(mesg, "%s %1d %1d %1.0f %1d %1d %1d %1.1f %1.1f %1d %1d#",
-			    MESG_UPDATE, 
-			    totalCounter, 
-			    monsterNetworkCode(Googelon),
-			    Googelon.energyRemaining, 
-			    Googelon.headHorzRotate,
-			    Googelon.headVertRotate,
-			    Googelon.monsterIsDead, 
-			    Googelon.x,
-			    Googelon.z,
-			    beamOnSinceLast, 
-			    Googelon.timeDead
+	    sprintf(mesg, "%s %d %s %.1f %d %d %d %.3f %.3f %d %d #",
+			    MESG_PLAYER_STATE,
+			    totalCounter,
+			    playerEntityState.dataArchetype->id,
+			    playerEntityState.energyRemaining,
+			    playerEntityState.headHorzRotate,
+			    playerEntityState.headVertRotate,
+			    playerEntityState.dead,
+			    playerEntityState.x,
+			    playerEntityState.z,
+			    beamOnSinceLast,
+			    playerEntityState.timeDead
 			    );
 
 	    beamOnSinceLast = 0;
 	    sendMessage(mesg, &serv_addr, sizeof(serv_addr));
 	    }
 
-    
+
 	/*************************************/
 	/* wait for messages from the server */
 	/*************************************/
 
 	 servlen = sizeof(serv_addr);
-	 n = recvfrom(sockfd, recvline, MAXLINE, 0, (struct sockaddr *) &serv_addr, (int *)& servlen);
+	 n = recvfrom(sockfd, recvline, MAXLINE, 0,
+	              (struct sockaddr *)&serv_addr, &servlen);
 	 if ((n < 0)  && (errno != EWOULDBLOCK))
 	    {
 	    printf("Client receive error\n");
@@ -723,69 +726,69 @@ void processClient(time_t now, int mainCounter, int totalCounter,
 */
 	    connected = 1;
 	    lastRecvTime = now;
-	    
+
 	    sscanf(recvline, "%s %d", command, &frameNum);
-	    if (strcmp(command, MESG_UPDATE) == 0)
+	    if (strcmp(command, MESG_PLAYER_STATE) == 0)
 		{
-		/*if (frameNum > lastMonsterUpdate) */
-		/* took this out since there can be > 1 monster being sent
+		/*if (frameNum > lastPlayerStateFrame) */
+		/* took this out since there can be > 1 player being sent
 		 * to the client
 		 */
 		    {
-		    updateNetworkMonsters(recvline, clientFrom, arena);
-		    lastMonsterUpdate = frameNum;
+		    updateNetworkPlayers(recvline, clientFrom, arena);
+		    lastPlayerStateFrame = frameNum;
 		    }
 		}
 
-	    if (strcmp(command, MESG_NEW_TANK) == 0)
+	    if (strcmp(command, MESG_ACTOR_SPAWN) == 0)
 		{
-		addNewNetworkTank(recvline, tanklist, arena, sizeTank);
+		addNewNetworkActor(recvline, actorlist, arena, sizeActor);
 		}
 
-	    if (strcmp(command, MESG_UPDATE_TANK) == 0)
+	    if (strcmp(command, MESG_ACTOR_STATE) == 0)
 		{
-		updateNetworkTank(recvline, tanklist);
+		updateNetworkActor(recvline, actorlist);
 		}
-	    if (strcmp(command, MESG_BUILDING) == 0)
+	    if (strcmp(command, MESG_OBJECT_DESTROYED) == 0)
 		{
-		updateNetworkBuildings(recvline, treelist);
+		updateNetworkMapObjects(recvline, mapObjectList);
 		}
-	    if (strcmp(command, MESG_CLIENT_CLIENT_UPDATE) == 0)
+	    if (strcmp(command, MESG_RELAY) == 0)
 		{
-		updateClientMonster(recvline, arena);
+		updateRelayedPlayer(recvline, arena);
 		}
 	    }
-		    
+
 /*	close(sockfd); */
 
     }
 
  /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
-void tellAboutAllDeadBuildings(struct sockaddr_in * cli, int length, 
-			       int buildingBoomSoFarCounter, 
-			       int buildingBoomSoFar[800])
+void tellAboutDestroyedMapObjects(struct sockaddr_in * cli, int length,
+			       int destroyedMapObjectHistoryCount,
+			       int *destroyedMapObjectHistory)
     {
     int j;
     char mesg[MAXLINE];
 
-    for(j=0; j<buildingBoomSoFarCounter; j++)
+    for(j=0; j<destroyedMapObjectHistoryCount; j++)
 	{
-	sprintf(mesg, "%s %d #", MESG_BUILDING,  buildingBoomSoFar[j]);
+	sprintf(mesg, "%s %d #", MESG_OBJECT_DESTROYED,  destroyedMapObjectHistory[j]);
 
 	sendMessage(mesg, cli, length);
 	}
     }
-    
+
  /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
-  
+
   /* there is now a connected = 0 in setPlayConditions!!! */
-   
+
 void processNetwork(time_t now, int mainCounter, int totalCounter,
-    struct tree * treelist, struct tank * tanklist, void * arena, 
-    struct monsterInfo Googelon, int buildingBoomSoFarCounter, 
-    int buildingBoomThisFrameCounter, int buildingBoomSoFar[800], 
-    int buildingBoomThisFrame[20])
+    struct runtimeMapObject * mapObjectList, struct runtimeActor * actorlist, void * arena,
+    struct runtimePlayer playerEntityState, int destroyedMapObjectHistoryCount,
+    int destroyedMapObjectFrameCount, int *destroyedMapObjectHistory,
+    int *destroyedMapObjectFrame)
     {
     long recvFrom;
     struct sockaddr_in cli_addr;
@@ -795,8 +798,8 @@ void processNetwork(time_t now, int mainCounter, int totalCounter,
 
     struct targetInfo * tempTarget;
     extern int errno;
-    
-    int clilen;
+
+    socklen_t clilen;
     int oldClient;
     int n;
     int i, j;
@@ -804,21 +807,22 @@ void processNetwork(time_t now, int mainCounter, int totalCounter,
     int noMore;
     int thisClient;
     int frameNumber;
-    
+
     clilen = sizeof(cli_addr);
 
     noMore = 0;
-    
-    tankModulator = (tankModulator + 1) % MONSTER_UPDATE_RATE;
-    
+
+    actorModulator = (actorModulator + 1) % PLAYER_STATE_RATE;
+
     while(!noMore)
 	{
 	/**********************/
 	/* Read incoming data */
 	/**********************/
-	 
-	n = recvfrom(sockfd, recvline, MAXLINE, 0, (struct sockaddr *) &cli_addr, (int *)& clilen);
-    
+
+	n = recvfrom(sockfd, recvline, MAXLINE, 0,
+	             (struct sockaddr *)&cli_addr, &clilen);
+
 	if (n < 0)
 	    if(errno != EWOULDBLOCK)
 		{
@@ -838,7 +842,7 @@ void processNetwork(time_t now, int mainCounter, int totalCounter,
 */
 
 	    thisClient = -1;
-	    
+
 	    for(i=0; i<numClients; i++)
 		if (recvFrom == clientsFrom[i])
 		    {
@@ -849,28 +853,28 @@ void processNetwork(time_t now, int mainCounter, int totalCounter,
 	    client we didn't know we had (if server crashes) so we
 	    ignore all of these messages until it establishes a
 	    'proper' connection */
-	        
+
 	    if (thisClient != -1)
 		{
-		if (strcmp(recvline,MESG_NOTDEADYET) == 0)	
+		if (strcmp(recvline,MESG_HEARTBEAT) == 0)
 		    {
 		    clientsAlive[thisClient] = now;
 		    }
-    
+
 		sscanf(recvline, "%s %d", command, &frameNumber);
-		if (strcmp(command, MESG_UPDATE) == 0)
+		if (strcmp(command, MESG_PLAYER_STATE) == 0)
 		    {
-		    if (frameNumber > lastClientMonsterUpdate[thisClient])
+		    if (frameNumber > lastClientPlayerStateFrame[thisClient])
 			{
-			updateNetworkMonsters(recvline, recvFrom, arena);
-			lastClientMonsterUpdate[thisClient] = frameNumber;
-			
+			updateNetworkPlayers(recvline, recvFrom, arena);
+			lastClientPlayerStateFrame[thisClient] = frameNumber;
+
 			/*******************************************/
 			/* send this info to all the other clients */
 			/*******************************************/
-			
-			sprintf(mesg, "%s %ld %s", MESG_CLIENT_CLIENT_UPDATE, recvFrom, recvline);
-			
+
+			sprintf(mesg, "%s %ld %s", MESG_RELAY, recvFrom, recvline);
+
 			for(i=0; i<numClients; i++)
 			    if (i != thisClient)
 				{
@@ -880,23 +884,24 @@ void processNetwork(time_t now, int mainCounter, int totalCounter,
 			}
 		    }
 		}
-    
-	    if (strcmp(command, MESG_BUILDING) == 0)
+
+	    if (strcmp(command, MESG_OBJECT_DESTROYED) == 0)
 		{
-		updateNetworkBuildings(recvline, treelist);
+		updateNetworkMapObjects(recvline, mapObjectList);
 		}
 
-    
-	    if (strcmp(recvline,MESG_REQUEST) == 0)
+
+	    if (strcmp(command, MESG_JOIN) == 0 &&
+	        frameNumber == BATTALION_NETWORK_PROTOCOL)
 		{
 		/*********************************************/
 		/* need to see if this client already exists */
 		/*********************************************/
-		
+
 		oldClient = 0;
-		
+
 		for(i=0; i<numClients; i++)
-		    {  
+		    {
 		    if (recvFrom == clientsFrom[i])
 			{
 			clients[i] 	= cli_addr;
@@ -907,43 +912,45 @@ void processNetwork(time_t now, int mainCounter, int totalCounter,
 
 		if (oldClient)
 		    {
-		    sprintf(mesg,MESG_REAQUIRE);
-		    sendMessage(mesg, &cli_addr, clilen);
+		    sprintf(mesg, "%s %d", MESG_REACQUIRE,
+		            BATTALION_NETWORK_PROTOCOL);
+		    sendMessage(mesg, &cli_addr, (int)clilen);
 
-		    tellAboutAllDeadBuildings(&cli_addr, clilen, buildingBoomSoFarCounter, buildingBoomSoFar);
-		    tellAboutAllTanks(&cli_addr, clilen, tanklist);
+		    tellAboutDestroyedMapObjects(&cli_addr, (int)clilen, destroyedMapObjectHistoryCount, destroyedMapObjectHistory);
+		    tellAboutAllActors(&cli_addr, (int)clilen, actorlist);
 
 		    }
-		    
+
 		if (!oldClient)
 		    {
 		    clients[numClients] 	= cli_addr;
 		    clientsFrom[numClients] 	= recvFrom;
 		    clientsAlive[numClients]	= now;
-		    
-		    numClients++;
-		    
-		    sprintf(mesg, MESG_ACKNOWLEDGE);
-		    sendMessage(mesg, &cli_addr, clilen);
 
-		    tellAboutAllDeadBuildings(&cli_addr, clilen, buildingBoomSoFarCounter, buildingBoomSoFar);
-		    tellAboutAllTanks(&cli_addr, clilen, tanklist);
+		    numClients++;
+
+		    sprintf(mesg, "%s %d", MESG_ACKNOWLEDGE,
+		            BATTALION_NETWORK_PROTOCOL);
+		    sendMessage(mesg, &cli_addr, (int)clilen);
+
+		    tellAboutDestroyedMapObjects(&cli_addr, (int)clilen, destroyedMapObjectHistoryCount, destroyedMapObjectHistory);
+		    tellAboutAllActors(&cli_addr, (int)clilen, actorlist);
 		    }
 		}
-    
+
 	    }
 
 	}
-    
+
 	/****************************************************************/
 	/* kill any client connection that has not responded in a while */
 	/****************************************************************/
 
 	i = 0;
 	gotOne = 0;
-	
+
 	while ((i < numClients) && (!gotOne))
-	    {  
+	    {
 	    if ((clientsAlive[i]+IM_NOT_DEAD_YET_TIME) < now)
 		{
 		printf("killing client %d\n", i);
@@ -963,7 +970,7 @@ void processNetwork(time_t now, int mainCounter, int totalCounter,
 		    gotOne = 1;
 		    }
 		numClients -= 1;
-		
+
 		}
 	    else
 		i++;
@@ -973,9 +980,9 @@ void processNetwork(time_t now, int mainCounter, int totalCounter,
 	/* tell all the clients when a tree has been destroyed */
 	/*******************************************************/
 
-	for(j=0;j<buildingBoomThisFrameCounter;j++)
+	for(j=0;j<destroyedMapObjectFrameCount;j++)
 	    {
-	    sprintf(mesg, "%s %d #", MESG_BUILDING, buildingBoomThisFrame[j]);
+	    sprintf(mesg, "%s %d #", MESG_OBJECT_DESTROYED, destroyedMapObjectFrame[j]);
 
 	    for(i=0; i<numClients; i++)
 		sendMessage(mesg, &clients[i], sizeof(clients[i]));
@@ -987,20 +994,20 @@ void processNetwork(time_t now, int mainCounter, int totalCounter,
 	/* ocassionally broadcast to all currently connected clients */
 	/*************************************************************/
 
-	if (!(mainCounter % MONSTER_UPDATE_RATE))
+	if (!(mainCounter % PLAYER_STATE_RATE))
 	    {
-	    sprintf(mesg, "%s %1d %1d %1.0f %1d %1d %1d %1.1f %1.1f %1d %1d#",
-			    MESG_UPDATE, 
-			    totalCounter, 
-			    monsterNetworkCode(Googelon),
-			    Googelon.energyRemaining, 
-			    Googelon.headHorzRotate,
-			    Googelon.headVertRotate,
-			    Googelon.monsterIsDead, 
-			    Googelon.x,
-			    Googelon.z,
-			    beamOnSinceLast, 
-			    Googelon.timeDead
+	    sprintf(mesg, "%s %d %s %.1f %d %d %d %.3f %.3f %d %d #",
+			    MESG_PLAYER_STATE,
+			    totalCounter,
+			    playerEntityState.dataArchetype->id,
+			    playerEntityState.energyRemaining,
+			    playerEntityState.headHorzRotate,
+			    playerEntityState.headVertRotate,
+			    playerEntityState.dead,
+			    playerEntityState.x,
+			    playerEntityState.z,
+			    beamOnSinceLast,
+			    playerEntityState.timeDead
 			    );
 
 	    beamOnSinceLast = 0;

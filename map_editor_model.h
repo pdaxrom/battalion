@@ -9,6 +9,7 @@
 #define BATTALION_MAP_EDITOR_MODEL_H
 
 #include "entity_catalog.h"
+#include "faction_catalog.h"
 #include "map_package.h"
 
 #include <stddef.h>
@@ -16,23 +17,20 @@
 #define MAP_EDITOR_PATH_SIZE 1024
 #define MAP_EDITOR_STATUS_SIZE 256
 
-#define MAP_EDITOR_LEGACY_NONE 0
-#define MAP_EDITOR_LEGACY_ROAD 1
-#define MAP_EDITOR_LEGACY_STRUCTURE 2
-
 struct MapEditorModel
     {
     struct BattalionMapPackage map;
     struct EntityCatalog catalog;
+    struct FactionCatalog factions;
     char assetRoot[MAP_EDITOR_PATH_SIZE];
     char path[MAP_EDITOR_PATH_SIZE];
     char status[MAP_EDITOR_STATUS_SIZE];
-    int selectedActor;
+    int selectedObject;
     int selectedWaypoint;
+    int selectedGeometryPoint;
     int selectedTrigger;
+    int selectedProperty;
     int selectedArchetype;
-    int selectedLegacyKind;
-    int selectedLegacyIndex;
     int dirty;
     int gridVisible;
     int snapEnabled;
@@ -53,38 +51,40 @@ int mapEditorLoad(struct MapEditorModel *editor, const char *path);
 int mapEditorSave(struct MapEditorModel *editor, const char *path);
 int mapEditorValidate(struct MapEditorModel *editor);
 
-int mapEditorAddActor(struct MapEditorModel *editor,
-                      size_t archetypeIndex, float x, float z);
-int mapEditorDeleteActor(struct MapEditorModel *editor, size_t actorIndex);
-int mapEditorMoveActor(struct MapEditorModel *editor, size_t actorIndex,
-                       float x, float z);
-int mapEditorSetActorId(struct MapEditorModel *editor, size_t actorIndex,
-                        const char *id);
+int mapEditorSelectArchetypeForPlacement(struct MapEditorModel *editor,
+                                         size_t archetypeIndex);
+int mapEditorAddSelectedObject(struct MapEditorModel *editor,
+                               float x, float z);
+int mapEditorAddObject(struct MapEditorModel *editor,
+                       size_t archetypeIndex, float x, float z);
+int mapEditorDeleteObject(struct MapEditorModel *editor, size_t objectIndex);
+int mapEditorMoveObject(struct MapEditorModel *editor, size_t objectIndex,
+                        float x, float z);
+int mapEditorSetObjectId(struct MapEditorModel *editor, size_t objectIndex,
+                         const char *id);
+int mapEditorSetObjectProperty(struct MapEditorModel *editor,
+                               size_t objectIndex, size_t propertyIndex,
+                               const char *value);
 
-int mapEditorAddRoad(struct MapEditorModel *editor,
-                     float x, float z, int type);
-int mapEditorMoveRoad(struct MapEditorModel *editor, size_t roadIndex,
-                      float x, float z);
-int mapEditorDeleteRoad(struct MapEditorModel *editor, size_t roadIndex);
-
-int mapEditorAddStructure(struct MapEditorModel *editor,
-                          float x, float z, int type, int shape);
-int mapEditorMoveStructure(struct MapEditorModel *editor,
-                           size_t structureIndex, float x, float z);
-int mapEditorDeleteStructure(struct MapEditorModel *editor,
-                             size_t structureIndex);
-
-int mapEditorAddWaypoint(struct MapEditorModel *editor, size_t actorIndex,
+int mapEditorAddWaypoint(struct MapEditorModel *editor, size_t objectIndex,
                          float x, float z);
-int mapEditorMoveWaypoint(struct MapEditorModel *editor, size_t actorIndex,
+int mapEditorMoveWaypoint(struct MapEditorModel *editor, size_t objectIndex,
                           size_t waypointIndex, float x, float z);
-int mapEditorDeleteWaypoint(struct MapEditorModel *editor, size_t actorIndex,
+int mapEditorDeleteWaypoint(struct MapEditorModel *editor, size_t objectIndex,
                             size_t waypointIndex);
 
-int mapEditorAddTrigger(struct MapEditorModel *editor, size_t actorIndex,
+int mapEditorAddGeometryPoint(struct MapEditorModel *editor,
+                              size_t objectIndex, float x, float z);
+int mapEditorMoveGeometryPoint(struct MapEditorModel *editor,
+                               size_t objectIndex, size_t pointIndex,
+                               float x, float z);
+int mapEditorDeleteGeometryPoint(struct MapEditorModel *editor,
+                                 size_t objectIndex, size_t pointIndex);
+
+int mapEditorAddTrigger(struct MapEditorModel *editor, size_t objectIndex,
                         const char *event, int targetType,
                         const char *target);
-int mapEditorDeleteTrigger(struct MapEditorModel *editor, size_t actorIndex,
+int mapEditorDeleteTrigger(struct MapEditorModel *editor, size_t objectIndex,
                            size_t triggerIndex);
 
 float mapEditorSnapValue(const struct MapEditorModel *editor, float value);

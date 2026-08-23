@@ -15,7 +15,7 @@
 #include "vendor/nuklear/nuklear.h"
 
 #define MAP_EDITOR_GUI_TEXT_CAPACITY 32
-#define MAP_EDITOR_GUI_FONT_HEIGHT 8.0f
+#define MAP_EDITOR_GUI_FONT_DEVICE_PIXELS 12.0f
 
 struct MapEditorGuiInput
     {

@@ -1,0 +1,25 @@
+battalion-entity 1
+id projectile-hero
+display-name Hero Plasma Bolt
+description Animated heavy plasma projectile with no gravity.
+kind projectile
+editor-placeable no
+placement none
+model projectile-hero
+idle-animation projectile-hero-spin
+collision-mode none
+movement air
+scale 2
+projectile-collides-ground yes
+projectile-continuous no
+projectile-trail-marker no
+projectile-gravity 0
+projectile-damage 2
+projectile-arming-frames 0
+projectile-damages-actors yes
+projectile-collides-actors yes
+projectile-collides-map-objects yes
+projectile-destroys-map-objects yes
+impact-effect explosion-standard
+destructible no
+casts-shadow no

@@ -28,14 +28,51 @@
 /* network stuff */
 /*****************/
 
-int buildingBoomSoFarCounter;
-int buildingBoomSoFar[800];
+int destroyedMapObjectHistoryCount;
+int *destroyedMapObjectHistory;
 
-int buildingBoomThisFrameCounter;
-int buildingBoomThisFrame[20];
-int currentTankNumber;
+int destroyedMapObjectFrameCount;
+int *destroyedMapObjectFrame;
+static size_t destroyedMapObjectCapacity;
+int currentActorNumber;
 struct WorldEnvironment worldEnvironment;
 int shadowsEnabled;
+
+static int ensureDestroyedMapObjectCapacity(size_t required)
+    {
+    int *expanded;
+
+    if (required <= destroyedMapObjectCapacity)
+        return 1;
+    expanded = (int *)realloc(
+        destroyedMapObjectHistory, required * sizeof(*expanded));
+    if (expanded == NULL)
+        return 0;
+    destroyedMapObjectHistory = expanded;
+    expanded = (int *)realloc(
+        destroyedMapObjectFrame, required * sizeof(*expanded));
+    if (expanded == NULL)
+        return 0;
+    destroyedMapObjectFrame = expanded;
+    destroyedMapObjectCapacity = required;
+    return 1;
+    }
+
+static void recordDestroyedMapObject(int number)
+    {
+    int index;
+
+    for (index = 0; index < destroyedMapObjectHistoryCount; index++)
+        if (destroyedMapObjectHistory[index] == number)
+            return;
+    if ((size_t)destroyedMapObjectHistoryCount >=
+        destroyedMapObjectCapacity)
+        return;
+    destroyedMapObjectHistory[destroyedMapObjectHistoryCount++] = number;
+    if ((size_t)destroyedMapObjectFrameCount <
+        destroyedMapObjectCapacity)
+        destroyedMapObjectFrame[destroyedMapObjectFrameCount++] = number;
+    }
 
 /*********/
 /* times */
@@ -80,10 +117,6 @@ int XMAXSCREEN = 1920;
 /* counters */
 /************/
 
-int killtanks, killmtanks, killhelos;
-int killCHHs, killmechags,  killheros,
-killfighters, killplanes, killlaunchers;
-
 int mainCounter;
 int totalCounter;
 int firingDelay;
@@ -91,7 +124,7 @@ int arrivalTime;
 int showframes; /* also used to filter out repetitive sounds */
 float accuracy;
 
-int treeID;
+int mapObjectRuntimeId;
 
 /****************/
 /* window stuff */
@@ -103,7 +136,7 @@ long windowWide, windowTall, windowLeft, windowTop;
 GLuint viewL, viewR;
 long zmax;
 
-float lastTankY, lastTankTheta, lastTankRad;
+float lastActorY, lastActorTheta, lastActorRad;
 
 int pointerGrab;
 
@@ -111,16 +144,16 @@ int pointerGrab;
 /* lists */
 /*********/
 
-struct road * roadSystem;
-struct projectile * projectFlight;
-struct boom * projectboom;
-struct tank * tanklist;
-struct tank * wrecklist;
-struct tree * treelist;
-struct monsterInfo Googelon;
+struct runtimeProjectile * runtimeProjectileList;
+struct runtimeExplosion * runtimeExplosionList;
+struct runtimeActor * actorlist;
+struct runtimeActor * wrecklist;
+struct runtimeMapObject * mapObjectList;
+struct runtimePlayer playerEntityState;
 
 static struct BattalionMapPackage battlefieldMap;
 static struct EntityCatalog gameEntities;
+static struct FactionCatalog gameFactions;
 static char requestedPlayerEntity[ENTITY_NAME_SIZE];
 static int requestedView = -1;
 static int requestedStereoLayout = CAMERA_STEREO_OFF;
@@ -132,11 +165,6 @@ const struct EntityArchetype *selectedPlayerArchetype(void)
     return playerEntityArchetype;
     }
 
-const struct EntityArchetype *networkEntityArchetype(int networkCode)
-    {
-    return entityCatalogFindNetworkCode(&gameEntities, networkCode);
-    }
-
 size_t playerEntityOptionCount(void)
     {
     return entityCatalogControllableCount(&gameEntities);
@@ -145,6 +173,11 @@ size_t playerEntityOptionCount(void)
 size_t selectedPlayerArchetypeNumber(void)
     {
     return playerEntitySelection;
+    }
+
+const struct EntityArchetype *playerEntityOptionAt(size_t ordinal)
+    {
+    return entityCatalogControllableAt(&gameEntities, ordinal);
     }
 
 static int setPlayerEntityArchetype(
@@ -164,7 +197,7 @@ static int setPlayerEntityArchetype(
             {
             playerEntityArchetype = candidate;
             playerEntitySelection = ordinal;
-            Googelon.dataArchetype = candidate;
+            playerEntityState.dataArchetype = candidate;
             return 1;
             }
         }
@@ -185,72 +218,69 @@ static void stepPlayerEntitySelection(int direction)
         playerEntitySelection = (playerEntitySelection + 1) % count;
     playerEntityArchetype = entityCatalogControllableAt(
         &gameEntities, playerEntitySelection);
-    Googelon.dataArchetype = playerEntityArchetype;
+    playerEntityState.dataArchetype = playerEntityArchetype;
     }
 
-static const struct EntityArchetype *monsterArchetype(
-    const struct monsterInfo *monster)
+static const struct EntityArchetype *playerArchetype(
+    const struct runtimePlayer *player)
     {
-    if (monster == NULL)
+    if (player == NULL)
         return NULL;
-    if (monster->dataArchetype != NULL)
-        return monster->dataArchetype;
-    if (monster->monster == DATAENTITY)
-        return playerEntityArchetype;
-    return networkEntityArchetype(monster->monster);
+    return player->dataArchetype;
     }
 
-static int monsterHasSolidCollision(const struct monsterInfo *monster)
+const struct EntityArchetype *runtimePlayerArchetype(
+    const struct runtimePlayer *player)
+    {
+    return playerArchetype(player);
+    }
+
+static int playerHasSolidCollision(const struct runtimePlayer *player)
     {
     const struct EntityArchetype *archetype;
 
-    archetype = monsterArchetype(monster);
+    archetype = playerArchetype(player);
     return archetype == NULL ||
            archetype->collisionMode == ENTITY_COLLISION_SOLID;
     }
 
-static float tankCollisionRadius(const struct tank *tank)
+static float actorCollisionRadius(const struct runtimeActor *actor)
     {
-    if (tank != NULL && tank->type == DATAENTITY &&
-        tank->dataArchetype != NULL)
-        return tank->dataArchetype->collisionRadius;
-    return 0.3f;
+    if (actor != NULL && actor->dataArchetype != NULL &&
+        actor->dataArchetype->collisionMode == ENTITY_COLLISION_SOLID)
+        return entityArchetypeCollisionRadius(actor->dataArchetype);
+    return 0.0f;
     }
 
-static float tankCollisionBottom(const struct tank *tank)
+static float actorCollisionBottom(const struct runtimeActor *actor)
     {
-    return tank->y;
+    if (actor != NULL && actor->dataArchetype != NULL)
+        return actor->y + entityArchetypeCollisionBottomOffset(
+            actor->dataArchetype);
+    return actor == NULL ? PLANEY : actor->y;
     }
 
-static float tankCollisionTop(const struct tank *tank)
+static float actorCollisionTop(const struct runtimeActor *actor)
     {
-    if (tank != NULL && tank->type == DATAENTITY &&
-        tank->dataArchetype != NULL)
-        return tank->y + tank->dataArchetype->collisionHeight;
-    if (tank != NULL && (tank->type == HELO || tank->type == CHH ||
-                         tank->type == AIRPLANE || tank->type == FIGHTER))
-        return tank->y + 0.4f;
-    return tank == NULL ? PLANEY : tank->y + 0.6f;
+    if (actor != NULL && actor->dataArchetype != NULL)
+        return actor->y + entityArchetypeCollisionTopOffset(
+            actor->dataArchetype);
+    return actor == NULL ? PLANEY : actor->y;
     }
 
-static float structureCollisionTop(const struct tree *structure)
+static float mapObjectCollisionRadius(
+    const struct runtimeMapObject *object)
     {
-    return structure->y + structure->height + TREEBLASTHEIGHTR;
+    if (object == NULL || object->dataArchetype == NULL ||
+        object->dataArchetype->collisionMode == ENTITY_COLLISION_NONE)
+        return 0.0f;
+    return entityArchetypeCollisionRadius(object->dataArchetype) *
+           object->instanceScale;
     }
 
-static float legacyTankSpawnY(int type)
+static float mapObjectCollisionTop(const struct runtimeMapObject *object)
     {
-    if (type == HELO || type == CHH)
-	return PLANEY + 1.0f;
-    if (type == AIRPLANE)
-	return PLANEY + 2.5f;
-    if (type == FIGHTER)
-	return PLANEY + 2.0f;
-    if (type == HERO)
-	return PLANEY + 0.58f;
-    if (type == MECHAG)
-	return PLANEY + 0.4f;
-    return PLANEY;
+    return object->y + object->height;
     }
 
 /*********/
@@ -290,26 +320,6 @@ static int selectAssetRoot(const char *root)
     return 1;
     }
 
-static int entityAssetsAvailable(const struct EntityArchetype *archetype)
-    {
-    size_t node;
-
-    if (assetModelDisplayList(archetype->model) == 0)
-        return 0;
-    if (!assetModelHasNode(archetype->model, archetype->aimYawNode) ||
-        !assetModelHasNode(archetype->model, archetype->aimPitchNode) ||
-        !assetModelHasNode(archetype->model, archetype->muzzleNode))
-        return 0;
-    for (node = 0; node < archetype->renderNodeCount; node++)
-        if (!assetModelHasNode(archetype->model,
-                               archetype->renderNodes[node]))
-            return 0;
-    return assetAnimationAvailable(archetype->idleAnimation) &&
-           assetAnimationAvailable(archetype->moveAnimation) &&
-           assetAnimationAvailable(archetype->backwardAnimation) &&
-           assetAnimationAvailable(archetype->attackAnimation);
-    }
-
 static void setGameEntityError(char *error, size_t errorSize,
                                const char *message)
     {
@@ -322,25 +332,65 @@ static void setGameEntityError(char *error, size_t errorSize,
 static int loadGameEntityCatalog(char *error, size_t errorSize)
     {
     const char *catalogPath;
+    const char *factionPath;
     const struct EntityArchetype *archetype;
+    const struct EntityArchetype *routeArchetype;
+    const struct EntityArchetype *safeZoneArchetype;
+    const struct BattalionMapObject *mapObject;
+    const struct BattalionMapObject *routeObject;
+    const struct BattalionMapObject *safeZoneObject;
+    const char *resolvedFaction;
     struct EntityArchetype *mutableArchetype;
     float modelHeight;
+    float modelMinimum[3];
+    float modelMaximum[3];
+    float modelRadiusX;
+    float modelRadiusZ;
+    char boundsError[160];
     size_t index;
+    size_t mapSearch;
+    size_t sensorIndex;
 
+    factionPath = assetFilePath("game-factions");
+    factionCatalogInitialize(&gameFactions);
+    if (!factionCatalogLoad(dataPath, factionPath, &gameFactions,
+                            error, errorSize))
+        return 0;
     catalogPath = assetFilePath("game-entities");
     entityCatalogInitialize(&gameEntities);
     if (!entityCatalogLoad(dataPath, catalogPath, &gameEntities,
                            error, errorSize))
         return 0;
+    if (!assetEntityCatalogAvailable(&gameEntities, error, errorSize))
+        return 0;
     for (index = 0; index < gameEntities.count; index++)
         {
         mutableArchetype = &gameEntities.entries[index];
-        if (!entityAssetsAvailable(mutableArchetype))
+        if (entityArchetypeIsActor(mutableArchetype) &&
+            factionCatalogFind(&gameFactions,
+                               mutableArchetype->faction) == NULL)
             {
             setGameEntityError(error, errorSize,
-                               "An entity references missing assets");
+                               "Entity references an unknown faction");
             return 0;
             }
+        for (sensorIndex = 0;
+             sensorIndex < mutableArchetype->sensorCount; sensorIndex++)
+            if (strcmp(mutableArchetype->sensors[sensorIndex].factionFilter,
+                       "any") != 0 &&
+                strcmp(mutableArchetype->sensors[sensorIndex].factionFilter,
+                       "hostile") != 0 &&
+                strcmp(mutableArchetype->sensors[sensorIndex].factionFilter,
+                       "ally") != 0 &&
+                factionCatalogFind(
+                    &gameFactions,
+                    mutableArchetype->sensors[sensorIndex].factionFilter) ==
+                    NULL)
+                {
+                setGameEntityError(error, errorSize,
+                                   "Entity sensor uses an unknown faction");
+                return 0;
+                }
         if (mutableArchetype->heightSpecified &&
             (!assetModelUnscaledHeight(mutableArchetype, &modelHeight) ||
              !entityArchetypeResolveScale(mutableArchetype, modelHeight)))
@@ -349,16 +399,137 @@ static int loadGameEntityCatalog(char *error, size_t errorSize)
                                "Could not resolve entity height from model");
             return 0;
             }
+        if (mutableArchetype->renderStyle == ENTITY_RENDER_MODEL &&
+            !assetModelUnscaledBounds(mutableArchetype,
+                                      modelMinimum, modelMaximum))
+            {
+            sprintf(boundsError, "Could not resolve model bounds for '%s'",
+                    mutableArchetype->id);
+            setGameEntityError(error, errorSize, boundsError);
+            return 0;
+            }
+        if (mutableArchetype->renderStyle == ENTITY_RENDER_MODEL)
+            {
+            mutableArchetype->modelMinimumY =
+                modelMinimum[1] * mutableArchetype->scale;
+            mutableArchetype->modelMaximumY =
+                modelMaximum[1] * mutableArchetype->scale;
+            mutableArchetype->modelGroundOffset =
+                mutableArchetype->grounding == ENTITY_GROUNDING_MODEL_MIN ?
+                -mutableArchetype->modelMinimumY : 0.0f;
+            modelRadiusX = (float)fabs((double)modelMinimum[0]);
+            if ((float)fabs((double)modelMaximum[0]) > modelRadiusX)
+                modelRadiusX = (float)fabs((double)modelMaximum[0]);
+            modelRadiusZ = (float)fabs((double)modelMinimum[2]);
+            if ((float)fabs((double)modelMaximum[2]) > modelRadiusZ)
+                modelRadiusZ = (float)fabs((double)modelMaximum[2]);
+            mutableArchetype->modelFootprintRadius =
+                (float)sqrt((double)(modelRadiusX * modelRadiusX +
+                                    modelRadiusZ * modelRadiusZ)) *
+                mutableArchetype->scale;
+            }
         }
-    for (index = 0; index < battlefieldMap.actorCount; index++)
+    for (index = 0; index < battlefieldMap.objectCount; index++)
         {
+        mapObject = &battlefieldMap.objects[index];
         archetype = entityCatalogFind(
-            &gameEntities, battlefieldMap.actors[index].archetype);
+            &gameEntities, mapObject->archetype);
         if (archetype == NULL)
             {
             setGameEntityError(error, errorSize,
-                               "A map actor has an unknown archetype");
+                               "A map object has an unknown archetype");
             return 0;
+            }
+        if (entityArchetypeIsActor(archetype) &&
+            mapObject->id[0] == '\0')
+            {
+            setGameEntityError(error, errorSize,
+                               "A gameplay object has no instance id");
+            return 0;
+            }
+        if (entityArchetypeIsActor(archetype))
+            {
+            resolvedFaction = mapObject->faction[0] != '\0' ?
+                              mapObject->faction : archetype->faction;
+            if (factionCatalogFind(&gameFactions, resolvedFaction) == NULL)
+                {
+                setGameEntityError(error, errorSize,
+                                   "A map actor has an unknown faction");
+                return 0;
+                }
+            if (mapObject->waypointCount > 0)
+                {
+                setGameEntityError(
+                    error, errorSize,
+                    "Actor patrol points must belong to a route object");
+                return 0;
+                }
+            }
+        if (archetype->kind == ENTITY_KIND_ROUTE &&
+            (mapObject->id[0] == '\0' || mapObject->waypointCount < 2 ||
+             mapObject->patrolRoute[0] != '\0'))
+            {
+            setGameEntityError(error, errorSize,
+                               "A patrol route is invalid");
+            return 0;
+            }
+        if (archetype->kind == ENTITY_KIND_ZONE &&
+            mapObject->geometryCount < 3)
+            {
+            setGameEntityError(error, errorSize,
+                               "A guard zone needs at least three points");
+            return 0;
+            }
+        if (mapObject->patrolRoute[0] != '\0')
+            {
+            routeObject = NULL;
+            for (mapSearch = 0; mapSearch < battlefieldMap.objectCount;
+                 mapSearch++)
+                if (strcmp(battlefieldMap.objects[mapSearch].id,
+                           mapObject->patrolRoute) == 0)
+                    routeObject = &battlefieldMap.objects[mapSearch];
+            routeArchetype = routeObject == NULL ? NULL : entityCatalogFind(
+                &gameEntities, routeObject->archetype);
+            if (!entityArchetypeIsActor(archetype) || routeArchetype == NULL ||
+                routeArchetype->kind != ENTITY_KIND_ROUTE ||
+                routeObject->waypointCount < 2)
+                {
+                setGameEntityError(error, errorSize,
+                                   "Actor references an invalid patrol route");
+                return 0;
+                }
+            }
+        if (mapObject->alarmResponse != ENTITY_ALARM_INHERIT)
+            {
+            if (!entityArchetypeIsActor(archetype) ||
+                archetype->movement == ENTITY_MOVEMENT_STATIONARY)
+                {
+                setGameEntityError(
+                    error, errorSize,
+                    "Alarm response belongs to a moving actor");
+                return 0;
+                }
+            if (mapObject->alarmResponse == ENTITY_ALARM_RETREAT ||
+                mapObject->alarmResponse == ENTITY_ALARM_RANDOM)
+                {
+                safeZoneObject = NULL;
+                for (mapSearch = 0;
+                     mapSearch < battlefieldMap.objectCount; mapSearch++)
+                    if (strcmp(battlefieldMap.objects[mapSearch].id,
+                               mapObject->safeZone) == 0)
+                        safeZoneObject = &battlefieldMap.objects[mapSearch];
+                safeZoneArchetype = safeZoneObject == NULL ? NULL :
+                    entityCatalogFind(&gameEntities,
+                                      safeZoneObject->archetype);
+                if (safeZoneArchetype == NULL ||
+                    safeZoneArchetype->kind != ENTITY_KIND_ZONE)
+                    {
+                    setGameEntityError(
+                        error, errorSize,
+                        "Actor safe-zone is not an area zone");
+                    return 0;
+                    }
+                }
             }
         }
     archetype = entityCatalogFind(&gameEntities, gameEntities.fallback);
@@ -375,11 +546,27 @@ static int loadGameEntityCatalog(char *error, size_t errorSize)
     return 1;
     }
 
+const struct EntityArchetype *gameEntityArchetype(const char *id)
+    {
+    return entityCatalogFind(&gameEntities, id);
+    }
+
+const struct FactionCatalog *runtimeFactionCatalog(void)
+    {
+    return &gameFactions;
+    }
+
+const char *runtimePlayerFaction(void)
+    {
+    return gameFactions.playerFaction[0] != '\0' ?
+           gameFactions.playerFaction : "neutral";
+    }
+
 /*****************/
-/* monster stuff */
+/* player stuff */
 /*****************/
 
-float offsetX; /* needed global to bank flutter */
+float offsetX; /* used to bank the active player archetype */
 struct targetInfo * targets;
 
 
@@ -390,28 +577,11 @@ struct targetInfo * targets;
 GLfloat xrot, xsaverot, yrot, ysaverot;
 static float overviewRotationPivotY;
 
-struct tree allTreesOnPlane[MAXTREESONPLANE];
-struct tree * allTreesOnPlanePtrs[MAXTREESONPLANE];
-
-/* needed for the targets to blow up trees off the player's plane */
-int numTreesEverywhere;
-struct tree allTreesEverywhere[MAXTREESONPLANE];
-struct tree * allTreesEverywherePtrs[MAXTREESONPLANE];
-
-int numTreesOnPlane;
-
-struct fireType fires[MAXFIRESONPLANE];
-int flameCount;
-
-struct tank * allTanks2OnPlane[MAXTANKSONPLANE];
-struct tank allTanksOnPlane[MAXTANKSONPLANE];
-int numTanksOnPlane;
-
 int frameCount;
 int outFrameCount;
 time_t frameTime;
 
-GLuint monsterLookat;
+GLuint playerLookat;
 GLuint overviewLookat;
 
 struct playerInputState
@@ -450,33 +620,28 @@ struct timeval startTime, endTime;
 char playerName[16];
 char playerHome[256];
 
-struct score G[3];
-struct score F[3];
-struct score V[3];
-struct score T[3];
+struct score highScores[3];
 int multipleHighScores;
 
-struct projectile * tproj,  *deadproj;
-struct boom * tboom, *deadboom;
+struct runtimeProjectile * tproj,  *deadproj;
+struct runtimeExplosion * tboom, *removedExplosion;
 
 void * arena;
 
-int sizeBoom;
-int sizeTank;
-int sizeProjectile;
+int runtimeExplosionSize;
+int sizeActor;
+int runtimeProjectileSize;
 
 int netUp;
 int client;
 
-int biggestTankNumberSent;
+int biggestActorNumberSent;
 
 int playerWeaponUsesReload(void)
     {
-    if (Googelon.monster != DATAENTITY || playerEntityArchetype == NULL)
+    if (playerEntityArchetype == NULL)
 	return 0;
-    return playerEntityArchetype->weapon == ENTITY_WEAPON_SHELL ||
-	   playerEntityArchetype->weapon == ENTITY_WEAPON_ROCKET ||
-	   playerEntityArchetype->weapon == ENTITY_WEAPON_PLASMA;
+    return playerEntityArchetype->weapon == ENTITY_WEAPON_PROJECTILE;
     }
 
 float playerWeaponReadiness(void)
@@ -513,336 +678,141 @@ void goToLowDetail()
 
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
-void updateScores(char * scorefullPath, int monster, int monsterScore, int mode, char * playerName)
+void updateScores(char *path, int score, int mode, char *name)
     {
-    char thaName[MAXSTRING];
-    FILE * hiScoreFile;
-    char garbage;
-    struct score * currentOne;
-    int c;
-    int position;
-    int current;
+    char player[MAXSTRING];
+    char separator;
+    FILE *file;
+    int existing;
+    int insertion;
+    int index;
 
     if (mode == DEMOMODE)
-	strcpy(thaName, "demo");
+        strcpy(player, "demo");
     else
-	strcpy(thaName, playerName);
+        strcpy(player, name);
+    file = fopen(path, "r");
+    if (file == NULL)
+        return;
+    for (index = 0; index < 3; index++)
+        if (fscanf(file, "%d%c%255s", &highScores[index].number,
+                   &separator, highScores[index].name) != 3)
+            {
+            highScores[index].number = -1;
+            highScores[index].name[0] = 0;
+            }
+    fclose(file);
 
-    hiScoreFile = fopen(scorefullPath, "r");
+    existing = -1;
+    if (!multipleHighScores)
+        for (index = 0; index < 3; index++)
+            if (same(player, highScores[index].name))
+                existing = index;
+    if (existing >= 0 && highScores[existing].number >= score)
+        return;
+    if (existing >= 0)
+        for (index = existing; index < 2; index++)
+            highScores[index] = highScores[index + 1];
 
-    if (hiScoreFile != NULL)
-	{
-	for(c=0;c<3;c++)
-	    fscanf(hiScoreFile, "%d%c%255s", &(G[c].number), &garbage, G[c].name);
-	for(c=0;c<3;c++)
-	    fscanf(hiScoreFile, "%d%c%255s", &(V[c].number), &garbage, V[c].name);
-	for(c=0;c<3;c++)
-	    fscanf(hiScoreFile, "%d%c%255s", &(F[c].number), &garbage, F[c].name);
-	for(c=0;c<3;c++)
-	    fscanf(hiScoreFile, "%d%c%255s", &(T[c].number), &garbage, T[c].name);
+    insertion = 3;
+    for (index = 0; index < 3; index++)
+        if (score > highScores[index].number)
+            {
+            insertion = index;
+            break;
+            }
+    if (insertion < 3)
+        {
+        for (index = 2; index > insertion; index--)
+            highScores[index] = highScores[index - 1];
+        highScores[insertion].number = score;
+        strcpy(highScores[insertion].name, player);
+        }
 
-	fclose(hiScoreFile);
-
-	switch (monster){
-	    case GOOGELON:	currentOne = G;
-				break;
-
-	    case TECHS:		currentOne = T;
-				break;
-
-	    case VAPOUR:	currentOne = V;
-				break;
-
-	    case FLUTTER:	currentOne = F;
-				break;
-
-	    case DATAENTITY: currentOne = G;
-				break;
-	    }
-
-	/* where does the new score belong */
-	/***********************************/
-
-	if (monsterScore > currentOne[0].number)
-	    position = 0;
-
-	else if (monsterScore > currentOne[1].number)
-	    position = 1;
-
-	else if (monsterScore > currentOne[2].number)
-	    position = 2;
-
-
-	if (multipleHighScores)
-	    {
-	    switch (position) {
-		case 0: currentOne[2].number = currentOne[1].number;
-			strcpy(currentOne[2].name, currentOne[1].name);
-
-			currentOne[1].number = currentOne[0].number;
-			strcpy(currentOne[1].name, currentOne[0].name);
-
-			currentOne[0].number = monsterScore;
-			strcpy(currentOne[0].name, thaName);
-			break;
-
-		case 1: currentOne[2].number = currentOne[1].number;
-			strcpy(currentOne[2].name, currentOne[1].name);
-
-			currentOne[1].number = monsterScore;
-			strcpy(currentOne[1].name, thaName);
-			break;
-
-		case 2: currentOne[2].number = monsterScore;
-			strcpy(currentOne[2].name, thaName);
-			break;
-		}
-	    }
-	else
-	    {
-	    /* does the player currently have a score for this monster */
-	    /***********************************************************/
-
-	    current = -1;
-
-	    if (same(thaName, currentOne[0].name))
-		current = 0;
-	    else if(same(thaName, currentOne[1].name))
-		current =  1;
-	    else if (same(thaName, currentOne[2].name))
-		current =  2;
-
-	    switch (position) {
-		case 0: switch (current)
-			    {
-			    case 0:	currentOne[0].number = monsterScore;
-					strcpy(currentOne[0].name, thaName);
-					break;
-
-			    case 1:	currentOne[1].number = currentOne[0].number;
-					strcpy(currentOne[1].name, currentOne[0].name);
-
-					currentOne[0].number = monsterScore;
-					strcpy(currentOne[0].name, thaName);
-					break;
-
-			    case -1:
-			    case 2:	currentOne[2].number = currentOne[1].number;
-					strcpy(currentOne[2].name, currentOne[1].name);
-
-					currentOne[1].number = currentOne[0].number;
-					strcpy(currentOne[1].name, currentOne[0].name);
-
-					currentOne[0].number = monsterScore;
-					strcpy(currentOne[0].name, thaName);
-					break;
-			    }
-
-
-			break;
-
-		case 1: switch (current)
-			    {
-			    case 0:	break;
-
-			    case 1:	currentOne[1].number = monsterScore;
-					strcpy(currentOne[1].name, thaName);
-					break;
-
-			    case -1:
-			    case 2:	currentOne[2].number = currentOne[1].number;
-					strcpy(currentOne[2].name, currentOne[1].name);
-
-					currentOne[1].number = monsterScore;
-					strcpy(currentOne[1].name, thaName);
-					break;
-			    }
-
-
-			break;
-
-		case 2: switch (current)
-			    {
-			    case 0:	break;
-
-			    case 1:	break;
-
-			    case -1:
-			    case 2:	currentOne[2].number = monsterScore;
-					strcpy(currentOne[2].name, thaName);
-					break;
-			    }
-
-			break;
-		}
-	    }
-
-	hiScoreFile = fopen(scorefullPath, "w");
-
-	for(c=0;c<3;c++)
-	    fprintf(hiScoreFile, "%d%c%s\n", G[c].number, ' ', G[c].name);
-	for(c=0;c<3;c++)
-	    fprintf(hiScoreFile, "%d%c%s\n", V[c].number, ' ', V[c].name);
-	for(c=0;c<3;c++)
-	    fprintf(hiScoreFile, "%d%c%s\n", F[c].number, ' ', F[c].name);
-	for(c=0;c<3;c++)
-	    fprintf(hiScoreFile, "%d%c%s\n", T[c].number, ' ', T[c].name);
-
-	fclose(hiScoreFile);
-	}
-    }
-
-
-/*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
-
-void quickTanks()
-    {
-    struct tank *temptank;
-
-    /**********************************************************/
-    /* copy all vehicles everywhere into quick-access array   */
-    /**********************************************************/
-
-    numTanksOnPlane = 0;
-    for(temptank = tanklist->next;(temptank != NULL);temptank = temptank->next)
-	{
-	    allTanks2OnPlane[numTanksOnPlane] = temptank;
-	    allTanksOnPlane[numTanksOnPlane] = *temptank;
-	    numTanksOnPlane += 1;
-	    if (numTanksOnPlane >= MAXTANKSONPLANE)
-		{
-		showError("Too many tanks on plane");
-		numTanksOnPlane -= 1;
-		}
-	}
-
-    for(temptank = wrecklist->next;(temptank != NULL);temptank = temptank->next)
-	{
-	    allTanks2OnPlane[numTanksOnPlane] = temptank;
-	    allTanksOnPlane[numTanksOnPlane] = *temptank;
-	    numTanksOnPlane += 1;
-	    if (numTanksOnPlane >= MAXTANKSONPLANE)
-		{
-		showError("Too Many Tanks on Plane");
-		numTanksOnPlane -= 1;
-		}
-	}
-
+    file = fopen(path, "w");
+    if (file == NULL)
+        return;
+    for (index = 0; index < 3; index++)
+        fprintf(file, "%d %s\n", highScores[index].number,
+                highScores[index].name[0] ? highScores[index].name : "-");
+    fclose(file);
     }
 
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
+
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
-/* determine whether a vehicle is blocked                        */
+/*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
+/* determine whether an actor is blocked                          */
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
-int checkForBlock(struct tank * ttank, float rad, float theta, float y)
+struct ActorObstacleContext
     {
-    struct tank *ttank2;
-    struct tree * temptree;
-    float nextX;
-    float nextZ;
-    float radius;
+    struct runtimeActor *actor;
+    struct runtimeActor *allActors;
+    };
+
+static int actorPositionBlocked(void *value, float x, float z)
+    {
+    struct ActorObstacleContext *context;
+    struct runtimeActor *other;
+    struct runtimeMapObject *object;
     float bottom;
+    float radius;
     float top;
 
-    (void)rad;
-    (void)y;
-    nextX = ttank->x + (float)sin((double)theta) * ttank->speed;
-    nextZ = ttank->z + (float)cos((double)theta) * ttank->speed;
-    radius = tankCollisionRadius(ttank);
-    bottom = tankCollisionBottom(ttank);
-    top = tankCollisionTop(ttank);
-
-    for (ttank2 = tanklist->next; ttank2 != NULL; ttank2 = ttank2->next)
-	if (ttank2 != ttank && ttank2->damage > 0 &&
-	    worldCylindersOverlap(
-		nextX, nextZ, radius, bottom, top,
-		ttank2->x, ttank2->z, tankCollisionRadius(ttank2),
-		tankCollisionBottom(ttank2), tankCollisionTop(ttank2)))
-	    return 1;
-
-    for (temptree = treelist->next; temptree != NULL;
-	 temptree = temptree->next)
-	if (temptree->intact &&
-	    worldCylindersOverlap(
-		nextX, nextZ, radius, bottom, top,
-		temptree->x, temptree->z, TREEBLASTR,
-		temptree->y, structureCollisionTop(temptree)))
-	    return 1;
-
+    context = (struct ActorObstacleContext *)value;
+    if (context == NULL || context->actor == NULL ||
+        context->allActors == NULL)
+        return 0;
+    radius = actorCollisionRadius(context->actor);
+    if (radius <= 0.0f)
+        return 0;
+    bottom = actorCollisionBottom(context->actor);
+    top = actorCollisionTop(context->actor);
+    for (other = context->allActors->next; other != NULL;
+         other = other->next)
+        if (other != context->actor && other->damage > 0 &&
+            actorCollisionRadius(other) > 0.0f &&
+            worldCylindersOverlap(
+                x, z, radius, bottom, top,
+                other->x, other->z, actorCollisionRadius(other),
+                actorCollisionBottom(other), actorCollisionTop(other)))
+            return 1;
+    for (object = mapObjectList->next; object != NULL;
+         object = object->next)
+        if (object->intact && mapObjectCollisionRadius(object) > 0.0f &&
+            worldCylindersOverlap(
+                x, z, radius, bottom, top,
+                object->x, object->z, mapObjectCollisionRadius(object),
+                object->y, mapObjectCollisionTop(object)))
+            return 1;
     return 0;
     }
 
-/*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
-/*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
-/* increase monster's score based on kill                        */
-/*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
-
-void addScore(int tank, struct monsterInfo * m)
+int checkForBlock(struct runtimeActor * tactor, float rad, float theta, float y)
     {
-    switch(tank){
-	case TANK:	killtanks += 1;
-			if (m!= NULL)
-			    m->monsterScore += 5;
-			break;
+    struct ActorObstacleContext context;
+    float nextX;
+    float nextZ;
 
-	case LAUNCHER:	killlaunchers += 1;
-			if (m!= NULL)
-			    m->monsterScore += 10;
-			break;
+    (void)rad;
+    (void)y;
+    nextX = tactor->x + (float)sin((double)theta) * tactor->speed;
+    nextZ = tactor->z + (float)cos((double)theta) * tactor->speed;
+    context.actor = tactor;
+    context.allActors = actorlist;
+    return actorPositionBlocked(&context, nextX, nextZ);
+    }
 
-	case MASERTANK: killmtanks += 1;
-			if (m!= NULL)
-			    m->monsterScore += 15;
-			break;
+/*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
+/*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
+/* increase player's score based on kill                        */
+/*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
-	case HELO:	killhelos += 1;
-			if (m!= NULL)
-			    m->monsterScore += 8;
-			break;
-
-	case MECHAG:	killmechags += 1;
-			break;
-
-	case CHH:	killCHHs += 1;
-			break;
-
-	case HERO:	killheros += 1;
-			break;
-
-	case AIRPLANE:	killplanes += 1;
-			if (m!= NULL)
-			    m->monsterScore += 25;
-			break;
-
-	case FIGHTER:	killfighters += 1;
-			if (m!= NULL)
-			    m->monsterScore += 20;
-			break;
-
-	case BUILDING:	if (m!= NULL)
-			    m->monsterScore += 50;
-			break;
-
-	case PARTIALM:	if (m!= NULL)
-			    m->monsterScore += 4;
-			break;
-
-	case PARTIALH:	if (m!= NULL)
-			    m->monsterScore += 5;
-			break;
-
-	case PARTIALC:	if (m!= NULL)
-			    m->monsterScore += 3;
-			break;
-
-	case MONSTER:	if (m!= NULL)
-			    m->monsterScore += 1;
-			break;
-
-	default:	showError("Bogus Score! (addScore)");
-			break;
-	}
+void addScore(int points, struct runtimePlayer *m)
+    {
+    if (m != NULL && points > 0)
+        m->score += points;
     }
 
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
@@ -850,41 +820,69 @@ void addScore(int tank, struct monsterInfo * m)
 /* add a new explosion                                           */
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
-static void addBoomInternal(float x, float y, float z,
-                            struct monsterInfo *m, int damaging)
+static void spawnExplosionInternal(const struct EntityArchetype *archetype,
+                            float x, float y, float z,
+                            struct runtimePlayer *m, int damaging)
     {
-    struct boom * tempboom2;
-    struct boom tempboom;
+    struct runtimeExplosion * explosionNext;
+    struct runtimeExplosion explosion;
 
-    tempboom2 = (struct boom *) amalloc(sizeBoom, arena);
+    if (archetype == NULL || archetype->kind != ENTITY_KIND_EFFECT)
+        return;
+    explosionNext = (struct runtimeExplosion *) amalloc(runtimeExplosionSize, arena);
 
-    if (tempboom2 != NULL)
+    if (explosionNext != NULL)
 	{
-	tempboom.mine	= m;
-	tempboom.count	= 1;
-	tempboom.damaging = damaging;
-	tempboom.x	= x;
+	explosion.owner	= m;
+	explosion.count	= 1;
+	explosion.damaging = damaging;
+	explosion.archetype = archetype;
+	explosion.x	= x;
 
 	if (y >= PLANEY)
-	    tempboom.y = y;
+	    explosion.y = y;
 	else
-	    tempboom.y = PLANEY;
+	    explosion.y = PLANEY;
 
-	tempboom.z	    = z;
-	tempboom.next	    = projectboom->next;
-	*tempboom2	    = tempboom;
-	projectboom->next   = tempboom2;
+	explosion.z	    = z;
+	explosion.next	    = runtimeExplosionList->next;
+	*explosionNext	    = explosion;
+	runtimeExplosionList->next   = explosionNext;
 	}
     }
 
-void addBoom(float x, float y, float z, struct monsterInfo *m)
+static void spawnConfiguredExplosion(const char *effectId,
+                                     float x, float y, float z,
+                                     struct runtimePlayer *m, int damaging)
     {
-    addBoomInternal(x, y, z, m, 1);
+    const struct EntityArchetype *effect;
+
+    effect = entityCatalogFind(&gameEntities, effectId);
+    spawnExplosionInternal(effect, x, y, z, m, damaging);
     }
 
-static void addVisualBoom(float x, float y, float z)
+static void spawnDestructionEffects(
+    const struct EntityArchetype *sourceArchetype,
+    float x, float y, float z, float radius, float height,
+    struct runtimePlayer *owner, int damaging)
     {
-    addBoomInternal(x, y, z, NULL, 0);
+    const struct EntityArchetype *effect;
+    int effectIndex;
+
+    if (sourceArchetype == NULL ||
+        sourceArchetype->destructionEffectCount <= 0)
+        return;
+    effect = entityCatalogFind(&gameEntities,
+                               sourceArchetype->destructionEffect);
+    for (effectIndex = 0;
+         effectIndex < sourceArchetype->destructionEffectCount;
+         effectIndex++)
+        if (effectIndex == 0)
+            spawnExplosionInternal(effect, x, y, z, owner, damaging);
+        else
+            spawnExplosionInternal(
+                effect, x + randy(radius), y + randy(height * 0.5f),
+                z + randy(radius), owner, 0);
     }
 
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
@@ -892,39 +890,31 @@ static void addVisualBoom(float x, float y, float z)
 /* add a new projectile                                          */
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
-void addProjectile( float x,  float y,  float z, int type,
-		    float xv,  float yv,  float zv, float accuracy, struct monsterInfo * m)
+void spawnProjectile(float x, float y, float z,
+                   const struct EntityArchetype *archetype,
+		   float xv, float yv, float zv, float accuracy,
+                   struct runtimePlayer *m)
     {
-    struct projectile * temp;
-    struct projectile tempProj;
+    struct runtimeProjectile * temp;
+    struct runtimeProjectile tempProj;
 
+    if (archetype == NULL || archetype->kind != ENTITY_KIND_PROJECTILE)
+        return;
+    doSoundKeyAt(archetype->fireSound, x, y, z);
 
-    switch(type){
-	case PROJTANK:	    doSoundAt(TANKFIRE, x, y, z);
-			    break;
-
-	case PROJROCKET:    doSoundAt(HELOROCKET, x, y, z);
-			    break;
-
-	case PROJTECHS:
-	case PROJHERO:	    doSoundAt(TECHSHOOT, x, y, z);
-			    break;
-
-	}
-
-    temp = (struct projectile *) amalloc(sizeProjectile, arena);
+    temp = (struct runtimeProjectile *) amalloc(runtimeProjectileSize, arena);
 
     if (temp != NULL)
 	{
 	tempProj.count = 0;
 
-	tempProj.mine = m;
+	tempProj.owner = m;
 
 	tempProj.x = x;
 	tempProj.y = y;
 	tempProj.z = z;
 
-	tempProj.type = (char) type;
+	tempProj.archetype = archetype;
 
 	tempProj.xv = xv;
 	tempProj.yv = yv;
@@ -938,9 +928,9 @@ void addProjectile( float x,  float y,  float z, int type,
 	    }
 
 
-	tempProj.next = projectFlight->next;
+	tempProj.next = runtimeProjectileList->next;
 	*temp = tempProj;
-	projectFlight->next = temp;
+	runtimeProjectileList->next = temp;
 	}
     }
 
@@ -949,7 +939,7 @@ void addProjectile( float x,  float y,  float z, int type,
 /* update all projectiles on the battlefield                     */
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
-static int projectilePathHitsTank(struct tank *tank,
+static int projectilePathHitsActor(const struct runtimeActor *actor,
 	float startX, float startY, float startZ,
 	float endX, float endY, float endZ)
     {
@@ -969,7 +959,7 @@ static int projectilePathHitsTank(struct tank *tank,
     for (step = 1; step <= steps; step++)
 	{
 	amount = (float)step / (float)steps;
-	if (tankHit(tank,
+	if (actorHit(actor,
 		startX + dx * amount,
 		startY + dy * amount,
 		startZ + dz * amount))
@@ -978,7 +968,7 @@ static int projectilePathHitsTank(struct tank *tank,
     return 0;
     }
 
-static int projectilePathHitsStructure(const struct tree *structure,
+static int projectilePathHitsMapObject(const struct runtimeMapObject *structure,
 	float startX, float startY, float startZ,
 	float endX, float endY, float endZ)
     {
@@ -993,7 +983,8 @@ static int projectilePathHitsStructure(const struct tree *structure,
     int step;
     int steps;
 
-    if (!structure->intact || structure->type == 2)
+    if (!structure->intact || structure->dataArchetype == NULL ||
+        structure->dataArchetype->collisionMode == ENTITY_COLLISION_NONE)
 	return 0;
     dx = endX - startX;
     dy = endY - startY;
@@ -1006,34 +997,39 @@ static int projectilePathHitsStructure(const struct tree *structure,
 	x = startX + dx * amount;
 	y = startY + dy * amount;
 	z = startZ + dz * amount;
-	if ((fabs(structure->x - x) < TREEBLASTR) &&
-	    (fabs(structure->z - z) < TREEBLASTR) &&
-	    (fabs(structure->y + structure->height - y) <
-		TREEBLASTHEIGHTR))
+	if ((fabs(structure->x - x) <
+	     mapObjectCollisionRadius(structure)) &&
+	    (fabs(structure->z - z) <
+	     mapObjectCollisionRadius(structure)) &&
+	    y >= structure->y && y <= structure->y + structure->height)
 	    return 1;
 	}
     return 0;
     }
 
-static int dataEntityLineOfSight(const struct tank *source,
+static int dataEntityLineOfSight(const struct runtimeActor *source,
 	float targetX, float targetY, float targetZ)
     {
-    const struct tree *structure;
+    const struct runtimeMapObject *structure;
     float sourceY;
 
     sourceY = source->y + source->dataArchetype->collisionHeight * 0.5f;
-    for (structure = treelist->next; structure != NULL;
+    for (structure = mapObjectList->next; structure != NULL;
 	 structure = structure->next)
 	{
 	/* A structure containing either endpoint is not an intervening
 	   occluder.  The existing projectile footprint is also the established
 	   structure footprint used by perception. */
-	if ((fabs(structure->x - source->x) < TREEBLASTR &&
-	     fabs(structure->z - source->z) < TREEBLASTR) ||
-	    (fabs(structure->x - targetX) < TREEBLASTR &&
-	     fabs(structure->z - targetZ) < TREEBLASTR))
+	if ((fabs(structure->x - source->x) <
+	     mapObjectCollisionRadius(structure) &&
+	     fabs(structure->z - source->z) <
+	     mapObjectCollisionRadius(structure)) ||
+	    (fabs(structure->x - targetX) <
+	     mapObjectCollisionRadius(structure) &&
+	     fabs(structure->z - targetZ) <
+	     mapObjectCollisionRadius(structure)))
 	    continue;
-	if (projectilePathHitsStructure(structure,
+	if (projectilePathHitsMapObject(structure,
 		source->x, sourceY, source->z,
 		targetX, targetY, targetZ))
 	    return 0;
@@ -1041,47 +1037,62 @@ static int dataEntityLineOfSight(const struct tank *source,
     return 1;
     }
 
-static int dataEntityRecentlyFired(const struct tank *tank)
+static int dataEntityRecentlyFired(const struct runtimeActor *actor)
     {
     int threshold;
 
-    if (tank->dataArchetype->weapon == ENTITY_WEAPON_NONE ||
-	 tank->dataAgent.cooldown <= 0)
+    if (actor->dataArchetype->weapon == ENTITY_WEAPON_NONE ||
+	 actor->dataAgent.cooldown <= 0)
 	return 0;
-    threshold = tank->dataArchetype->fireInterval - 3;
+    threshold = actor->dataArchetype->fireInterval - 3;
     if (threshold < 1)
 	threshold = 1;
-    return tank->dataAgent.cooldown >= threshold;
+    return actor->dataAgent.cooldown >= threshold;
     }
 
-static int projectileDestroysStructure(int projectileType,
-	const struct tree *structure)
+static int projectileDestroysMapObject(
+        const struct EntityArchetype *projectileArchetype,
+	const struct runtimeMapObject *structure)
     {
-    if (structure->type != 0 && structure->type != 1)
+    if (projectileArchetype == NULL || structure->dataArchetype == NULL ||
+        !projectileArchetype->projectileDestroysMapObjects ||
+        !structure->dataArchetype->destructible)
 	return 0;
-    return projectileType == PROJTANK || projectileType == PROJROCKET ||
-	   projectileType == PROJTECHS || projectileType == PROJFIRE ||
-	   projectileType == PROJHERO;
+    return 1;
     }
 
-void updateProjectiles()
+static int projectilePathHitsActorList(
+    const struct runtimeActor *actors,
+    float x0, float y0, float z0, float x1, float y1, float z1)
+    {
+    const struct runtimeActor *actor;
+
+    if (actors == NULL)
+        return 0;
+    for (actor = actors->next; actor != NULL; actor = actor->next)
+        if (projectilePathHitsActor(actor, x0, y0, z0, x1, y1, z1))
+            return 1;
+    return 0;
+    }
+
+void updateRuntimeProjectiles()
     {
     float px, py, pz;
     float qx, qy, qz;
     float floor, ceiling;
-    int i, dead;
-    int inPlay, monsterHit, groundHit;
+    int dead;
+    int inPlay, playerHit, groundHit;
     struct targetInfo * temptarget;
-    struct monsterInfo thaMonster;
-    float monsterX, monsterZ;
+    struct runtimePlayer playerState;
+    float playerX, playerZ;
 
-    struct projectile * pproj, *killer, *temp;
+    struct runtimeProjectile * pproj, *killer, *temp;
+    struct runtimeMapObject *mapObject;
 
-    int tankCounter, treeCounter;
     float maxX, maxZ, minX, minZ;
 
-    maxX = minX = Googelon.x;
-    maxZ = minZ = Googelon.z;
+    maxX = minX = playerEntityState.x;
+    maxZ = minZ = playerEntityState.z;
 
     /******************************************************************************/
     /* figure out the range of valid shells bounded by all monsters + PLANESIZE   */
@@ -1111,9 +1122,7 @@ void updateProjectiles()
     floor   = PLANEY + 0.1;
     ceiling = PLANEY + 10;
 
-    flameCount = 0;
-
-    temp = projectFlight;
+    temp = runtimeProjectileList;
     while (temp->next != NULL)
 	{
 	dead = 0;
@@ -1122,8 +1131,8 @@ void updateProjectiles()
 
 	pproj->count += 1;
 
-	if (pproj->count > ARMCOUNT)
-	    pproj->count = ARMCOUNT;
+	if (pproj->count > pproj->archetype->projectileArmingFrames)
+	    pproj->count = (char)pproj->archetype->projectileArmingFrames;
 
 	/**********************************/
 	/* is projectile still in play?   */
@@ -1137,32 +1146,30 @@ void updateProjectiles()
 	qy = pproj->y;
 	qz = pproj->z;
 
-	monsterHit = 0;
+	playerHit = 0;
 
 	/**************************************************/
-	/* did the projectile hit the player's monster?   */
+	/* did the projectile hit the player's player?   */
 	/**************************************************/
 
-	if ((pproj->type != PROJWATER) && (pproj->type != PROJFIRE) && (pproj->type != PROJSCAR))
+	if (pproj->archetype->projectileDamagesActors)
     	    {
-	    if ((Googelon.monsterIsDead != 1) &&
-		(px <= Googelon.x + Googelon.width) &&
-		(pz <= Googelon.z + Googelon.width) &&
-		(px >= Googelon.x - Googelon.width) &&
-		(pz >= Googelon.z - Googelon.width) &&
-		(py <= Googelon.height) && (py >= Googelon.bottom))
+	    if ((playerEntityState.dead != 1) &&
+		(px <= playerEntityState.x + playerEntityState.width) &&
+		(pz <= playerEntityState.z + playerEntityState.width) &&
+		(px >= playerEntityState.x - playerEntityState.width) &&
+		(pz >= playerEntityState.z - playerEntityState.width) &&
+		(py <= playerEntityState.height) && (py >= playerEntityState.bottom))
 		    {
-		    if ((pproj->mine != &Googelon) &&
-		        ((pproj->type != PROJTECHS) ||
-		        ((pproj->type == PROJTECHS) &&
-		         (pproj->mine != &Googelon))))
+		    if (pproj->owner != &playerEntityState)
 			{
-			Googelon.energyRemaining -= BLASTPOINTS;
-			monsterHit = 1;
+			playerEntityState.energyRemaining -=
+			    pproj->archetype->projectileDamage;
+			playerHit = 1;
 
     /*
-			if (pproj->mine != NULL)
-			    pproj->mine->monsterScore += 1;
+			if (pproj->owner != NULL)
+			    pproj->owner->score += 1;
     */
 			}
 		    }
@@ -1173,33 +1180,31 @@ void updateProjectiles()
 
 	    for(temptarget = targets->next;temptarget != NULL;temptarget = temptarget->next)
 		{
-		thaMonster = temptarget->monster;
-		monsterX = temptarget->x;
-		monsterZ = temptarget->z;
+		playerState = temptarget->player;
+		playerX = temptarget->x;
+		playerZ = temptarget->z;
 
-		if ( (thaMonster.monsterIsDead != 1) &&
-		    (qx <= (monsterX+thaMonster.width)) && (qz <= (monsterZ+thaMonster.width)) &&
-		    (qx >= (monsterX-thaMonster.width)) && (qz >= (monsterZ-thaMonster.width)) &&
-		    (qy <= thaMonster.height) && (qy >= thaMonster.bottom))
+		if ( (playerState.dead != 1) &&
+		    (qx <= (playerX+playerState.width)) && (qz <= (playerZ+playerState.width)) &&
+		    (qx >= (playerX-playerState.width)) && (qz >= (playerZ-playerState.width)) &&
+		    (qy <= playerState.height) && (qy >= playerState.bottom))
 			{
-			if ((pproj->mine != &(temptarget->monster)) &&
-			    ((pproj->type != PROJTECHS) ||
-			    ((pproj->type == PROJTECHS) &&
-			     (pproj->mine != &(temptarget->monster)))))
+			if (pproj->owner != &(temptarget->player))
 			    {
-			    temptarget->monster.energyRemaining -= BLASTPOINTS;
-			    monsterHit = 1;
+			    temptarget->player.energyRemaining -=
+			        pproj->archetype->projectileDamage;
+			    playerHit = 1;
 
     /*
-			    if (pproj->mine != NULL)
-				pproj->mine->monsterScore += 1;
+			    if (pproj->owner != NULL)
+				pproj->owner->score += 1;
     */
 			    }
 			}
 		}
 	    }
 
-	if (!monsterHit && (py > floor) && (py < ceiling) &&
+	if (!playerHit && (py > floor) && (py < ceiling) &&
 	    (px > minX) && (pz > minZ) && (px < maxX) && (pz < maxZ))
 	    inPlay = 1;
 	else
@@ -1207,13 +1212,15 @@ void updateProjectiles()
 
 	if ((px >= minX) && (pz >= minZ) &&
 	    (px <= maxX) && (pz <= maxZ) && (py <= floor) &&
-	    (pproj->type != PROJWATER) && (pproj->type != PROJSCAR))
+	    pproj->archetype->projectileCollidesGround)
 	    groundHit = 1;
 	else
 	    groundHit = 0;
 
-	if (monsterHit || groundHit)
-	    addBoom(pproj->x, pproj->y, pproj->z, pproj->mine);
+	if ((playerHit || groundHit) &&
+	    pproj->archetype->impactEffect[0] != '\0')
+	    spawnConfiguredExplosion(pproj->archetype->impactEffect,
+	        pproj->x, pproj->y, pproj->z, pproj->owner, 1);
 
 
 	if (!inPlay)
@@ -1232,97 +1239,59 @@ void updateProjectiles()
 	    if (pproj->y < PLANEY)
 		py = pproj->y = PLANEY;
 
-	    /*****************************/
-	    /* update all the flames     */
-	    /*****************************/
-
-	    if (pproj->type == PROJFIRE)
-		{
-		for (i=0;i<2;i++)
-		    {
-		    fires[flameCount].x		= pproj->x + randy(0.15);
-		    fires[flameCount].z		= pproj->z + randy(0.15);
-		    if (lod == 0) {
-			fires[flameCount].xwid	 = 0.07 + randy(0.06);
-			fires[flameCount].zwid	 = 0.07 + randy(0.06);
-			fires[flameCount].height = 0.15 + randy(0.15);
-		    } else {
-			fires[flameCount].xwid	 = 0.1 + randy(0.07);
-			fires[flameCount].zwid	 = 0.1 + randy(0.07);
-			fires[flameCount].height = 0.2 + randy(0.15);
-		    }
-		    do
-			fires[flameCount].col	= 0.9 + randy(0.25);
-		    while (fires[flameCount].col > 1);
-
-		    flameCount += 1;
-		    if (flameCount >= MAXFIRESONPLANE)
-			{
-			showError("Too many fires on plane");
-			flameCount -= 1;
-			}
-		    }
-		}
-
 	    /**********************************/
 	    /* shells affected by gravity     */
 	    /**********************************/
 
-	    if ((pproj->type == PROJTANK) || (pproj->type == PROJWATER))
-		pproj->yv -= GRAVITY;
+	    pproj->yv -= pproj->archetype->projectileGravity;
 
 	    /**********************************/
-	    /* check for a tank hit           */
+	    /* check for a actor hit           */
 	    /**********************************/
 
-	    if ((pproj->type != PROJSCAR) && (pproj->type != PROJWATER)
-		&& ((pproj->count >= ARMCOUNT) ||
-		    (pproj->mine == &Googelon) ||
-		    (pproj->type == PROJTECHS) ||
-		    (pproj->type == PROJFIRE)))
+	    if (pproj->archetype->projectileCollidesActors &&
+		((pproj->count >=
+		  pproj->archetype->projectileArmingFrames) ||
+		 (pproj->owner == &playerEntityState)))
 		{
-		tankCounter = 0;
-		while (tankCounter < numTanksOnPlane)
+		if (projectilePathHitsActorList(
+		        actorlist, qx, qy, qz, px, py, pz) ||
+		    projectilePathHitsActorList(
+		        wrecklist, qx, qy, qz, px, py, pz))
 		    {
-		    if (projectilePathHitsTank(
-			&(allTanksOnPlane[tankCounter]),
-			qx, qy, qz, px, py, pz))
-			{
-			addBoom(px, py, pz, pproj->mine);
-			dead = 1;
-			}
-		    tankCounter += 1;
+		    spawnConfiguredExplosion(pproj->archetype->impactEffect,
+		        px, py, pz, pproj->owner, 1);
+		    dead = 1;
 		    }
 		}
 
 	    /**********************************/
-	    /* check for a tree hit           */
+	    /* check for a map-object hit     */
 	    /**********************************/
 
-	    if ((pproj->type != PROJSCAR) && (pproj->type != PROJWATER))
+	    if (pproj->archetype->projectileCollidesMapObjects)
 		{
-		treeCounter = 0;
-
-		while (treeCounter < numTreesEverywhere)
+		for (mapObject = mapObjectList->next; mapObject != NULL;
+		     mapObject = mapObject->next)
 		    {
-		    if (projectilePathHitsStructure(
-			&(allTreesEverywhere[treeCounter]),
+		    if (projectilePathHitsMapObject(
+			mapObject,
 			qx, qy, qz, px, py, pz))
 			    {
-			    addBoom(px, py, pz, pproj->mine);
+			    spawnConfiguredExplosion(pproj->archetype->impactEffect,
+			        px, py, pz, pproj->owner, 1);
 			    dead = 1;
 
-			    if (projectileDestroysStructure(
-				pproj->type,
-				&(allTreesEverywhere[treeCounter])))
+			    if (projectileDestroysMapObject(
+				pproj->archetype, mapObject))
 				{
-				if (allTreesEverywherePtrs[treeCounter]->intact && (allTreesEverywherePtrs[treeCounter]->type == 1))
-				    addScore(BUILDING, pproj->mine);
+				if (mapObject->intact && pproj->owner != NULL)
+				    pproj->owner->score +=
+				        mapObject->dataArchetype->score;
 
-				allTreesEverywherePtrs[treeCounter]->intact = 0;
+				mapObject->intact = 0;
 				}
 			    }
-		    treeCounter += 1;
 		    }
 		}
 	    }
@@ -1344,154 +1313,84 @@ void updateProjectiles()
 
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
-/* update the state of all the structures                        */
+/* update the state of all map objects                            */
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
-void updatetrees(struct tree * allTrees, int itsChristmas)
+void updateMapObjects(struct runtimeMapObject *objects, int seasonal)
     {
-    struct tree *temptree, *ttree;
-    float x, y, z;
+    struct runtimeMapObject *object;
+    struct runtimeMapObject *previous;
+    const struct EntityArchetype *debris;
+    const struct EntityArchetype *fire;
+    const struct EntityArchetype *emitter;
     float Vplane;
-    int i, j, k, jmax, l;
+    int fragment;
+    int fragmentCount;
     int dead;
 
-    buildingBoomThisFrameCounter = 0;
-
+    (void)seasonal;
+    destroyedMapObjectFrameCount = 0;
     Vplane = sqrt(GRAVITY * 1.5) * 0.7071;
-
-    ttree = allTrees;
-
-    while (ttree->next != NULL)
+    previous = objects;
+    while (previous->next != NULL)
 	{
 	dead = 0;
-	temptree = ttree->next;
+	object = previous->next;
+	object->rad = sqrt((object->x - playerEntityState.x) *
+	                   (object->x - playerEntityState.x) +
+	                   (object->z - playerEntityState.z) *
+	                   (object->z - playerEntityState.z));
+	object->theta = computeAngle(object->z, playerEntityState.z,
+	                             object->x, playerEntityState.x);
+	emitter = entityCatalogFind(&gameEntities,
+	                            object->dataArchetype->emitterProjectile);
+	if (object->intact && emitter != NULL)
+	    spawnProjectile(object->x,
+	                  object->y + object->height,
+	                  object->z, emitter,
+	                  2.0f * randy(0.005f), 0.05f,
+	                  2.0f * randy(0.005f), 0.0f, NULL);
 
-	x = temptree->x;
-	y = temptree->y;
-	z = temptree->z;
-
-	temptree->rad = sqrt((x - Googelon.x) * (x - Googelon.x) +
-	                     (z - Googelon.z) * (z - Googelon.z));
-
-	temptree->theta = computeAngle(z, Googelon.z, x, Googelon.x);
-
-
-	/*****************************/
-	/* update special structures */
-	/*****************************/
-
-	if (temptree->type == 1)
+	if (!object->intact && object->dataArchetype->destructible)
 	    {
-	    /***********************/
-	    /* hero beam-in effect */
-	    /***********************/
-
-	    if (temptree->treeshape == 33)
-		{
-		temptree->deathCount += 1;
-		if (temptree->deathCount >= 20)
-		    temptree->intact = 0;
-		}
-
-	    /************/
-	    /* fountain */
-	    /************/
-
-	    if ((temptree->treeshape == 29) && (temptree->intact) && (!itsChristmas))
-		{
-		addProjectile(x, PLANEY+0.6, z, PROJWATER,
-			  2*randy(0.005), .05, 2*randy(0.005), 0, NULL);
-		}
-
-	    /****************/
-	    /* power towers */
-	    /****************/
-
-	    if ((temptree->treeshape == 3) && !(temptree->intact))
-		{
-		temptree->deathCount += 1;
-
-		if (temptree->death2 == -1)
-		    {
-		    doSoundAt(CRASH, temptree->x, temptree->y,
-		              temptree->z);
-
-		    buildingBoomThisFrame[buildingBoomThisFrameCounter++] = temptree->number;
-		    buildingBoomSoFar[buildingBoomSoFarCounter++] = temptree->number;
-
-		    temptree->death2 = rand() % 360;
-		    temptree->height = -0.4;
-		    }
-
-		if (temptree->deathCount > 40)
-		    temptree->deathCount = 40;
-		}
-	    }
-
-	/**********************************************/
-	/* buildings / trees disappearing / exploding */
-	/**********************************************/
-
-	if (!(temptree->intact) && (((temptree->type == 1) && (temptree->treeshape != 3)) || (temptree->type == 0)))
-	    {
-	    doSoundAt(CRASH, temptree->x, temptree->y, temptree->z);
+	    doSoundKeyAt(object->dataArchetype->destructionSound,
+	                 object->x, object->y, object->z);
+	    spawnDestructionEffects(
+	        object->dataArchetype,
+	        object->x, object->y + object->height * 0.5f,
+	        object->z, mapObjectCollisionRadius(object),
+	        object->height, NULL, 1);
 	    dead = 1;
-
-	    buildingBoomThisFrame[buildingBoomThisFrameCounter++] = temptree->number;
-	    buildingBoomSoFar[buildingBoomSoFarCounter++] = temptree->number;
-
-	    switch(temptree->treeshape)
-		{
-		case	1:
-		case	11:
-		case	14:
-		case	22:
-		case	23:
-		case	24: jmax = 5;
-			    break;
-		case	33: jmax = 0;
-			    break;
-		default:    jmax = 3;
-			    break;
-	    	}
-
-
-	    /**********************/
-	    /* structures explode */
-	    /**********************/
-
-	    if (temptree->type == 1)
-		{
-		for (i=-1; i<2; i++)
-		    for (j=0; j<jmax; j++)
-			for (k=-1; k<2; k++)
-			    if ((rand() % 100) < 50)
-				{
-				addProjectile( x + i * 0.2, y + (j * 0.2) + 0.1, z + k * 0.2, PROJTANK,
-				    sin(randy(PI)) * Vplane, Vplane, cos(randy(PI)) * Vplane, 75, NULL);
-				}
-
-		if (temptree->treeshape == 9)  /* add water into water tower */
-		    {
-		    for(l=0;l<30;l++)
-			addProjectile(x, PLANEY+1, z, PROJWATER,
-			  2*randy(0.02), randy(0.05), 2*randy(0.02), 0, NULL);
-		    }
- 		}
-
-
-	    addProjectile( x - 0.2,  PLANEY + 0.14,  z + 0.2, PROJFIRE, 0,  -0.0005,  0, 10000, NULL);
-	    addProjectile( x + 0.2,  PLANEY + 0.14,  z + 0.2, PROJFIRE, 0,  -0.0005,  0, 10000, NULL);
-	    addProjectile( x      ,  PLANEY + 0.14,  z - 0.2, PROJFIRE, 0,  -0.0005,  0, 10000, NULL);
+	    recordDestroyedMapObject(object->number);
+	    debris = entityCatalogFind(
+	        &gameEntities, object->dataArchetype->destructionProjectile);
+	    fire = entityCatalogFind(
+	        &gameEntities, object->dataArchetype->destructionFireProjectile);
+	    fragmentCount = object->dataArchetype->destructionDebrisCount;
+	    for (fragment = 0; fragment < fragmentCount; fragment++)
+		if (debris != NULL)
+		    spawnProjectile(
+		        object->x + randy(mapObjectCollisionRadius(object)),
+		        object->y + randy(object->height * 0.5f) +
+		            object->height * 0.5f,
+		        object->z + randy(mapObjectCollisionRadius(object)),
+		        debris, sin(randy(PI)) * Vplane, Vplane,
+		        cos(randy(PI)) * Vplane, 75.0f, NULL);
+	    for (fragment = 0;
+	         fragment < object->dataArchetype->destructionFireCount;
+	         fragment++)
+		if (fire != NULL)
+		    spawnProjectile(object->x + randy(0.25f), PLANEY + 0.14f,
+		                  object->z + randy(0.25f), fire,
+		                  0.0f, -0.0005f, 0.0f, 10000.0f, NULL);
 	    }
-
 	if (dead)
     	    {
-	    ttree->next = temptree->next;
-	    afree(temptree, arena);
+	    previous->next = object->next;
+	    afree(object, arena);
 	    }
 	else
-	    ttree = ttree->next;
+	    previous = previous->next;
 	}
     }
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
@@ -1515,77 +1414,77 @@ static void initializeContact(struct EntityContact *contact,
     contact->audible = audible;
     }
 
-static void notifyDataEntityDamage(struct tank *tank, const char *id,
+static void notifyDataEntityDamage(struct runtimeActor *actor, const char *id,
 	const char *faction, float x, float z)
     {
     struct EntityContact source;
 
     initializeContact(&source, id, faction, x, PLANEY, z, 1, 1, 1);
-    entityAgentNotifyDamage(&tank->dataAgent, &source);
+    entityAgentNotifyDamage(&actor->dataAgent, &source);
     }
 
-static void notifyDataEntityDamageFromMonster(struct tank *tank,
-	struct monsterInfo *owner, float x, float z)
+static void notifyDataEntityDamageFromPlayer(struct runtimeActor *actor,
+	struct runtimePlayer *owner, float x, float z)
     {
     struct targetInfo *target;
     char id[ENTITY_NAME_SIZE];
     int number;
 
-    if (owner == &Googelon)
+    if (owner == &playerEntityState)
 	{
-	notifyDataEntityDamage(tank, "player",
-	    playerEntityArchetype == NULL ? "neutral" :
-	    playerEntityArchetype->faction, x, z);
+	notifyDataEntityDamage(actor, "player",
+	    runtimePlayerFaction(), x, z);
 	return;
 	}
     number = 0;
     for (target = targets->next; target != NULL; target = target->next)
 	{
-	if (owner == &target->monster)
+	if (owner == &target->player)
 	    {
 	    sprintf(id, "target-%d", number);
-	    notifyDataEntityDamage(tank, id, "monster", x, z);
+	    notifyDataEntityDamage(
+	        actor, id,
+	        runtimePlayerFaction(), x, z);
 	    return;
 	    }
 	number++;
 	}
-    notifyDataEntityDamage(tank, "environment", "neutral", x, z);
+    notifyDataEntityDamage(actor, "environment", "neutral", x, z);
     }
 
-static struct tank *findDataActor(struct tank *allTanks, const char *id)
+static struct runtimeActor *findDataActor(struct runtimeActor *allActors, const char *id)
     {
-    struct tank *tank;
+    struct runtimeActor *actor;
 
-    for (tank = allTanks->next; tank != NULL; tank = tank->next)
-        if (tank->type == DATAENTITY && strcmp(tank->dataId, id) == 0)
-            return tank;
+    for (actor = allActors->next; actor != NULL; actor = actor->next)
+        if (strcmp(actor->dataId, id) == 0)
+            return actor;
     return NULL;
     }
 
-static void routeDataEntityEvents(struct tank *source,
-                                  struct tank *allTanks)
+static void routeDataEntityEvents(struct runtimeActor *source,
+                                  struct runtimeActor *allActors)
     {
     const struct BattalionMapTrigger *route;
-    struct tank *receiver;
+    struct runtimeActor *receiver;
     size_t eventIndex;
     size_t routeIndex;
 
-    if (source->dataActor == NULL)
+    if (source->dataObject == NULL)
         return;
     for (eventIndex = 0; eventIndex < source->dataAgent.eventCount;
          eventIndex++)
-        for (routeIndex = 0; routeIndex < source->dataActor->triggerCount;
+        for (routeIndex = 0; routeIndex < source->dataObject->triggerCount;
              routeIndex++)
             {
-            route = &source->dataActor->triggers[routeIndex];
+            route = &source->dataObject->triggers[routeIndex];
             if (strcmp(route->event,
                        source->dataAgent.events[eventIndex].name) != 0)
                 continue;
-            for (receiver = allTanks->next; receiver != NULL;
+            for (receiver = allActors->next; receiver != NULL;
                  receiver = receiver->next)
                 {
-                if (receiver->type != DATAENTITY ||
-                    receiver->dataActor == NULL)
+                if (receiver->dataObject == NULL)
                     continue;
                 if ((route->targetType == BATTALION_MAP_TRIGGER_ID &&
                      strcmp(receiver->dataId, route->target) == 0) ||
@@ -1599,15 +1498,15 @@ static void routeDataEntityEvents(struct tank *source,
             }
     }
 
-static size_t buildDataEntityContacts(struct tank *source,
-                                      struct tank *allTanks,
-                                      struct monsterInfo *player,
+static size_t buildDataEntityContacts(struct runtimeActor *source,
+                                      struct runtimeActor *allActors,
+                                      struct runtimePlayer *player,
                                       struct targetInfo *targetList,
                                       struct EntityContact *contacts,
                                       size_t capacity)
     {
     struct targetInfo *target;
-    struct tank *tank;
+    struct runtimeActor *actor;
     size_t count;
     int targetNumber;
     int audible;
@@ -1633,49 +1532,50 @@ static size_t buildDataEntityContacts(struct tank *source,
 	{
 	targetY = (player->height + player->bottom) * 0.5f;
 	visible = dataEntityLineOfSight(source, player->x, targetY, player->z);
-	audible = player->monsterMoving || player->beamOn || playerFired;
+	audible = player->moving || player->beamOn || playerFired;
 	initializeContact(&contacts[count++], "player",
-		  playerEntityArchetype == NULL ? "neutral" :
-		  playerEntityArchetype->faction, player->x, targetY, player->z,
-			  player->monsterIsDead != 1, visible, audible);
+		  runtimePlayerFaction(), player->x, targetY, player->z,
+			  player->dead != 1, visible, audible);
 	}
     targetNumber = 0;
     for (target = targetList->next; target != NULL && count < capacity;
          target = target->next)
 	{
 	sprintf(id, "target-%d", targetNumber++);
-	targetY = (target->monster.height + target->monster.bottom) * 0.5f;
+	targetY = (target->player.height + target->player.bottom) * 0.5f;
 	visible = dataEntityLineOfSight(source, target->x, targetY,
 					target->z);
-	initializeContact(&contacts[count++], id, "monster",
+	initializeContact(&contacts[count++], id,
+			  runtimePlayerFaction(),
 			  target->x, targetY, target->z,
-			  target->monster.monsterIsDead != 1, visible,
-			  target->monster.monsterMoving ||
-			  target->monster.beamOn);
+			  target->player.dead != 1, visible,
+			  target->player.moving ||
+			  target->player.beamOn);
         }
-    for (tank = allTanks->next; tank != NULL && count < capacity;
-         tank = tank->next)
-	if (tank != source && tank->type == DATAENTITY)
+    for (actor = allActors->next; actor != NULL && count < capacity;
+         actor = actor->next)
+	if (actor != source && actor->dataArchetype != NULL)
+	    if (actor->dataArchetype->kind != ENTITY_KIND_ZONE)
 	    {
-	    targetY = tank->y + tank->dataArchetype->collisionHeight * 0.5f;
-	    visible = dataEntityLineOfSight(source, tank->x, targetY, tank->z);
-	    audible = tank->walking || tank->maserCount > 0 ||
-		       dataEntityRecentlyFired(tank);
-	    initializeContact(&contacts[count++], tank->dataId,
-			      tank->dataArchetype->faction,
-			      tank->x, targetY, tank->z, tank->damage > 0,
+	    targetY = actor->y + actor->dataArchetype->collisionHeight * 0.5f;
+	    visible = dataEntityLineOfSight(source, actor->x, targetY, actor->z);
+	    audible = actor->walking || actor->weaponActiveFrames > 0 ||
+		       dataEntityRecentlyFired(actor);
+	    initializeContact(&contacts[count++], actor->dataId,
+			      actor->dataAgent.faction,
+			      actor->x, targetY, actor->z, actor->damage > 0,
 			      visible, audible);
 	    }
     return count;
     }
 
-static void damageDataEntityTarget(struct tank *source,
-                                   struct tank *allTanks,
-                                   struct monsterInfo *player,
+static void damageDataEntityTarget(struct runtimeActor *source,
+                                   struct runtimeActor *allActors,
+                                   struct runtimePlayer *player,
                                    struct targetInfo *targetList)
     {
     struct targetInfo *target;
-    struct tank *tank;
+    struct runtimeActor *actor;
     int targetNumber;
     char id[ENTITY_NAME_SIZE];
 
@@ -1690,16 +1590,16 @@ static void damageDataEntityTarget(struct tank *source,
         sprintf(id, "target-%d", targetNumber++);
         if (strcmp(source->dataAgent.target.id, id) == 0)
             {
-            target->monster.energyRemaining -= 0.3f;
+            target->player.energyRemaining -= 0.3f;
             return;
             }
         }
-    tank = findDataActor(allTanks, source->dataAgent.target.id);
-    if (tank != NULL)
+    actor = findDataActor(allActors, source->dataAgent.target.id);
+    if (actor != NULL)
         {
-        tank->damage--;
-        notifyDataEntityDamage(tank, source->dataId,
-			       source->dataArchetype->faction,
+        actor->damage--;
+        notifyDataEntityDamage(actor, source->dataId,
+			       source->dataAgent.faction,
 			       source->x, source->z);
         }
     }
@@ -1743,57 +1643,58 @@ static int configuredPlayerMuzzleWorld(float origin[3], float direction[3])
 
     if (playerEntityArchetype == NULL)
         return 0;
-    bodyHeading = Googelon.headHorzRotate * 0.1f;
+    bodyHeading = playerEntityState.headHorzRotate * 0.1f;
     aimYaw = 0.0f;
     if (playerEntityArchetype->controlMode == ENTITY_CONTROL_STEERED)
         {
         bodyHeading = playerBodyHeading * 0.1f;
-        aimYaw = (Googelon.headHorzRotate - playerBodyHeading) * 0.1f;
+        aimYaw = (playerEntityState.headHorzRotate - playerBodyHeading) * 0.1f;
         }
     return configuredMuzzleWorld(
-        playerEntityArchetype, Googelon.monsterMoving, Googelon.beamOn,
-        mainCounter, Googelon.x,
-        PLANEY + playerEntityArchetype->verticalOffset, Googelon.z,
-        bodyHeading, aimYaw, Googelon.headVertRotate * 0.1f,
+        playerEntityArchetype, playerEntityState.moving, playerEntityState.beamOn,
+        mainCounter, playerEntityState.x,
+        PLANEY + playerEntityArchetype->verticalOffset, playerEntityState.z,
+        bodyHeading, aimYaw, playerEntityState.headVertRotate * 0.1f,
         origin, direction);
     }
 
-static void updateMonsterProjectileFromAsset(
-    float x, float z, int counter, const struct monsterInfo *state,
-    struct monsterInfo *owner)
+static const struct EntityArchetype *weaponProjectile(
+    const struct EntityArchetype *archetype)
+    {
+    if (archetype == NULL || archetype->weapon != ENTITY_WEAPON_PROJECTILE)
+        return NULL;
+    return entityCatalogFind(&gameEntities, archetype->projectile);
+    }
+
+static void updatePlayerProjectile(
+    float x, float z, int counter, const struct runtimePlayer *state,
+    struct runtimePlayer *owner)
     {
     const struct EntityArchetype *archetype;
     float origin[3];
     float direction[3];
-    int projectileType;
+    const struct EntityArchetype *projectile;
 
-    archetype = monsterArchetype(state);
+    archetype = playerArchetype(state);
     if (archetype == NULL || archetype->weapon == ENTITY_WEAPON_NONE ||
         counter % archetype->fireInterval != 0 ||
         !configuredMuzzleWorld(
-            archetype, state->monsterMoving, state->beamOn, counter,
+            archetype, state->moving, state->beamOn, counter,
             x, PLANEY + archetype->verticalOffset, z,
             state->headHorzRotate * 0.1f, 0.0f,
             state->headVertRotate * 0.1f, origin, direction))
         return;
-    if (archetype->weapon == ENTITY_WEAPON_ROCKET)
-        projectileType = PROJROCKET;
-    else if (archetype->weapon == ENTITY_WEAPON_PLASMA)
-        projectileType = PROJTECHS;
-    else if (archetype->weapon == ENTITY_WEAPON_FIRE)
-        projectileType = PROJFIRE;
-    else if (archetype->weapon == ENTITY_WEAPON_SHELL)
-        projectileType = PROJTANK;
-    else
+    projectile = weaponProjectile(archetype);
+    if (projectile == NULL)
         return;
-    addProjectile(origin[0], origin[1], origin[2], projectileType,
+    spawnProjectile(origin[0], origin[1], origin[2], projectile,
                   direction[0] * archetype->projectileSpeed,
                   direction[1] * archetype->projectileSpeed,
                   direction[2] * archetype->projectileSpeed,
                   archetype->accuracy, owner);
     }
 
-static void aimDataEntityAtTarget(struct tank *tank)
+static void aimDataEntityAtTarget(struct runtimeActor *actor)
     {
     const struct EntityArchetype *archetype;
     float origin[3];
@@ -1807,17 +1708,17 @@ static void aimDataEntityAtTarget(struct tank *tank)
     float aimYaw;
     float aimPitch;
 
-    archetype = tank->dataArchetype;
-    tank->aimYaw = 0.0f;
-    tank->aimPitch = archetype->aimPitchDefault;
-    if (!tank->dataAgent.hasTarget)
+    archetype = actor->dataArchetype;
+    actor->aimYaw = 0.0f;
+    actor->aimPitch = archetype->aimPitchDefault;
+    if (!actor->dataAgent.hasTarget)
         return;
-    deltaX = tank->dataAgent.targetX - tank->x;
-    deltaZ = tank->dataAgent.targetZ - tank->z;
+    deltaX = actor->dataAgent.targetX - actor->x;
+    deltaZ = actor->dataAgent.targetZ - actor->z;
     horizontal = (float)sqrt((double)(deltaX * deltaX + deltaZ * deltaZ));
     if (horizontal <= 0.0001f)
         return;
-    bodyHeading = tank->theta * RAD_TO_SMALL_DEG;
+    bodyHeading = actor->theta * RAD_TO_SMALL_DEG;
     targetHeading = (float)(atan2((double)deltaX, (double)deltaZ) /
                                   DEG_TO_RAD);
     aimYaw = targetHeading - bodyHeading;
@@ -1826,95 +1727,194 @@ static void aimDataEntityAtTarget(struct tank *tank)
     while (aimYaw < -180.0f)
         aimYaw += 360.0f;
     if (archetype->aimYawNode[0] != '\0')
-        tank->aimYaw = aimYaw;
+        actor->aimYaw = aimYaw;
     if (archetype->aimPitchNode[0] == '\0' ||
-        !configuredMuzzleWorld(archetype, tank->walking, 1, mainCounter,
-                               tank->x, tank->y, tank->z, bodyHeading,
-                               tank->aimYaw, 0.0f, origin, direction))
+        !configuredMuzzleWorld(archetype, actor->walking, 1, mainCounter,
+                               actor->x, actor->y, actor->z, bodyHeading,
+                               actor->aimYaw, 0.0f, origin, direction))
         return;
-    deltaY = tank->dataAgent.targetY - origin[1];
+    deltaY = actor->dataAgent.targetY - origin[1];
     aimPitch = (float)(-atan2((double)deltaY, (double)horizontal) /
                              DEG_TO_RAD);
     if (aimPitch < archetype->aimPitchMin)
         aimPitch = archetype->aimPitchMin;
     if (aimPitch > archetype->aimPitchMax)
         aimPitch = archetype->aimPitchMax;
-    tank->aimPitch = aimPitch;
+    actor->aimPitch = aimPitch;
     }
 
-static void fireDataEntity(struct tank *tank, struct tank *allTanks,
-                           struct monsterInfo *player,
+static void fireDataEntity(struct runtimeActor *actor, struct runtimeActor *allActors,
+                           struct runtimePlayer *player,
                            struct targetInfo *targetList)
     {
     const struct EntityArchetype *archetype;
     float origin[3];
     float direction[3];
     float bodyHeading;
-    int projectileType;
+    const struct EntityArchetype *projectile;
     int burst;
 
-    archetype = tank->dataArchetype;
-    tank->maserCount = 0;
-    if (!tank->dataAgent.fireRequested || !tank->dataAgent.hasTarget)
+    archetype = actor->dataArchetype;
+    actor->weaponActiveFrames = 0;
+    if (!actor->dataAgent.fireRequested || !actor->dataAgent.hasTarget)
         return;
     if (archetype->weapon == ENTITY_WEAPON_BEAM)
         {
-        tank->maserCount = 2;
-        damageDataEntityTarget(tank, allTanks, player, targetList);
-        doSoundAt(TANKMASER, tank->x, tank->y, tank->z);
+        actor->weaponActiveFrames = 2;
+        damageDataEntityTarget(actor, allActors, player, targetList);
+        doSoundKeyAt(archetype->fireSound, actor->x, actor->y, actor->z);
         return;
         }
-    bodyHeading = tank->theta * RAD_TO_SMALL_DEG;
-    if (!configuredMuzzleWorld(archetype, tank->walking, 1, mainCounter,
-                               tank->x, tank->y, tank->z, bodyHeading,
-                               tank->aimYaw, tank->aimPitch,
+    bodyHeading = actor->theta * RAD_TO_SMALL_DEG;
+    if (!configuredMuzzleWorld(archetype, actor->walking, 1, mainCounter,
+                               actor->x, actor->y, actor->z, bodyHeading,
+                               actor->aimYaw, actor->aimPitch,
                                origin, direction))
         return;
-    if (archetype->weapon == ENTITY_WEAPON_ROCKET)
-        projectileType = PROJROCKET;
-    else if (archetype->weapon == ENTITY_WEAPON_PLASMA)
-        projectileType = PROJTECHS;
-    else if (archetype->weapon == ENTITY_WEAPON_FIRE)
-        projectileType = PROJFIRE;
-    else
-        projectileType = PROJTANK;
+    projectile = weaponProjectile(archetype);
+    if (projectile == NULL)
+        return;
     for (burst = 0; burst < archetype->burstCount; burst++)
-        addProjectile(origin[0], origin[1], origin[2], projectileType,
+        spawnProjectile(origin[0], origin[1], origin[2], projectile,
                       direction[0] * archetype->projectileSpeed,
                       direction[1] * archetype->projectileSpeed,
                       direction[2] * archetype->projectileSpeed,
                       archetype->accuracy, NULL);
     }
 
-static void updateDataEntity(struct tank *tank, struct tank *allTanks,
-                             struct monsterInfo *player,
+static const struct EntitySurfaceSound *surfaceSoundAt(
+    const struct EntityArchetype *movingArchetype, float x, float z)
+    {
+    const struct BattalionMapObject *object;
+    const struct EntityArchetype *surface;
+    const struct EntitySurfaceSound *rule;
+    float radius;
+    size_t objectIndex;
+    size_t ruleIndex;
+
+    if (movingArchetype == NULL ||
+        movingArchetype->contactAudioTag[0] == '\0')
+        return NULL;
+    for (objectIndex = 0; objectIndex < battlefieldMap.objectCount;
+         objectIndex++)
+        {
+        object = &battlefieldMap.objects[objectIndex];
+        if (!object->active)
+            continue;
+        surface = entityCatalogFind(&gameEntities, object->archetype);
+        if (surface == NULL || surface->surfaceSoundCount == 0)
+            continue;
+        radius = entityArchetypeCollisionRadius(surface) * object->scale;
+        if (radius <= 0.0f || fabs(x - object->x) > radius ||
+            fabs(z - object->z) > radius)
+            continue;
+        for (ruleIndex = 0; ruleIndex < surface->surfaceSoundCount;
+             ruleIndex++)
+            {
+            rule = &surface->surfaceSounds[ruleIndex];
+            if (strcmp(rule->contactTag,
+                       movingArchetype->contactAudioTag) == 0)
+                return rule;
+            }
+        }
+    return NULL;
+    }
+
+static int surfaceSoundDue(const struct EntityArchetype *movingArchetype,
+                           int counter)
+    {
+    const struct EntityArchetype *surface;
+    const struct EntitySurfaceSound *rule;
+    size_t archetypeIndex;
+    size_t ruleIndex;
+
+    if (movingArchetype == NULL ||
+        movingArchetype->contactAudioTag[0] == '\0')
+        return 0;
+    for (archetypeIndex = 0; archetypeIndex < gameEntities.count;
+         archetypeIndex++)
+        {
+        surface = &gameEntities.entries[archetypeIndex];
+        for (ruleIndex = 0; ruleIndex < surface->surfaceSoundCount;
+             ruleIndex++)
+            {
+            rule = &surface->surfaceSounds[ruleIndex];
+            if (strcmp(rule->contactTag,
+                       movingArchetype->contactAudioTag) == 0 &&
+                counter % rule->interval == 0)
+                return 1;
+            }
+        }
+    return 0;
+    }
+
+static void updateMovementAudio(const struct EntityArchetype *archetype,
+                                float x, float y, float z, int moving,
+                                int counter)
+    {
+    const struct EntitySurfaceSound *surfaceSound;
+
+    if (!moving || archetype == NULL)
+        return;
+    if (archetype->moveSound[0] != '\0' &&
+        counter % archetype->moveSoundInterval == 0)
+        doSoundKeyAt(archetype->moveSound, x, y, z);
+    if (!surfaceSoundDue(archetype, counter))
+        return;
+    surfaceSound = surfaceSoundAt(archetype, x, z);
+    if (surfaceSound != NULL && counter % surfaceSound->interval == 0)
+        doSoundKeyAt(surfaceSound->sound, x, y, z);
+    }
+
+static void updateDataEntity(struct runtimeActor *actor, struct runtimeActor *allActors,
+                             struct runtimePlayer *player,
                              struct targetInfo *targetList)
     {
-    struct EntityContact contacts[MAXTANKSONPLANE + MAXTARGETS + 1];
+    struct EntityContact *contacts;
+    struct ActorObstacleContext obstacleContext;
+    struct runtimeActor *contactActor;
+    struct targetInfo *contactPlayer;
+    size_t capacity;
     size_t contactCount;
     float oldX;
     float oldZ;
 
-    oldX = tank->dataAgent.x;
-    oldZ = tank->dataAgent.z;
+    capacity = 1;
+    for (contactActor = allActors->next; contactActor != NULL;
+         contactActor = contactActor->next)
+        capacity++;
+    for (contactPlayer = targetList->next; contactPlayer != NULL;
+         contactPlayer = contactPlayer->next)
+        capacity++;
+    contacts = (struct EntityContact *)malloc(capacity * sizeof(*contacts));
+    if (contacts == NULL)
+        return;
+    oldX = actor->dataAgent.x;
+    oldZ = actor->dataAgent.z;
     contactCount = buildDataEntityContacts(
-        tank, allTanks, player, targetList, contacts,
-        sizeof(contacts) / sizeof(contacts[0]));
-    entityAgentStep(&tank->dataAgent, contacts, contactCount);
-    tank->x = tank->dataAgent.x;
-    tank->z = tank->dataAgent.z;
-    tank->theta = tank->dataAgent.heading;
-    tank->walking = oldX != tank->x || oldZ != tank->z;
-    if (tank->dataAgent.hasTarget)
-        tank->rad = (float)sqrt((double)(
-            (tank->x - tank->dataAgent.targetX) *
-            (tank->x - tank->dataAgent.targetX) +
-            (tank->z - tank->dataAgent.targetZ) *
-            (tank->z - tank->dataAgent.targetZ)));
+        actor, allActors, player, targetList, contacts,
+        capacity);
+    entityAgentStep(&actor->dataAgent, contacts, contactCount);
+    obstacleContext.actor = actor;
+    obstacleContext.allActors = allActors;
+    entityAgentResolveObstacle(
+        &actor->dataAgent, oldX, oldZ, actorPositionBlocked,
+        &obstacleContext, (actor->number & 1) ? -1 : 1);
+    free(contacts);
+    actor->x = actor->dataAgent.x;
+    actor->z = actor->dataAgent.z;
+    actor->theta = actor->dataAgent.heading;
+    actor->walking = oldX != actor->x || oldZ != actor->z;
+    if (actor->dataAgent.hasTarget)
+        actor->rad = (float)sqrt((double)(
+            (actor->x - actor->dataAgent.targetX) *
+            (actor->x - actor->dataAgent.targetX) +
+            (actor->z - actor->dataAgent.targetZ) *
+            (actor->z - actor->dataAgent.targetZ)));
     else
-        tank->rad = 0;
-    aimDataEntityAtTarget(tank);
-    fireDataEntity(tank, allTanks, player, targetList);
+        actor->rad = 0;
+    aimDataEntityAtTarget(actor);
+    fireDataEntity(actor, allActors, player, targetList);
     }
 
 static void updateConfiguredPlayerWeapon(void)
@@ -1922,15 +1922,17 @@ static void updateConfiguredPlayerWeapon(void)
     const struct EntityArchetype *archetype;
     float origin[3];
     float direction[3];
-    int projectileType;
+    const struct EntityArchetype *projectile;
 
     archetype = playerEntityArchetype;
     if (archetype == NULL || archetype->weapon == ENTITY_WEAPON_NONE)
         return;
     if (!configuredPlayerMuzzleWorld(origin, direction))
         return;
-    if (archetype->weapon != ENTITY_WEAPON_BEAM &&
-        archetype->weapon != ENTITY_WEAPON_FIRE)
+    projectile = weaponProjectile(archetype);
+    if (archetype->weapon == ENTITY_WEAPON_PROJECTILE &&
+        projectile != NULL &&
+        !projectile->projectileContinuous)
         {
         if (playerProjectileTriggerLatched)
             return;
@@ -1940,60 +1942,70 @@ static void updateConfiguredPlayerWeapon(void)
         }
     if (archetype->weapon == ENTITY_WEAPON_BEAM)
         {
-        updateBeam(&Googelon, targets, tanklist,
-                   allTreesOnPlanePtrs, numTreesOnPlane, &Googelon,
+        updateBeam(&playerEntityState, targets, actorlist,
+                   mapObjectList, &playerEntityState,
                    archetype, origin, direction);
-        Googelon.energyRemaining -= archetype->playerFireCost;
+        playerEntityState.energyRemaining -= archetype->playerFireCost;
         return;
         }
-    if (archetype->weapon == ENTITY_WEAPON_ROCKET)
-        projectileType = PROJROCKET;
-    else if (archetype->weapon == ENTITY_WEAPON_PLASMA)
-        projectileType = PROJTECHS;
-    else if (archetype->weapon == ENTITY_WEAPON_FIRE)
-        projectileType = PROJFIRE;
-    else
-        projectileType = PROJTANK;
-    addProjectile(origin[0], origin[1], origin[2], projectileType,
+    if (projectile == NULL)
+        return;
+    spawnProjectile(origin[0], origin[1], origin[2], projectile,
                   direction[0] * archetype->projectileSpeed,
                   direction[1] * archetype->projectileSpeed,
                   direction[2] * archetype->projectileSpeed,
-                  archetype->accuracy, &Googelon);
-    if (archetype->weapon != ENTITY_WEAPON_FIRE)
+                  archetype->accuracy, &playerEntityState);
+    if (!projectile->projectileContinuous)
 	playerWeaponReloadRemaining = archetype->fireInterval;
-    Googelon.energyRemaining -= archetype->playerFireCost;
+    playerEntityState.energyRemaining -= archetype->playerFireCost;
     }
 
-static void updateMonsterBeamFromAsset(
-    struct monsterInfo *gameMonster, struct targetInfo *targetList,
-    float x, float z, struct tank *allTanks, struct tree **allTreePtrs,
-    int numTrees, struct monsterInfo *source)
+static void updatePlayerBeam(
+    struct runtimePlayer *gameMonster, struct targetInfo *targetList,
+    float x, float z, struct runtimeActor *allActors,
+    struct runtimeMapObject *allMapObjects, struct runtimePlayer *source)
     {
     const struct EntityArchetype *archetype;
     float origin[3];
     float direction[3];
 
-    archetype = monsterArchetype(source);
+    archetype = playerArchetype(source);
     if (archetype == NULL || !configuredMuzzleWorld(
-        archetype, source->monsterMoving, source->beamOn, mainCounter,
+        archetype, source->moving, source->beamOn, mainCounter,
         x, PLANEY + archetype->verticalOffset, z,
         source->headHorzRotate * 0.1f, 0.0f,
         source->headVertRotate * 0.1f, origin, direction))
         return;
-    updateBeam(gameMonster, targetList, allTanks,
-               allTreePtrs, numTrees, source,
+    updateBeam(gameMonster, targetList, allActors,
+               allMapObjects, source,
                archetype, origin, direction);
     }
 
-#define DATA_ENTITY_DEBRIS_COUNT 7
-#define DATA_ENTITY_DEBRIS_LIFE 420
-#define DATA_ENTITY_DEBRIS_FIRE_COUNT 3
-
-static void spawnDataEntityDebris(struct tank *source,
-                                  struct tank *allWrecks)
+static void updatePlayerWeapon(
+    float x, float z, struct runtimePlayer *source,
+    struct runtimePlayer *owner, struct runtimeMapObject *allMapObjects)
     {
     const struct EntityArchetype *archetype;
-    struct tank *fragment;
+
+    archetype = playerArchetype(source);
+    if (archetype == NULL || archetype->weapon == ENTITY_WEAPON_NONE)
+        return;
+    if (archetype->weapon == ENTITY_WEAPON_BEAM)
+        updatePlayerBeam(
+            &playerEntityState, targets, x, z, actorlist,
+            allMapObjects, source);
+    else if (archetype->weapon == ENTITY_WEAPON_PROJECTILE)
+        updatePlayerProjectile(
+            x, z, mainCounter, source, owner);
+    source->energyRemaining -= archetype->playerFireCost;
+    }
+
+static void spawnDataEntityDebris(struct runtimeActor *source,
+                                  struct runtimeActor *allWrecks)
+    {
+    const struct EntityArchetype *archetype;
+    const struct EntityArchetype *debrisVisual;
+    struct runtimeActor *fragment;
     float angle;
     float blastRadius;
     float collisionHeight;
@@ -2007,12 +2019,14 @@ static void spawnDataEntityDebris(struct tank *source,
     int sourceNumber;
 
     archetype = source->dataArchetype;
+    debrisVisual = entityCatalogFind(
+        &gameEntities, archetype->destructionProjectile);
     sourceX = source->x;
     sourceY = source->y;
     sourceZ = source->z;
     sourceNumber = source->number;
     collisionHeight = archetype->collisionHeight;
-    blastRadius = archetype->collisionRadius;
+    blastRadius = entityArchetypeCollisionRadius(archetype);
     if (blastRadius < 0.2f)
         blastRadius = 0.2f;
     fragmentSize = blastRadius * 0.36f;
@@ -2022,12 +2036,14 @@ static void spawnDataEntityDebris(struct tank *source,
         fragmentSize = 0.16f;
     fromAir = archetype->movement == ENTITY_MOVEMENT_AIR;
 
-    for (i = 0; i < DATA_ENTITY_DEBRIS_COUNT; i++)
+    doSoundKeyAt(archetype->destructionSound,
+                 sourceX, sourceY, sourceZ);
+    for (i = 0; i < archetype->destructionDebrisCount; i++)
         {
         if (i == 0)
             fragment = source;
         else
-            fragment = (struct tank *)amalloc(sizeTank, arena);
+            fragment = (struct runtimeActor *)amalloc(sizeActor, arena);
         if (fragment == NULL)
             continue;
         memset(fragment, 0, sizeof(*fragment));
@@ -2043,9 +2059,9 @@ static void spawnDataEntityDebris(struct tank *source,
         fragment->theta = angle;
         fragment->count = 0;
         fragment->number = sourceNumber;
-        fragment->type = DATAENTITY;
         fragment->subtype = (char)i;
         fragment->dataArchetype = archetype;
+        fragment->visualArchetype = debrisVisual;
         fragment->debrisFromAir = fromAir;
         fragment->debrisFireDelay = i * 5;
         fragment->debrisSize = fragmentSize *
@@ -2053,16 +2069,16 @@ static void spawnDataEntityDebris(struct tank *source,
         fragment->next = allWrecks->next;
         allWrecks->next = fragment;
         }
-
-    addBoom(sourceX, sourceY + collisionHeight * 0.5f, sourceZ, NULL);
-    for (i = 0; i < 5; i++)
-        addVisualBoom(sourceX + randy(blastRadius),
-                      sourceY + randy(collisionHeight * 0.75f),
-                      sourceZ + randy(blastRadius));
+    if (archetype->destructionDebrisCount == 0)
+        afree(source, arena);
+    spawnDestructionEffects(
+        archetype, sourceX, sourceY + collisionHeight * 0.5f, sourceZ,
+        blastRadius, collisionHeight, NULL, 1);
     }
 
-static int updateDataEntityDebris(struct tank *fragment)
+static int updateDataEntityDebris(struct runtimeActor *fragment)
     {
+    const struct EntityArchetype *fireProjectile;
     int landed;
 
     landed = entityWreckStep(
@@ -2071,86 +2087,95 @@ static int updateDataEntityDebris(struct tank *fragment)
         PLANEY + fragment->debrisSize * 0.55f,
         GRAVITY, &fragment->debrisGrounded);
     if (landed && fragment->debrisFromAir)
-        addVisualBoom(fragment->x, fragment->y, fragment->z);
+        spawnConfiguredExplosion(fragment->dataArchetype->destructionEffect,
+            fragment->x, fragment->y, fragment->z, NULL, 0);
 
     if (fragment->debrisGrounded &&
-        fragment->subtype < DATA_ENTITY_DEBRIS_FIRE_COUNT)
+        fragment->subtype < fragment->dataArchetype->destructionFireCount)
         {
         fragment->debrisFireDelay--;
         if (fragment->debrisFireDelay <= 0)
             {
-            addProjectile(fragment->x, PLANEY + 0.14f, fragment->z,
-                          PROJFIRE, 0.0f, -0.0005f, 0.0f,
+            fireProjectile = entityCatalogFind(
+                &gameEntities,
+                fragment->dataArchetype->wreckFireProjectile);
+            spawnProjectile(fragment->x, PLANEY + 0.14f, fragment->z,
+                          fireProjectile, 0.0f, -0.0005f, 0.0f,
                           10000.0f, NULL);
             fragment->debrisFireDelay = 68 + fragment->subtype * 7;
             }
         }
-    return fragment->count >= DATA_ENTITY_DEBRIS_LIFE;
+    return fragment->count >= fragment->dataArchetype->debrisLife;
     }
 
-void updateTanks(struct tank *allTanks, float width, float height,
-                 float bottom, int dead, int monster,
-                 struct tank *wrecks, float accuracy, int firingDelay,
-                 int counter, struct monsterInfo *player,
+void updateActors(struct runtimeActor *allActors, float width, float height,
+                 float bottom, int dead,
+                 struct runtimeActor *wrecks, float accuracy, int firingDelay,
+                 int counter, struct runtimePlayer *player,
                  struct targetInfo *targetList)
     {
-    struct tank *killertank;
-    struct tank *tank;
-    struct tank *previous;
+    struct runtimeActor *killeractor;
+    struct runtimeActor *actor;
+    struct runtimeActor *previous;
 
-    (void)monster;
     (void)accuracy;
     (void)firingDelay;
-    (void)counter;
-    previous = allTanks;
+    previous = allActors;
     while (previous->next != NULL)
         {
-        tank = previous->next;
-        if (tank->type != DATAENTITY)
+        actor = previous->next;
+        if (actor->dataArchetype == NULL)
             {
-            showError("Discarding a legacy vehicle from the actor list");
-            previous->next = tank->next;
-            afree(tank, arena);
+            showError("Discarding an actor without a catalog archetype");
+            previous->next = actor->next;
+            afree(actor, arena);
             continue;
             }
-        tank->count--;
-        updateDataEntity(tank, allTanks, player, targetList);
-        if (!dead && worldCylindersOverlap(
-                tank->x, tank->z, tankCollisionRadius(tank),
-                tankCollisionBottom(tank), tankCollisionTop(tank),
+        actor->count--;
+        updateDataEntity(actor, allActors, player, targetList);
+        updateMovementAudio(actor->dataArchetype, actor->x, actor->y,
+                            actor->z, actor->walking, counter);
+        if (!dead && actorCollisionRadius(actor) > 0.0f &&
+            factionCatalogHostile(&gameFactions, actor->dataAgent.faction,
+                                  runtimePlayerFaction()) &&
+            worldCylindersOverlap(
+                actor->x, actor->z, actorCollisionRadius(actor),
+                actorCollisionBottom(actor), actorCollisionTop(actor),
                 player->x, player->z, width, bottom, height))
             {
             player->energyRemaining -= 0.75f;
-            tank->damage--;
-            notifyDataEntityDamage(tank, "player", "monster",
+            actor->damage--;
+            notifyDataEntityDamage(
+                actor, "player",
+                runtimePlayerFaction(),
                                    player->x, player->z);
             }
-        if (tank->damage <= 0)
+        if (actor->damage <= 0)
             {
-            killertank = tank;
-            previous->next = killertank->next;
-            spawnDataEntityDebris(killertank, wrecks);
+            killeractor = actor;
+            previous->next = killeractor->next;
+            spawnDataEntityDebris(killeractor, wrecks);
             }
         else
             previous = previous->next;
         }
 
     /* Events are delivered after every agent has completed this step. */
-    for (tank = allTanks->next; tank != NULL; tank = tank->next)
-        routeDataEntityEvents(tank, allTanks);
+    for (actor = allActors->next; actor != NULL; actor = actor->next)
+        routeDataEntityEvents(actor, allActors);
     }
 
-void updateWrecks(struct tank *allWrecks)
+void updateWrecks(struct runtimeActor *allWrecks)
     {
-    struct tank *fragment;
-    struct tank *previous;
+    struct runtimeActor *fragment;
+    struct runtimeActor *previous;
 
     previous = allWrecks;
     while (previous->next != NULL)
         {
         fragment = previous->next;
         fragment->count++;
-        if (fragment->type != DATAENTITY ||
+        if (fragment->dataArchetype == NULL ||
             updateDataEntityDebris(fragment))
             {
             previous->next = fragment->next;
@@ -2166,74 +2191,146 @@ void updateWrecks(struct tank *allWrecks)
 /* a new military vehicle is entering the game                   */
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
+static int mapAreaContains(void *context, float x, float z)
+    {
+    const struct BattalionMapObject *object;
+    const struct BattalionMapPoint *first;
+    const struct BattalionMapPoint *second;
+    float crossingX;
+    size_t firstIndex;
+    size_t secondIndex;
+    int inside;
+
+    object = (const struct BattalionMapObject *)context;
+    if (object == NULL || object->geometryCount < 3)
+        return 0;
+    inside = 0;
+    secondIndex = object->geometryCount - 1;
+    for (firstIndex = 0; firstIndex < object->geometryCount; firstIndex++)
+        {
+        first = &object->geometry[firstIndex];
+        second = &object->geometry[secondIndex];
+        if ((first->z > z) != (second->z > z))
+            {
+            crossingX = (second->x - first->x) * (z - first->z) /
+                        (second->z - first->z) + first->x;
+            if (x < crossingX)
+                inside = !inside;
+            }
+        secondIndex = firstIndex;
+        }
+    return inside;
+    }
+
 static int addConfiguredEntity(
     const struct EntityArchetype *archetype,
     const char *id, const char *group,
     float x, float z, float heading, int active,
     const struct EntityWaypoint *waypoints, size_t waypointCount,
-    int patrolMode, const struct BattalionMapActor *actor,
-    struct tank *allTanks)
+    int patrolMode, const char *faction,
+    const struct BattalionMapObject *object,
+    struct runtimeActor *allActors)
     {
-    struct tank *tank;
+    struct runtimeActor *actor;
+    const struct BattalionMapObject *safeZone;
+    size_t index;
 
     if (archetype == NULL)
         return 0;
-    tank = (struct tank *)amalloc(sizeTank, arena);
-    if (tank == NULL)
+    actor = (struct runtimeActor *)amalloc(sizeActor, arena);
+    if (actor == NULL)
         return 0;
-    memset(tank, 0, sizeof(*tank));
-    tank->x = x;
-    tank->z = z;
-    tank->y = PLANEY + archetype->verticalOffset;
-    tank->theta = heading;
-    tank->range = archetype->weaponRange;
-    tank->minrange = archetype->weaponMinRange;
-    tank->finalR = archetype->weaponRange;
-    tank->speed = archetype->speed;
-    tank->damage = archetype->health;
-    tank->number = currentTankNumber++;
-    tank->type = DATAENTITY;
-    tank->dataArchetype = archetype;
-    tank->dataActor = actor;
-    strcpy(tank->dataId, id);
-    strcpy(tank->dataGroup, group);
-    entityAgentInitialize(&tank->dataAgent, archetype,
+    memset(actor, 0, sizeof(*actor));
+    actor->x = x;
+    actor->z = z;
+    actor->y = PLANEY + archetype->verticalOffset;
+    actor->theta = heading;
+    actor->range = archetype->weaponRange;
+    actor->minrange = archetype->weaponMinRange;
+    actor->finalR = archetype->weaponRange;
+    actor->speed = archetype->speed;
+    actor->damage = archetype->health;
+    actor->number = currentActorNumber++;
+    actor->dataArchetype = archetype;
+    actor->dataObject = object;
+    strcpy(actor->dataId, id);
+    strcpy(actor->dataGroup, group);
+    entityAgentInitialize(&actor->dataAgent, archetype,
                           x, z, heading, waypoints, waypointCount,
-                          patrolMode);
-    tank->dataAgent.active = active;
-    tank->next = allTanks->next;
-    allTanks->next = tank;
+                          patrolMode, &gameFactions, faction);
+    if (archetype->kind == ENTITY_KIND_ZONE)
+        entityAgentSetAreaSensor(&actor->dataAgent, mapAreaContains,
+                                 (void *)object);
+    if (object != NULL &&
+        object->alarmResponse != ENTITY_ALARM_INHERIT)
+        {
+        safeZone = NULL;
+        for (index = 0; index < battlefieldMap.objectCount; index++)
+            if (strcmp(battlefieldMap.objects[index].id,
+                       object->safeZone) == 0)
+                safeZone = &battlefieldMap.objects[index];
+        entityAgentSetAlarmPolicy(
+            &actor->dataAgent, object->alarmResponse,
+            safeZone != NULL ? safeZone->x : 0.0f,
+            safeZone != NULL ? safeZone->z : 0.0f,
+            object->safeWaitSeconds, (unsigned long)actor->number + 1UL);
+        }
+    actor->dataAgent.active = active;
+    actor->next = allActors->next;
+    allActors->next = actor;
     return 1;
     }
 
-static int addMapActor(const struct BattalionMapActor *actor,
-                       struct tank *allTanks)
+static int addMapObject(const struct BattalionMapObject *object,
+                        struct runtimeActor *allActors)
     {
     const struct EntityArchetype *archetype;
+    const struct BattalionMapObject *route;
+    const struct EntityWaypoint *waypoints;
+    const char *faction;
+    size_t waypointCount;
+    size_t index;
 
-    archetype = entityCatalogFind(&gameEntities, actor->archetype);
+    archetype = entityCatalogFind(&gameEntities, object->archetype);
+    if (!entityArchetypeIsActor(archetype))
+        return 1;
+    route = NULL;
+    waypoints = NULL;
+    waypointCount = 0;
+    if (object->patrolRoute[0] != '\0')
+        for (index = 0; index < battlefieldMap.objectCount; index++)
+            if (strcmp(battlefieldMap.objects[index].id,
+                       object->patrolRoute) == 0)
+                route = &battlefieldMap.objects[index];
+    if (route != NULL)
+        {
+        waypoints = route->waypoints;
+        waypointCount = route->waypointCount;
+        }
+    faction = object->faction[0] != '\0' ? object->faction :
+              archetype->faction;
     return addConfiguredEntity(
-        archetype, actor->id, actor->group,
-        actor->x, actor->z, actor->heading, actor->active,
-        actor->waypoints, actor->waypointCount, actor->patrolMode,
-        actor, allTanks);
+        archetype, object->id, object->group,
+        object->x, object->z, object->heading * DEG_TO_RAD, object->active,
+        waypoints, waypointCount, object->patrolMode,
+        faction, object, allActors);
     }
 
-static int configuredEntityCount(struct tank *allTanks,
+static int configuredEntityCount(struct runtimeActor *allActors,
                                  const struct EntityArchetype *archetype)
     {
-    struct tank *tank;
+    struct runtimeActor *actor;
     int count;
 
     count = 0;
-    for (tank = allTanks->next; tank != NULL; tank = tank->next)
-        if (tank->type == DATAENTITY && tank->dataArchetype == archetype)
+    for (actor = allActors->next; actor != NULL; actor = actor->next)
+        if (actor->dataArchetype == archetype)
             count++;
     return count;
     }
 
 static const struct EntityArchetype *selectSpawnArchetype(
-    struct tank *allTanks, int counter)
+    struct runtimeActor *allActors, int counter)
     {
     const struct EntityArchetype *archetype;
     size_t index;
@@ -2246,7 +2343,7 @@ static const struct EntityArchetype *selectSpawnArchetype(
         archetype = &gameEntities.entries[index];
         if (archetype->spawnWeight > 0 && counter >= archetype->spawnAfter &&
             (archetype->maxActive == 0 ||
-             configuredEntityCount(allTanks, archetype) <
+             configuredEntityCount(allActors, archetype) <
                  archetype->maxActive))
             totalWeight += archetype->spawnWeight;
         }
@@ -2258,7 +2355,7 @@ static const struct EntityArchetype *selectSpawnArchetype(
         archetype = &gameEntities.entries[index];
         if (archetype->spawnWeight <= 0 || counter < archetype->spawnAfter ||
             (archetype->maxActive > 0 &&
-             configuredEntityCount(allTanks, archetype) >=
+             configuredEntityCount(allActors, archetype) >=
                  archetype->maxActive))
             continue;
         if (selected < archetype->spawnWeight)
@@ -2270,33 +2367,54 @@ static const struct EntityArchetype *selectSpawnArchetype(
 
 static int configuredSpawnBlocked(float x, float z,
                                   const struct EntityArchetype *archetype,
-                                  struct tank *allTanks)
+                                  struct runtimeActor *allActors,
+                                  struct targetInfo *targetList)
     {
-    struct tree *tree;
-    struct tank *tank;
+    struct runtimeMapObject *tree;
+    struct runtimeActor *actor;
+    struct targetInfo *target;
     float bottom;
+    float radius;
     float top;
 
-    bottom = PLANEY + archetype->verticalOffset;
-    top = bottom + archetype->collisionHeight;
+    bottom = PLANEY + archetype->verticalOffset +
+             entityArchetypeCollisionBottomOffset(archetype);
+    top = PLANEY + archetype->verticalOffset +
+          entityArchetypeCollisionTopOffset(archetype);
+    radius = entityArchetypeCollisionRadius(archetype) +
+             archetype->spawnClearance;
 
-    for (tree = treelist->next; tree != NULL; tree = tree->next)
-        if (tree->intact && worldCylindersOverlap(
-                x, z, archetype->collisionRadius, bottom, top,
-                tree->x, tree->z, TREEBLASTR,
-                tree->y, structureCollisionTop(tree)))
+    for (tree = mapObjectList->next; tree != NULL; tree = tree->next)
+        if (tree->intact && mapObjectCollisionRadius(tree) > 0.0f &&
+            worldCylindersOverlap(
+                x, z, radius, bottom, top,
+                tree->x, tree->z, mapObjectCollisionRadius(tree),
+                tree->y, mapObjectCollisionTop(tree)))
             return 1;
-    for (tank = allTanks->next; tank != NULL; tank = tank->next)
-        if (tank->damage > 0 && worldCylindersOverlap(
-                x, z, archetype->collisionRadius, bottom, top,
-                tank->x, tank->z, tankCollisionRadius(tank),
-                tankCollisionBottom(tank), tankCollisionTop(tank)))
+    for (actor = allActors->next; actor != NULL; actor = actor->next)
+        if (actor->damage > 0 && actorCollisionRadius(actor) > 0.0f &&
+            worldCylindersOverlap(
+                x, z, radius, bottom, top,
+                actor->x, actor->z, actorCollisionRadius(actor),
+                actorCollisionBottom(actor), actorCollisionTop(actor)))
+            return 1;
+    if (playerEntityState.dead != 1 && worldCylindersOverlap(
+            x, z, radius, bottom, top,
+            playerEntityState.x, playerEntityState.z,
+            playerEntityState.width,
+            playerEntityState.bottom, playerEntityState.height))
+        return 1;
+    for (target = targetList->next; target != NULL; target = target->next)
+        if (target->player.dead != 1 && worldCylindersOverlap(
+                x, z, radius, bottom, top,
+                target->x, target->z, target->player.width,
+                target->player.bottom, target->player.height))
             return 1;
     return 0;
     }
 
 static int addRandomConfiguredEntity(struct targetInfo *targetList,
-                                     struct tank *allTanks, int counter)
+                                     struct runtimeActor *allActors, int counter)
     {
     const struct EntityArchetype *archetype;
     struct targetInfo *target;
@@ -2307,17 +2425,18 @@ static int addRandomConfiguredEntity(struct targetInfo *targetList,
     float x;
     float z;
     float heading;
+    struct EntityContact spawnContact;
     int side;
     int attempt;
     char id[ENTITY_NAME_SIZE];
 
-    archetype = selectSpawnArchetype(allTanks, counter);
+    archetype = selectSpawnArchetype(allActors, counter);
     if (archetype == NULL)
         return 0;
-    minX = Googelon.x - (PLANESIZE + 1);
-    maxX = Googelon.x + (PLANESIZE + 1);
-    minZ = Googelon.z - (PLANESIZE + 1);
-    maxZ = Googelon.z + (PLANESIZE + 1);
+    minX = playerEntityState.x - (PLANESIZE + 1);
+    maxX = playerEntityState.x + (PLANESIZE + 1);
+    minZ = playerEntityState.z - (PLANESIZE + 1);
+    maxZ = playerEntityState.z + (PLANESIZE + 1);
     for (target = targetList->next; target != NULL; target = target->next)
         {
         if (target->x - PLANESIZE - 1 < minX)
@@ -2338,14 +2457,26 @@ static int addRandomConfiguredEntity(struct targetInfo *targetList,
         else if (side == 1) x = minX;
         else if (side == 2) z = maxZ;
         else x = maxX;
-        if (!configuredSpawnBlocked(x, z, archetype, allTanks))
+        if (!configuredSpawnBlocked(
+                x, z, archetype, allActors, targetList))
             {
-            heading = (float)atan2((double)(Googelon.x - x),
-                                   (double)(Googelon.z - z));
-            sprintf(id, "spawn-%d", currentTankNumber);
-            return addConfiguredEntity(
-                archetype, id, "", x, z, heading, 1,
-                NULL, 0, ENTITY_PATROL_LOOP, NULL, allTanks);
+            heading = (float)atan2((double)(playerEntityState.x - x),
+                                   (double)(playerEntityState.z - z));
+            sprintf(id, "spawn-%d", currentActorNumber);
+            if (!addConfiguredEntity(
+                    archetype, id, "", x, z, heading, 1,
+                    NULL, 0, ENTITY_PATROL_LOOP, archetype->faction,
+                    NULL, allActors))
+                return 0;
+            initializeContact(&spawnContact, "player",
+                              runtimePlayerFaction(),
+                              playerEntityState.x,
+                              (playerEntityState.height +
+                               playerEntityState.bottom) * 0.5f,
+                              playerEntityState.z, 1, 0, 0);
+            entityAgentQueueTrigger(&allActors->next->dataAgent,
+                                    "spawned", &spawnContact);
+            return 1;
             }
         }
     return 0;
@@ -2356,64 +2487,43 @@ static int addRandomConfiguredEntity(struct targetInfo *targetList,
 /* update all of the explosions                                  */
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
-void updateBooms(struct boom * allBooms, struct tank * tanklist)
+void updateRuntimeExplosions(struct runtimeExplosion * explosions, struct runtimeActor * actorlist)
     {
-    struct boom * bboom,  * killerb, *tempboom;
-    struct tank *temptank;
-    int tanktype;
+    struct runtimeExplosion * currentExplosion,  * removedExplosion, *explosion;
+    struct runtimeActor *tempactor;
 
-    tempboom = allBooms;
+    explosion = explosions;
 
-    while (tempboom->next != NULL)
+    while (explosion->next != NULL)
 	{
-	bboom = tempboom->next;
-	bboom->count += 1;
+	currentExplosion = explosion->next;
+	currentExplosion->count += 1;
 
 	/***********************/
 	/* make some noise     */
 	/***********************/
 
-	if (bboom->damaging && (bboom->count == 2))
-	    doSoundAt(EXPLOSION, bboom->x, bboom->y, bboom->z);
+	if (currentExplosion->damaging && currentExplosion->archetype->fireSound[0] != '\0' &&
+	    currentExplosion->count == currentExplosion->archetype->effectSoundFrame)
+	    doSoundKeyAt(currentExplosion->archetype->fireSound,
+	                 currentExplosion->x, currentExplosion->y, currentExplosion->z);
 
 	/**********************************/
-	/* check for another tank hit     */
+	/* check for another actor hit     */
 	/**********************************/
 
-	if (bboom->damaging && (bboom->count == 4))
+	if (currentExplosion->damaging && currentExplosion->archetype->effectDamage > 0 &&
+	    currentExplosion->count == currentExplosion->archetype->effectDamageFrame)
 	    {
-	    for(temptank = tanklist; temptank->next != NULL; temptank = temptank->next)
-		if (tankHit(temptank->next, bboom->x, bboom->y, bboom->z))
+	    for(tempactor = actorlist; tempactor->next != NULL; tempactor = tempactor->next)
+		if (actorHit(tempactor->next, currentExplosion->x, currentExplosion->y, currentExplosion->z))
 		    {
-		    tanktype		    = temptank->next->type;
-		    temptank->next->damage -= 1;
-		    if (tanktype == DATAENTITY)
-			notifyDataEntityDamageFromMonster(temptank->next,
-				bboom->mine, bboom->x, bboom->z);
-		    switch (tanktype)
-			{
-			case TANK:
-			case LAUNCHER:
-			case MASERTANK:
-			case AIRPLANE:
-			case FIGHTER:
-			case HELO:	    addScore(tanktype, bboom->mine);
-					    break;
-
-			case MECHAG:	    addScore(PARTIALM, bboom->mine);
-					    break;
-
-			case CHH:	    addScore(PARTIALC, bboom->mine);
-					    break;
-
-			case HERO:	    addScore(PARTIALH, bboom->mine);
-					    break;
-
-			case DATAENTITY: if (bboom->mine != NULL)
-						bboom->mine->monsterScore +=
-						    temptank->next->dataArchetype->score;
-					    break;
-			}
+		    tempactor->next->damage -= currentExplosion->archetype->effectDamage;
+		    notifyDataEntityDamageFromPlayer(tempactor->next,
+			currentExplosion->owner, currentExplosion->x, currentExplosion->z);
+		    if (tempactor->next->dataArchetype != NULL)
+			addScore(tempactor->next->dataArchetype->score,
+			         currentExplosion->owner);
 		    }
 	    }
 
@@ -2421,94 +2531,70 @@ void updateBooms(struct boom * allBooms, struct tank * tanklist)
 	/* remove boom     */
 	/*******************/
 
-	if (bboom->count >= 7)
+	if (currentExplosion->count >= currentExplosion->archetype->effectDuration)
 	    {
-	    killerb = tempboom->next;
-	    tempboom->next = tempboom->next->next;
-	    afree(killerb, arena);
+	    removedExplosion = explosion->next;
+	    explosion->next = explosion->next->next;
+	    afree(removedExplosion, arena);
 	    }
 	else
-	    tempboom = tempboom->next;
+	    explosion = explosion->next;
 	}
     }
 
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
-void buildHillPart(struct tree unitHill, int shape, float x, float z)
-    {
-    struct tree * temptree;
-
-    temptree = (struct tree *) amalloc(sizeof(struct tree), arena);
-
-    if (temptree != NULL)
-	{
-	*temptree = unitHill;
-	temptree->treeshape = shape;
-	temptree->x	    = x;
-	temptree->z	    = z;
-	temptree->height    = buildingHeight(temptree->type, temptree->treeshape);
-	temptree->number    = treeID++;
-
-	temptree->next	    = treelist->next;
-	treelist->next	    = temptree;
-	}
-    }
-
-
-/*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 /* reset everything for a new game                               */
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
 void setPlayConditions()
     {
-    struct boom * tempboom,  *tempboom2;
-    struct tank * ttank,  *temptank;
-    struct tree * ttree,  *temptree;
-    struct projectile * killer,  *temp;
+    struct runtimeExplosion * explosion,  *explosionNext;
+    struct runtimeActor * tactor,  *tempactor;
+    struct runtimeMapObject * object,  *mapObjectNode;
+    struct runtimeProjectile * killer,  *temp;
     struct targetInfo * ttarget, *temptarg;
 
-    float x, z;
-    int type, shape;
-    int buildingNumber;
+    int mapObjectNumber;
     size_t mapRecord;
-
-    struct tree unitHill;
+    const struct BattalionMapObject *mapObject;
+    const struct EntityArchetype *mapArchetype;
 
     if (mode == DEMOMODE)
 	showDemoMenu = 0;
-
-    unitHill.type	    = 3;
-    unitHill.y		    = PLANEY;
-    unitHill.deathCount	    = 0;
-    unitHill.death2	    = -1;
-    unitHill.intact	    = 1;
 
     moreThanOne = 0;
 
     setUnconnected();
 
+    if (!ensureDestroyedMapObjectCapacity(battlefieldMap.objectCount))
+	{
+	showError("Out of memory tracking destroyed map objects");
+	exit(1);
+	}
+
     /******************************/
     /* reset all the linked lists */
     /******************************/
 
-    temptank = tanklist;
-    while(temptank != NULL)
+    tempactor = actorlist;
+    while(tempactor != NULL)
 	    {
-	    ttank = temptank;
-	    temptank= temptank->next;
-	    afree(ttank, arena);
+	    tactor = tempactor;
+	    tempactor= tempactor->next;
+	    afree(tactor, arena);
 	    }
 
-    tempboom = projectboom;
-    while (tempboom != NULL)
+    explosion = runtimeExplosionList;
+    while (explosion != NULL)
 	    {
-	    tempboom2 = tempboom;
-	    tempboom = tempboom->next;
-	    afree(tempboom2, arena);
+	    explosionNext = explosion;
+	    explosion = explosion->next;
+	    afree(explosionNext, arena);
 	    }
 
-    temp = projectFlight;
+    temp = runtimeProjectileList;
     while (temp != NULL)
 	    {
 	    killer = temp;
@@ -2516,20 +2602,20 @@ void setPlayConditions()
 	    afree(killer, arena);
 	    }
 
-    temptank = wrecklist;
-    while(temptank != NULL)
+    tempactor = wrecklist;
+    while(tempactor != NULL)
 	    {
-	    ttank = temptank;
-	    temptank = temptank->next;
-	    afree(ttank, arena);
+	    tactor = tempactor;
+	    tempactor = tempactor->next;
+	    afree(tactor, arena);
 	    }
 
-    temptree = treelist;
-    while(temptree != NULL)
+    mapObjectNode = mapObjectList;
+    while(mapObjectNode != NULL)
 	    {
-	    ttree = temptree;
-	    temptree = temptree->next;
-	    afree(ttree, arena);
+	    object = mapObjectNode;
+	    mapObjectNode = mapObjectNode->next;
+	    afree(object, arena);
 	    }
 
     temptarg = targets;
@@ -2545,15 +2631,15 @@ void setPlayConditions()
     /* set up the dummy head nodes*/
     /******************************/
 
-    projectFlight = (struct projectile *) acalloc(1, sizeProjectile, arena);
-    projectboom = (struct boom *) acalloc(1, sizeBoom, arena);
-    tanklist = (struct tank *) acalloc(1, sizeTank, arena);
-    wrecklist = (struct tank *) acalloc(1, sizeTank, arena);
-    treelist = (struct tree *) acalloc(1, sizeof(struct tree), arena);
+    runtimeProjectileList = (struct runtimeProjectile *) acalloc(1, runtimeProjectileSize, arena);
+    runtimeExplosionList = (struct runtimeExplosion *) acalloc(1, runtimeExplosionSize, arena);
+    actorlist = (struct runtimeActor *) acalloc(1, sizeActor, arena);
+    wrecklist = (struct runtimeActor *) acalloc(1, sizeActor, arena);
+    mapObjectList = (struct runtimeMapObject *) acalloc(1, sizeof(struct runtimeMapObject), arena);
     targets = (struct targetInfo *) acalloc(
 	1, sizeof(struct targetInfo), arena);
-    if (projectFlight == NULL || projectboom == NULL || tanklist == NULL ||
-	wrecklist == NULL || treelist == NULL || targets == NULL)
+    if (runtimeProjectileList == NULL || runtimeExplosionList == NULL || actorlist == NULL ||
+	wrecklist == NULL || mapObjectList == NULL || targets == NULL)
 	{
 	showError("Out of memory initializing gameplay lists");
 	exit(1);
@@ -2563,56 +2649,33 @@ void setPlayConditions()
     /* read in data file of structures (trees, buildings, etc.) */
     /************************************************************/
 
-    treeID = 0;
-    mapRecord = 0;
-    for (;;)
+    mapObjectRuntimeId = 0;
+    for (mapRecord = 0; mapRecord < battlefieldMap.objectCount; mapRecord++)
 	    {
-	    if (mapRecord >= battlefieldMap.structureCount)
-		break;
-	    x = battlefieldMap.structures[mapRecord].x;
-	    z = battlefieldMap.structures[mapRecord].z;
-	    type = battlefieldMap.structures[mapRecord].type;
-	    shape = battlefieldMap.structures[mapRecord].shape;
-	    mapRecord++;
-
-	    temptree = (struct tree *) amalloc(sizeof(struct tree), arena);
-	    if (temptree != NULL)
-		{
-		temptree->x		    = x;
-		temptree->z		    = z;
-		temptree->type		    = (char) type;
-		temptree->treeshape	    = (char) shape;
-		temptree->y		    = PLANEY;
-		temptree->deathCount	    = 0;
-		temptree->death2	    = -1;
-		temptree->intact	    = 1;
-		temptree->height	    = buildingHeight(temptree->type, temptree->treeshape);
-		temptree->number	    = treeID++;
-
-		if ((type == 3) && (shape == 13))
-		    {
-		    /* create all the parts of the unit-hill */
-
-		    buildHillPart(unitHill, 0, x,     z);
-		    buildHillPart(unitHill, 2, x-0.6, z);
-		    buildHillPart(unitHill, 1, x,     z+0.6);
-		    buildHillPart(unitHill, 4, x+0.6, z);
-		    buildHillPart(unitHill, 3, x,     z-0.6);
-
-		    buildHillPart(unitHill, 7, x-0.6, z-0.6);
-		    buildHillPart(unitHill, 5, x+0.6, z+0.6);
-		    buildHillPart(unitHill, 8, x+0.6, z-0.6);
-
-		    *temptree = unitHill;
-		    temptree->treeshape	    = 6;
-		    temptree->x		    = x-0.6;
-		    temptree->z		    = z+0.6;
-		    temptree->height	    = buildingHeight(temptree->type, temptree->treeshape);
-		    }
-
-		temptree->next	    = treelist->next;
-		treelist->next	    = temptree;
-		}
+	    mapObject = &battlefieldMap.objects[mapRecord];
+	    mapArchetype = entityCatalogFind(&gameEntities,
+	                                     mapObject->archetype);
+	    if (!entityArchetypeIsMapObject(mapArchetype))
+		continue;
+	    mapObjectNode = (struct runtimeMapObject *)amalloc(sizeof(struct runtimeMapObject), arena);
+	    if (mapObjectNode == NULL)
+		continue;
+	    memset(mapObjectNode, 0, sizeof(*mapObjectNode));
+	    mapObjectNode->x = mapObject->x;
+	    mapObjectNode->y = PLANEY + mapObject->y +
+	                  mapArchetype->verticalOffset +
+	                  mapArchetype->modelGroundOffset * mapObject->scale;
+	    mapObjectNode->z = mapObject->z;
+	    mapObjectNode->height = mapArchetype->collisionHeight * mapObject->scale;
+	    mapObjectNode->death2 = -1;
+	    mapObjectNode->intact = mapObject->active;
+	    mapObjectNode->heading = mapObject->heading;
+	    mapObjectNode->instanceScale = mapObject->scale;
+	    mapObjectNode->dataArchetype = mapArchetype;
+	    mapObjectNode->dataObject = mapObject;
+	    mapObjectNode->number = mapObjectRuntimeId++;
+	    mapObjectNode->next = mapObjectList->next;
+	    mapObjectList->next = mapObjectNode;
 	    }
 
 	/**************************************************************************/
@@ -2620,10 +2683,10 @@ void setPlayConditions()
 	/**************************************************************************/
 
 	if (netUp)
-	    for (temptree = treelist->next; temptree != NULL; temptree = temptree->next)
-		for(buildingNumber=0; buildingNumber< buildingBoomSoFarCounter; buildingNumber++)
-		    if (temptree->number == buildingBoomSoFar[buildingNumber])
-			temptree->intact = 0;
+	    for (mapObjectNode = mapObjectList->next; mapObjectNode != NULL; mapObjectNode = mapObjectNode->next)
+		for(mapObjectNumber=0; mapObjectNumber< destroyedMapObjectHistoryCount; mapObjectNumber++)
+		    if (mapObjectNode->number == destroyedMapObjectHistory[mapObjectNumber])
+			mapObjectNode->intact = 0;
 
     /***********************************************/
     /* read in data file of prepositioned vehicles */
@@ -2631,10 +2694,10 @@ void setPlayConditions()
 
     if (!netUp && !client)
 	{
-	for (mapRecord = 0; mapRecord < battlefieldMap.actorCount;
+	for (mapRecord = 0; mapRecord < battlefieldMap.objectCount;
 	     mapRecord++)
-	    if (!addMapActor(&battlefieldMap.actors[mapRecord], tanklist))
-		showError("Could not create a data-driven map actor");
+	    if (!addMapObject(&battlefieldMap.objects[mapRecord], actorlist))
+		showError("Could not create a data-driven map object");
 	}
 
     /*********************************/
@@ -2647,18 +2710,14 @@ void setPlayConditions()
     mainCounter		    = 0;
     playerWeaponReloadRemaining = 0;
 
-    killtanks = killmtanks = killhelos = 0;
-    killCHHs = killheros = killmechags = 0;
-    killlaunchers = killfighters = killplanes = 0;
-
     xrot = xsaverot	    = 300;
     yrot = ysaverot	    = 0;
 
     if (!netUp && !client)
-	buildingBoomSoFarCounter = 0;
+	destroyedMapObjectHistoryCount = 0;
 
-    Googelon = resetMonsterParameters(Googelon);
-    playerBodyHeading = Googelon.headHorzRotate;
+    playerEntityState = resetPlayerState(playerEntityState);
+    playerBodyHeading = playerEntityState.headHorzRotate;
 
 
 /***********************************************************
@@ -2684,7 +2743,7 @@ void setPlayConditions()
 
 void addRandomCatalogEntity()
     {
-    addRandomConfiguredEntity(targets, tanklist, mainCounter);
+    addRandomConfiguredEntity(targets, actorlist, mainCounter);
     }
 
 
@@ -2698,8 +2757,7 @@ void initialization()
     struct passwd *passwd;
     struct tm* theTime;
     FILE * hiScoreFile;
-    float garb1, garb2;
-    int i, garb3;
+    int i;
     GLint gdtmp;
     GLint tmp[4];
     GLenum type;
@@ -2721,15 +2779,15 @@ void initialization()
     netUp			    = 0;
     client			    = 0;
 
-    buildingBoomSoFarCounter	    = 0;
-    buildingBoomThisFrameCounter    = 0;
-    currentTankNumber		    = 1;
-    biggestTankNumberSent	    = 0;
+    destroyedMapObjectHistoryCount	    = 0;
+    destroyedMapObjectFrameCount    = 0;
+    currentActorNumber		    = 1;
+    biggestActorNumberSent	    = 0;
 
     totalCounter		    = 0;
-    sizeBoom	    = sizeof(struct boom);
-    sizeTank	    = sizeof(struct tank);
-    sizeProjectile  = sizeof(struct projectile);
+    runtimeExplosionSize	    = sizeof(struct runtimeExplosion);
+    sizeActor	    = sizeof(struct runtimeActor);
+    runtimeProjectileSize  = sizeof(struct runtimeProjectile);
 
     /************************************/
     /* set up the window                */
@@ -2868,7 +2926,7 @@ void initialization()
     monitorType = 0; /*THIS IS BAD*/
 
 
-    monsterLookat =  makeMonsterLookat();
+    playerLookat =  makePlayerLookat();
     overviewLookat =  makeOverviewLookat();
 
     /*************************/
@@ -2913,13 +2971,11 @@ void initialization()
     /* initialize all the linked lists  */
     /************************************/
 
-    projectFlight   = NULL;
-    projectboom	    = NULL;
-    tanklist	    = NULL;
+    runtimeProjectileList   = NULL;
+    runtimeExplosionList	    = NULL;
+    actorlist	    = NULL;
     wrecklist	    = NULL;
-    treelist	    = NULL;
-
-    roadSystem	    = NULL;
+    mapObjectList	    = NULL;
 
     initSounds();
 
@@ -3008,27 +3064,6 @@ void initialization()
 	exit(1);
 	}
 
-    /************************************/
-    /* read in data file of roads       */
-    /************************************/
-
-    garb3 = (int)battlefieldMap.roadCount;
-    roadSystem = (struct road *) acalloc(garb3 + 1,
-				       sizeof(struct road), arena);
-    if (roadSystem == NULL)
-	showError("Could not allocate array for map roads\n");
-    else
-	{
-	roadSystem[garb3].type = NULLROAD;
-	for (i = garb3 - 1; i >= 0; i--)
-	    {
-	    roadSystem[i].x = battlefieldMap.roads[garb3 - 1 - i].x;
-	    roadSystem[i].y = battlefieldMap.roads[garb3 - 1 - i].z;
-	    roadSystem[i].type =
-		(char)battlefieldMap.roads[garb3 - 1 - i].type;
-	    }
-	}
-
     /***************************************/
     /* see if this machine can play sounds */
     /***************************************/
@@ -3078,18 +3113,14 @@ void initialization()
 	    }
 	else
 	    {
-	    for(i=0;i<12;i++)
+	    for(i=0;i<3;i++)
 		fprintf(hiScoreFile, "-1 -\n");
 
-	    G[0].number = G[1].number = G[2].number = -1;
-	    F[0].number = F[1].number = F[2].number = -1;
-	    V[0].number = V[1].number = V[2].number = -1;
-	    T[0].number = T[1].number = T[2].number = -1;
-
-	    G[0].name[0] = G[1].name[0] = G[2].name[0] = 0;
-	    F[0].name[0] = F[1].name[0] = F[2].name[0] = 0;
-	    V[0].name[0] = V[1].name[0] = V[2].name[0] = 0;
-	    T[0].name[0] = T[1].name[0] = T[2].name[0] = 0;
+	    for (i = 0; i < 3; i++)
+		{
+		highScores[i].number = -1;
+		highScores[i].name[0] = 0;
+		}
 
 	    fclose(hiScoreFile);
 
@@ -3106,28 +3137,20 @@ void initialization()
 	}
     else
 	{
-	fscanf(hiScoreFile, "%d%c%255s", &(G[0].number), &garbage, G[0].name);
-	fscanf(hiScoreFile, "%d%c%255s", &(G[1].number), &garbage, G[1].name);
-	fscanf(hiScoreFile, "%d%c%255s", &(G[2].number), &garbage, G[2].name);
-
-	fscanf(hiScoreFile, "%d%c%255s", &(V[0].number), &garbage, V[0].name);
-	fscanf(hiScoreFile, "%d%c%255s", &(V[1].number), &garbage, V[1].name);
-	fscanf(hiScoreFile, "%d%c%255s", &(V[2].number), &garbage, V[2].name);
-
-	fscanf(hiScoreFile, "%d%c%255s", &(F[0].number), &garbage, F[0].name);
-	fscanf(hiScoreFile, "%d%c%255s", &(F[1].number), &garbage, F[1].name);
-	fscanf(hiScoreFile, "%d%c%255s", &(F[2].number), &garbage, F[2].name);
-
-	fscanf(hiScoreFile, "%d%c%255s", &(T[0].number), &garbage, T[0].name);
-	fscanf(hiScoreFile, "%d%c%255s", &(T[1].number), &garbage, T[1].name);
-	fscanf(hiScoreFile, "%d%c%255s", &(T[2].number), &garbage, T[2].name);
+	for (i = 0; i < 3; i++)
+	    if (fscanf(hiScoreFile, "%d%c%255s",
+	               &highScores[i].number, &garbage,
+	               highScores[i].name) != 3)
+		{
+		highScores[i].number = -1;
+		highScores[i].name[0] = 0;
+		}
 
 	fclose(hiScoreFile);
 	}
 
 
-    Googelon.monster = DATAENTITY;
-    Googelon.dataArchetype = playerEntityArchetype;
+    playerEntityState.dataArchetype = playerEntityArchetype;
 
     }
 
@@ -3183,7 +3206,7 @@ static void updatePlayerFire(void)
 
     firePressed = playerInput.fireMouse || playerInput.fireControlLeft ||
 	          playerInput.fireControlRight;
-    Googelon.beamOn = (mode == PLAYMODE) && !paused &&
+    playerEntityState.beamOn = (mode == PLAYMODE) && !paused &&
 	firePressed;
     if (!firePressed)
 	playerProjectileTriggerLatched = 0;
@@ -3200,7 +3223,7 @@ void checkMouse()
     mouseDeltaX = mouseDeltaY = 0;
     tkGetMouseDelta(&mouseDeltaX, &mouseDeltaY);
 
-    Googelon.monsterGo = Googelon.monsterBack = 0;
+    playerEntityState.movingForward = playerEntityState.movingBackward = 0;
     playerMoveActive = 0;
     offsetX = 0;
 
@@ -3219,22 +3242,22 @@ void checkMouse()
 	    verticalAim += 18;
 
 	if ((horizontalAim != 0) || (verticalAim != 0))
-	    Googelon.monsterMoving = 1;
+	    playerEntityState.moving = 1;
 
-	Googelon.headHorzRotate += (int) horizontalAim;
-	Googelon.headVertRotate += (int) verticalAim;
-	if (Googelon.monster == DATAENTITY && playerEntityArchetype != NULL)
+	playerEntityState.headHorzRotate += (int) horizontalAim;
+	playerEntityState.headVertRotate += (int) verticalAim;
+	if (playerEntityArchetype != NULL)
 	    {
 	    pitchMinimum = (int)(playerEntityArchetype->aimPitchMin * 10.0f);
 	    pitchMaximum = (int)(playerEntityArchetype->aimPitchMax * 10.0f);
-	    if (Googelon.headVertRotate < pitchMinimum)
-		Googelon.headVertRotate = pitchMinimum;
-	    if (Googelon.headVertRotate > pitchMaximum)
-		Googelon.headVertRotate = pitchMaximum;
+	    if (playerEntityState.headVertRotate < pitchMinimum)
+		playerEntityState.headVertRotate = pitchMinimum;
+	    if (playerEntityState.headVertRotate > pitchMaximum)
+		playerEntityState.headVertRotate = pitchMaximum;
 	    }
 
-	if (Googelon.xspeed != 0)
-	    offsetX = -horizontalAim / Googelon.xspeed;
+	if (playerEntityState.xspeed != 0)
+	    offsetX = -horizontalAim / playerEntityState.xspeed;
 	if (offsetX > 1)
 	    offsetX = 1;
 	else if (offsetX < -1)
@@ -3242,8 +3265,7 @@ void checkMouse()
 
 	forward = playerInput.forward - playerInput.backward;
 	sideways = playerInput.right - playerInput.left;
-	if (Googelon.monster == DATAENTITY &&
-	    playerEntityArchetype != NULL &&
+	if (playerEntityArchetype != NULL &&
 	    playerEntityArchetype->controlMode == ENTITY_CONTROL_STEERED)
 	    {
 	    steering = playerInput.left - playerInput.right;
@@ -3253,8 +3275,8 @@ void checkMouse()
 		    playerInput.left, playerInput.right,
 		    playerEntityArchetype->playerSteerRate);
 		playerBodyHeading += steeringDelta;
-		Googelon.headHorzRotate += steeringDelta;
-		Googelon.monsterMoving = 1;
+		playerEntityState.headHorzRotate += steeringDelta;
+		playerEntityState.moving = 1;
 		}
 	    if (playerBodyHeading < 0)
 		playerBodyHeading += 3600;
@@ -3266,27 +3288,27 @@ void checkMouse()
 		if (forward < 0)
 		    playerMoveAngle += PI;
 		playerMoveActive = 1;
-		Googelon.monsterMoving = 1;
+		playerEntityState.moving = 1;
 		if (forward < 0)
-		    Googelon.monsterBack = 1;
+		    playerEntityState.movingBackward = 1;
 		else
-		    Googelon.monsterGo = 1;
+		    playerEntityState.movingForward = 1;
 		}
 	    }
 	else
 	    {
-	    if ((view == MONSTERVIEW) || (view == FIRSTPERSONVIEW))
+	    if ((view == PLAYERVIEW) || (view == FIRSTPERSONVIEW))
 		sideways = -sideways;
 	    if (forward || sideways)
 		{
-		playerMoveAngle = Googelon.headHorzRotate * BIG_DEG_TO_RAD +
+		playerMoveAngle = playerEntityState.headHorzRotate * BIG_DEG_TO_RAD +
 		    atan2((double) sideways, (double) forward);
 		playerMoveActive = 1;
-		Googelon.monsterMoving = 1;
+		playerEntityState.moving = 1;
 		if ((forward < 0) && !sideways)
-		    Googelon.monsterBack = 1;
+		    playerEntityState.movingBackward = 1;
 		else
-		    Googelon.monsterGo = 1;
+		    playerEntityState.movingForward = 1;
 		}
 	    }
 	}
@@ -3302,8 +3324,8 @@ static void clearPlayerInput(void)
 
     memset(&playerInput, 0, sizeof(playerInput));
     playerMoveActive = 0;
-    Googelon.monsterGo = Googelon.monsterBack = 0;
-    Googelon.beamOn = 0;
+    playerEntityState.movingForward = playerEntityState.movingBackward = 0;
+    playerEntityState.beamOn = 0;
     playerProjectileTriggerLatched = 0;
     tkGetMouseDelta(&unusedX, &unusedY);
     }
@@ -3433,7 +3455,6 @@ void demoKeys(int key)
 	mode = PLAYMODE;
 	showOptions = 0;
 	showHelp = 0;
-	Googelon.monster = DATAENTITY;
 	setPlayConditions();
 	clearPlayerInput();
 	setPointerCaptured(1);
@@ -3460,7 +3481,6 @@ void demoKeys(int key)
 			    mode = PLAYMODE;
 			    showOptions = 0;
 			    showHelp = 0;
-			    Googelon.monster = DATAENTITY;
 			    setPlayConditions();
 			    clearPlayerInput();
 			    setPointerCaptured(1);
@@ -3480,7 +3500,7 @@ void playKeys(int key)
     {
     switch(key)
 	{
-	case TK_1:	view = MONSTERVIEW;
+	case TK_1:	view = PLAYERVIEW;
 			    break;
 
 	case TK_2:	view = OMNISCIENTVIEW;
@@ -3703,70 +3723,70 @@ void checkInput ()
 
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
-/* deal with a dead monster (not necessarily your monster)       */
+/* deal with a dead player (not necessarily your player)       */
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
-void updateDeadMonster(float x, float z, struct monsterInfo * thaMonster)
+void updateDeadPlayer(float x, float z, struct runtimePlayer * playerState)
     {
+    const struct EntityArchetype *archetype;
+    const struct EntityArchetype *debris;
+    const struct EntityArchetype *fire;
     float Vplane;
-    int i, j, k;
+    int fragment;
 
-    thaMonster->monsterIsDead = 1;
+    archetype = playerArchetype(playerState);
+    playerState->dead = 1;
 
-    if (thaMonster == &Googelon) /* its the player's monster that dies */
+    if (playerState == &playerEntityState) /* its the player's player that dies */
 	view = OMNISCIENTVIEW;
 
-    if (thaMonster->energyRemaining < 0)
-	thaMonster->energyRemaining = 0;
+    if (playerState->energyRemaining < 0)
+	playerState->energyRemaining = 0;
 
     /************************/
-    /* update dying monster */
+    /* update dying player */
     /************************/
 
-    thaMonster->deadCount += 1;
+    playerState->deadCount += 1;
 
-    if (thaMonster->deadCount > 45)
+    if (playerState->deadCount > 45)
 	{
-	thaMonster->deadCount = 45;
-	thaMonster->timeDead += 1;
+	playerState->deadCount = 45;
+	playerState->timeDead += 1;
 	}
 
-    if (thaMonster->deadCount == 44)
+    if (playerState->deadCount == 44)
 	{
-	if (thaMonster->monster != VAPOUR)
-	    {
-	    doSoundAt(CRASH, x,
-	              (thaMonster->bottom + thaMonster->height) * 0.5f, z);
-	    }
-
-	if (thaMonster->monster == FLUTTER)
-	    {
-	    addProjectile( x-0.2,  PLANEY+0.25,  z+0.2, 3, 0,  -0.001,  0, 10000, NULL);
-	    addProjectile( x+0.2,  PLANEY+0.25,  z+0.2, 3, 0,  -0.001,  0, 10000, NULL);
-	    addProjectile( x    ,  PLANEY+0.25,  z,     3, 0,  -0.001,  0, 10000, NULL);
-	    addProjectile( x-0.2,  PLANEY+0.25,  z-0.2, 3, 0,  -0.001,  0, 10000, NULL);
-	    addProjectile( x+0.2,  PLANEY+0.25,  z-0.2, 3, 0,  -0.001,  0, 10000, NULL);
-	    }
-
-	if (thaMonster->monster == TECHS)
-	    {
-	    addProjectile( x-0.2,  PLANEY+0.2,  z+0.2, 3, 0,  -0.001,  0, 10000, NULL);
-	    addProjectile( x+0.2,  PLANEY+0.2,  z+0.2, 3, 0,  -0.001,  0, 10000, NULL);
-	    addProjectile( x    ,  PLANEY+0.2,  z,     3, 0,  -0.001,  0, 10000, NULL);
-	    addProjectile( x-0.2,  PLANEY+0.2,  z-0.2, 3, 0,  -0.001,  0, 10000, NULL);
-	    addProjectile( x+0.2,  PLANEY+0.2,  z-0.2, 3, 0,  -0.001,  0, 10000, NULL);
-
-	    Vplane = sqrt(GRAVITY * 1.5) * 0.7071;
-
-		for (i=-1;i<2;i++)
-		    for (j=0;j<3;j++)
-			for (k=-1;k<2;k++)
-				if ((rand() % 100) < 75)
-				    {
-				addProjectile( x+i*.35, PLANEY+(j*.35)+.1, z+k*.35, 0,
-				    sin(randy(PI)) * Vplane, Vplane, cos(randy(PI)) * Vplane, 75, NULL);
-				    }
-	    }
+	if (archetype == NULL)
+	    return;
+	doSoundKeyAt(archetype->destructionSound, x,
+	          (playerState->bottom + playerState->height) * 0.5f, z);
+	spawnDestructionEffects(
+	    archetype, x,
+	    (playerState->bottom + playerState->height) * 0.5f, z,
+	    entityArchetypeCollisionRadius(archetype),
+	    archetype->collisionHeight,
+	    playerState, 1);
+	debris = entityCatalogFind(&gameEntities,
+	                              archetype->destructionProjectile);
+	fire = entityCatalogFind(&gameEntities,
+	                            archetype->wreckFireProjectile);
+	Vplane = sqrt(GRAVITY * 1.5) * 0.7071;
+	for (fragment = 0;
+	     fragment < archetype->destructionDebrisCount; fragment++)
+	    spawnProjectile(x + randy(entityArchetypeCollisionRadius(archetype)),
+	                  PLANEY + archetype->verticalOffset +
+	                      randy(archetype->collisionHeight * 0.5f) +
+	                      archetype->collisionHeight * 0.5f,
+	                  z + randy(entityArchetypeCollisionRadius(archetype)), debris,
+	                  sin(randy(PI)) * Vplane, Vplane,
+	                  cos(randy(PI)) * Vplane, 75.0f, NULL);
+	for (fragment = 0;
+	     fragment < archetype->destructionFireCount; fragment++)
+	    spawnProjectile(x + randy(entityArchetypeCollisionRadius(archetype)),
+	                  PLANEY + 0.14f,
+	                  z + randy(entityArchetypeCollisionRadius(archetype)), fire,
+	                  0.0f, -0.001f, 0.0f, 10000.0f, NULL);
 	}
     }
 
@@ -3777,12 +3797,12 @@ void updateDeadMonster(float x, float z, struct monsterInfo * thaMonster)
 
 void updateTargets()
     {
-    struct tree * temptree;
-    struct tank * temptank;
+    struct runtimeMapObject * mapObjectNode;
+    struct runtimeActor * tempactor;
     struct targetInfo * temptarget;
     struct targetInfo * temptarget2;
-    struct monsterInfo  thaMonster;
-    struct tree ttree;
+    struct runtimePlayer  playerState;
+    struct runtimeMapObject object;
     float mAngle, obsangle;
     float mRad, mAng;
     float tx, tz;
@@ -3791,7 +3811,7 @@ void updateTargets()
 
     for(temptarget = targets->next; temptarget != NULL; temptarget = temptarget->next)
 	{
-	thaMonster  = temptarget->monster;
+	playerState  = temptarget->player;
 	tx	    = temptarget->x;
 	tz	    = temptarget->z;
 
@@ -3799,79 +3819,50 @@ void updateTargets()
     /* deal with the networked monsters */
     /************************************/
 
-    if (temptarget->net_clientFrom != COMPUTER_MONSTER)
+    if (temptarget->net_clientFrom != LOCAL_AI_PLAYER)
 	{
-	thaMonster.energyRemaining	= temptarget->net_energyRemaining;
-	thaMonster.beamOn		= temptarget->net_beamOn;
+	playerState.energyRemaining	= temptarget->net_energyRemaining;
+	playerState.beamOn		= temptarget->net_beamOn;
 
 	nearAngle = temptarget->net_headHorzRotate;
-	if (fabs(thaMonster.headHorzRotate - (temptarget->net_headHorzRotate + 3600)) < fabs(thaMonster.headHorzRotate - nearAngle))
+	if (abs(playerState.headHorzRotate -
+	        (temptarget->net_headHorzRotate + 3600)) <
+	    abs(playerState.headHorzRotate - nearAngle))
 	    nearAngle = temptarget->net_headHorzRotate + 3600;
-	if (fabs(thaMonster.headHorzRotate - (temptarget->net_headHorzRotate - 3600)) < fabs(thaMonster.headHorzRotate - nearAngle))
+	if (abs(playerState.headHorzRotate -
+	        (temptarget->net_headHorzRotate - 3600)) <
+	    abs(playerState.headHorzRotate - nearAngle))
 	    nearAngle = temptarget->net_headHorzRotate - 3600;
 
-	thaMonster.headHorzRotate	= 0.7 * thaMonster.headHorzRotate + 0.3 * nearAngle;
+	playerState.headHorzRotate	= 0.7 * playerState.headHorzRotate + 0.3 * nearAngle;
 
-	thaMonster.headVertRotate	= 0.9 * thaMonster.headVertRotate + 0.1 * temptarget->net_headVertRotate;
+	playerState.headVertRotate	= 0.9 * playerState.headVertRotate + 0.1 * temptarget->net_headVertRotate;
 	temptarget->x			= 0.9 * temptarget->x + 0.1 * temptarget->net_x;
 	temptarget->z			= 0.9 * temptarget->z + 0.1 * temptarget->net_z;
 
-	if (thaMonster.energyRemaining > 0)
+	if (playerState.energyRemaining > 0)
 	    {
-	    thaMonster.rot1 = cos(thaMonster.moveCount) * 0.02;
-	    thaMonster.rot2 = sin(thaMonster.moveCount) * 0.05;
+	    playerState.rot1 = cos(playerState.moveCount) * 0.02;
+	    playerState.rot2 = sin(playerState.moveCount) * 0.05;
 	    }
 	else
 	    {
-	    updateDeadMonster(temptarget->x, temptarget->z, &thaMonster);
+	    updateDeadPlayer(temptarget->x, temptarget->z, &playerState);
 	    }
 
-	thaMonster.monsterMoving = 1;
-	thaMonster.moveCount += 1;
+	playerState.moving = 1;
+	playerState.moveCount += 1;
 
 	/************************************************/
 	/* update the weapons of the networked monsters */
 	/************************************************/
 
-	if (thaMonster.beamOn)
-	    switch (thaMonster.monster){
-		case GOOGELON:	    updateMonsterBeamFromAsset(
-						&Googelon, targets, temptarget->x,
-						temptarget->z, tanklist,
-						allTreesEverywherePtrs,
-						numTreesEverywhere, &thaMonster);
+	if (playerState.beamOn)
+	    updatePlayerWeapon(
+		temptarget->x, temptarget->z, &playerState,
+		&(temptarget->player), mapObjectList);
 
-				    thaMonster.energyRemaining -= 0.15;
-				    break;
-
-		case TECHS:	    updateMonsterProjectileFromAsset(
-					temptarget->x, temptarget->z,
-					mainCounter, &thaMonster,
-					&(temptarget->monster));
-				    thaMonster.energyRemaining -= 0.09;
-				    break;
-
-		case VAPOUR:	    updateMonsterProjectileFromAsset(
-					temptarget->x, temptarget->z,
-					mainCounter, &thaMonster,
-					&(temptarget->monster));
-				    thaMonster.energyRemaining -= 0.1;
-				    break;
-
-		case FLUTTER:	    updateMonsterBeamFromAsset(
-						&Googelon, targets, temptarget->x,
-						temptarget->z, tanklist,
-						allTreesEverywherePtrs,
-						numTreesEverywhere, &thaMonster);
-
-				    thaMonster.energyRemaining -= 0.15;
-				    break;
-
-		default:	    showError("Bogus Monster! (Update Targets)");
-				    break;
-	    }
-
-	temptarget->monster = thaMonster;
+	temptarget->player = playerState;
 	}
     else
 	{
@@ -3879,54 +3870,53 @@ void updateTargets()
 	/* deal with the computer controlled monsters */
 	/**********************************************/
 
-	if (thaMonster.monster == FLUTTER)
-	    {
-	    mRad = 1.2;
-	    mAng = 1.0;
-	    }
-	else
-	    {
-	    mRad = 0.8;
-	    mAng = 0.8;
-	    }
+	{
+	const struct EntityArchetype *movementArchetype;
 
-	if (((thaMonster.monsterGo || thaMonster.monsterBack)) && (!thaMonster.monsterIsDead))
+	movementArchetype = playerArchetype(&playerState);
+	mRad = movementArchetype == NULL ? playerState.width + 0.5f :
+	       entityArchetypeCollisionRadius(movementArchetype) + 0.5f;
+	mAng = 0.8f;
+	}
+
+	if (((playerState.movingForward || playerState.movingBackward)) && (!playerState.dead))
 	    {
-	    thaMonster.monsterMoving = 1;
+	    playerState.moving = 1;
 
-	    thaMonster.energyRemaining -= thaMonster.moveCost; /* takes energy to move, not to turn */
+	    playerState.energyRemaining -= playerState.moveCost; /* takes energy to move, not to turn */
 
-	    if (thaMonster.monsterGo)
-		mAngle = (thaMonster.headHorzRotate * BIG_DEG_TO_RAD);
-	    if (thaMonster.monsterBack)
-		mAngle = (thaMonster.headHorzRotate + 1800) * BIG_DEG_TO_RAD;
+	    if (playerState.movingForward)
+		mAngle = (playerState.headHorzRotate * BIG_DEG_TO_RAD);
+	    if (playerState.movingBackward)
+		mAngle = (playerState.headHorzRotate + 1800) * BIG_DEG_TO_RAD;
 
 
 
 	    blocked = 0;
 
-	    if (monsterHasSolidCollision(&thaMonster))
+	    if (playerHasSolidCollision(&playerState))
 		{
 		/****************************************************/
 		/* cant move through trees until they are destroyed */
 		/****************************************************/
 
-		temptree = treelist->next;
-		while ((temptree != NULL) && (!blocked))
+		mapObjectNode = mapObjectList->next;
+		while ((mapObjectNode != NULL) && (!blocked))
 		    {
-		    ttree = *temptree;
+		    object = *mapObjectNode;
 
-		    if (ttree.intact)
-			trad = sqrt((ttree.x - tx) * (ttree.x - tx) + (ttree.z - tz) * (ttree.z - tz));
+		    if (object.intact)
+			trad = sqrt((object.x - tx) * (object.x - tx) + (object.z - tz) * (object.z - tz));
 		    else
 			trad = mRad;
 
-		    if (ttree.intact && (trad < mRad) &&
+		    if (object.intact && mapObjectCollisionRadius(&object) > 0.0f &&
+		        (trad < mRad + mapObjectCollisionRadius(&object)) &&
 		        worldVerticalIntervalsOverlap(
-			thaMonster.bottom, thaMonster.height,
-			ttree.y, structureCollisionTop(&ttree)))
+			playerState.bottom, playerState.height,
+			object.y, mapObjectCollisionTop(&object)))
 			{
-			obsangle = computeAngle(ttree.z,  tz, ttree.x,  tx);
+			obsangle = computeAngle(object.z,  tz, object.x,  tx);
 
 			if (obsangle < 0)
 			    obsangle += TWOPI;
@@ -3937,26 +3927,26 @@ void updateTargets()
 				}
 			}
 
-		    temptree = temptree->next;
+		    mapObjectNode = mapObjectNode->next;
 		    }
 
 		/****************************************************/
-		/* cant move through tanks until they are destroyed */
+		/* cant move through actors until they are destroyed */
 		/****************************************************/
 
-		temptank = tanklist->next;
-		while ((temptank != NULL) && !blocked)
+		tempactor = actorlist->next;
+		while ((tempactor != NULL) && !blocked)
 		    {
 
-		    trad = sqrt((temptank->x - tx) * (temptank->x - tx) + (temptank->z - tz) * (temptank->z - tz));
+		    trad = sqrt((tempactor->x - tx) * (tempactor->x - tx) + (tempactor->z - tz) * (tempactor->z - tz));
 
-		    if (trad < thaMonster.width + tankCollisionRadius(temptank) &&
+		    if (trad < playerState.width + actorCollisionRadius(tempactor) &&
 		        worldVerticalIntervalsOverlap(
-			thaMonster.bottom, thaMonster.height,
-			tankCollisionBottom(temptank),
-			tankCollisionTop(temptank)))
+			playerState.bottom, playerState.height,
+			actorCollisionBottom(tempactor),
+			actorCollisionTop(tempactor)))
 			{
-			obsangle = computeAngle(temptank->z, tz, temptank->x, tx);
+			obsangle = computeAngle(tempactor->z, tz, tempactor->x, tx);
 
 			if (obsangle < 0)
 			    obsangle += TWOPI;
@@ -3967,7 +3957,7 @@ void updateTargets()
 			    }
 			}
 
-		    temptank = temptank->next;
+		    tempactor = tempactor->next;
 		    }
 		}
 
@@ -3975,23 +3965,23 @@ void updateTargets()
 	    /* cant move through other targets until they are destroyed or move out of the way */
 	    /***********************************************************************************/
 
-	    if (monsterHasSolidCollision(&temptarget->monster))
+	    if (playerHasSolidCollision(&temptarget->player))
 		{
 		temptarget2 = targets->next;
 		while ((temptarget2 != NULL) && (!blocked))
 		    {
 		    if ((temptarget2 != temptarget) &&
-		        monsterHasSolidCollision(&temptarget2->monster) &&
-		        (temptarget2->monster.monsterIsDead != 1))
+		        playerHasSolidCollision(&temptarget2->player) &&
+		        (temptarget2->player.dead != 1))
 			{
 			rad = sqrt((temptarget2->x - tx) * (temptarget2->x - tx) + (temptarget2->z - tz) * (temptarget2->z - tz));
 
-			if (rad < thaMonster.width +
-			          temptarget2->monster.width &&
+			if (rad < playerState.width +
+			          temptarget2->player.width &&
 			    worldVerticalIntervalsOverlap(
-				thaMonster.bottom, thaMonster.height,
-				temptarget2->monster.bottom,
-				temptarget2->monster.height))
+				playerState.bottom, playerState.height,
+				temptarget2->player.bottom,
+				temptarget2->player.height))
 			    {
 			    obsangle = computeAngle(temptarget2->z, tz, temptarget2->x, tx);
 
@@ -4006,21 +3996,21 @@ void updateTargets()
 		    }
 
 		/**************************************/
-		/* cant move through player's monster */
+		/* cant move through player's player */
 		/**************************************/
 
-		rad = sqrt((tx - Googelon.x) * (tx - Googelon.x) +
-		           (tz - Googelon.z) * (tz - Googelon.z));
+		rad = sqrt((tx - playerEntityState.x) * (tx - playerEntityState.x) +
+		           (tz - playerEntityState.z) * (tz - playerEntityState.z));
 
-		if ((rad < thaMonster.width + Googelon.width) &&
-		    monsterHasSolidCollision(&Googelon) &&
-		    (Googelon.monsterIsDead != 1) &&
+		if ((rad < playerState.width + playerEntityState.width) &&
+		    playerHasSolidCollision(&playerEntityState) &&
+		    (playerEntityState.dead != 1) &&
 		    worldVerticalIntervalsOverlap(
-			thaMonster.bottom, thaMonster.height,
-			Googelon.bottom, Googelon.height))
+			playerState.bottom, playerState.height,
+			playerEntityState.bottom, playerEntityState.height))
 		    {
-		    obsangle = computeAngle(Googelon.z, tz,
-		                            Googelon.x, tx);
+		    obsangle = computeAngle(playerEntityState.z, tz,
+		                            playerEntityState.x, tx);
 
 		    if (obsangle < 0)
 			obsangle += TWOPI;
@@ -4032,8 +4022,8 @@ void updateTargets()
 
 	    if (!blocked)
 		{
-		temptarget->z += cos(mAngle) * thaMonster.speed;
-		temptarget->x += sin(mAngle) * thaMonster.speed;
+		temptarget->z += cos(mAngle) * playerState.speed;
+		temptarget->x += sin(mAngle) * playerState.speed;
 		}
 	}
 
@@ -4041,69 +4031,40 @@ void updateTargets()
 	/* update target Weapons          */
 	/**********************************/
 
-	if (thaMonster.beamOn)
-	    switch (thaMonster.monster){
-		case GOOGELON:	    updateMonsterBeamFromAsset(
-						&Googelon, targets, temptarget->x,
-						temptarget->z, tanklist,
-						allTreesEverywherePtrs,
-						numTreesEverywhere, &thaMonster);
-
-				    thaMonster.energyRemaining -= 0.15;
-				    break;
-
-		case TECHS:	    updateMonsterProjectileFromAsset(
-					temptarget->x, temptarget->z,
-					mainCounter, &thaMonster,
-					&(temptarget->monster));
-				    thaMonster.energyRemaining -= 0.09;
-				    break;
-
-		case VAPOUR:	    updateMonsterProjectileFromAsset(
-					temptarget->x, temptarget->z,
-					mainCounter, &thaMonster,
-					&(temptarget->monster));
-				    thaMonster.energyRemaining -= 0.1;
-				    break;
-
-		case FLUTTER:	    updateMonsterBeamFromAsset(
-						&Googelon, targets, temptarget->x,
-						temptarget->z, tanklist,
-						allTreesEverywherePtrs,
-						numTreesEverywhere, &thaMonster);
-
-				    thaMonster.energyRemaining -= 0.15;
-				    break;
-
-		default:	    showError("Bogus Monster! (Update Targets)");
-				    break;
-	    }
+	if (playerState.beamOn)
+	    updatePlayerWeapon(
+		temptarget->x, temptarget->z, &playerState,
+		&(temptarget->player), mapObjectList);
 
 	/*****************/
 	/* update energy */
 	/*****************/
 
-	if (thaMonster.energyRemaining > 0)
+	if (playerState.energyRemaining > 0)
 	    {
-	    thaMonster.energyRemaining += thaMonster.regenRate;
+	    playerState.energyRemaining += playerState.regenRate;
 
-	    if (thaMonster.energyRemaining > MAXLIFE)
-		thaMonster.energyRemaining = MAXLIFE;
+	    if (playerState.energyRemaining > MAXLIFE)
+		playerState.energyRemaining = MAXLIFE;
 
-	    thaMonster.rot1 = cos(thaMonster.moveCount) * 0.02;
-	    thaMonster.rot2 = sin(thaMonster.moveCount) * 0.05;
+	    playerState.rot1 = cos(playerState.moveCount) * 0.02;
+	    playerState.rot2 = sin(playerState.moveCount) * 0.05;
 	    }
 	else
 	    {
-	    updateDeadMonster(temptarget->x, temptarget->z, &thaMonster);
+	    updateDeadPlayer(temptarget->x, temptarget->z, &playerState);
 	    }
 
-	if (thaMonster.monsterMoving)
-	    thaMonster.moveCount += 1;
+	if (playerState.moving)
+	    playerState.moveCount += 1;
 
 
-	temptarget->monster = thaMonster;
+	temptarget->player = playerState;
 	}
+    updateMovementAudio(playerArchetype(&temptarget->player),
+                        temptarget->x, temptarget->player.y,
+                        temptarget->z,
+                        temptarget->player.moving, mainCounter);
     }
 }
 
@@ -4114,8 +4075,8 @@ void updateTargets()
 
 void doUpdate()
     {
-    struct tree * temptree;
-    struct tank * temptank;
+    struct runtimeMapObject * mapObjectNode;
+    struct runtimeActor * tempactor;
     struct targetInfo * temptarget;
     struct targetInfo * temptarg;
     float mAngle;
@@ -4128,13 +4089,13 @@ void doUpdate()
     if (playerWeaponReloadRemaining > 0)
 	playerWeaponReloadRemaining -= 1;
 
-    if (mode == DEMOMODE && Googelon.moveCount >= 150)
+    if (mode == DEMOMODE && playerEntityState.moveCount >= 150)
 	showDemoMenu = 1;
 
-    audioSetListener(Googelon.x,
-	(Googelon.bottom + Googelon.height) * 0.5f,
-	Googelon.z, entityListenerHeadingRadians(
-	    playerEntityArchetype, Googelon.headHorzRotate,
+    audioSetListener(playerEntityState.x,
+	(playerEntityState.bottom + playerEntityState.height) * 0.5f,
+	playerEntityState.z, entityListenerHeadingRadians(
+	    playerEntityArchetype, playerEntityState.headHorzRotate,
 	    playerBodyHeading));
 
     /*************************************************/
@@ -4157,80 +4118,82 @@ void doUpdate()
 
     if (!client)
 	{
-	if (((mainCounter % arrivalTime) == 0) && !Googelon.monsterIsDead)
+	if (((mainCounter % arrivalTime) == 0) && !playerEntityState.dead)
 	    {
 		    addRandomCatalogEntity();
 
-	    if ((mode == DEMOMODE) && !(rand() % 4) && (Googelon.moveCount >= 150))
+	    if ((mode == DEMOMODE) && !(rand() % 4) && (playerEntityState.moveCount >= 150))
 		view = (view + 1) % 3;
 	    }
 	}
 
     /**********************************/
-    /* monster on the move            */
+    /* player on the move            */
     /**********************************/
 
-    if (Googelon.monsterGo || Googelon.monsterBack)
+    if (playerEntityState.movingForward || playerEntityState.movingBackward)
 	{
-	Googelon.monsterMoving = 1;
+	playerEntityState.moving = 1;
 
-	Googelon.energyRemaining -= Googelon.moveCost; /* takes energy to move, not to turn */
+	playerEntityState.energyRemaining -= playerEntityState.moveCost; /* takes energy to move, not to turn */
 
 	if (playerMoveActive)
 	    mAngle = playerMoveAngle;
-	else if (Googelon.monsterGo)
-	    mAngle = (Googelon.headHorzRotate * BIG_DEG_TO_RAD);
-	else if (Googelon.monsterBack)
-	    mAngle = (Googelon.headHorzRotate + 1800) * BIG_DEG_TO_RAD;
+	else if (playerEntityState.movingForward)
+	    mAngle = (playerEntityState.headHorzRotate * BIG_DEG_TO_RAD);
+	else if (playerEntityState.movingBackward)
+	    mAngle = (playerEntityState.headHorzRotate + 1800) * BIG_DEG_TO_RAD;
 
-	zv = cos(mAngle) * Googelon.speed;
-	xv = sin(mAngle) * Googelon.speed;
-	nextX = Googelon.x + xv;
-	nextZ = Googelon.z + zv;
+	zv = cos(mAngle) * playerEntityState.speed;
+	xv = sin(mAngle) * playerEntityState.speed;
+	nextX = playerEntityState.x + xv;
+	nextZ = playerEntityState.z + zv;
 	blocked = 0;
 
-	if (monsterHasSolidCollision(&Googelon))
+	if (playerHasSolidCollision(&playerEntityState))
 	    {
-	    temptree = treelist->next;
-	    while ((temptree != NULL) && (!blocked))
+	    mapObjectNode = mapObjectList->next;
+	    while ((mapObjectNode != NULL) && (!blocked))
 		{
-		if (temptree->intact &&
+		if (mapObjectNode->intact &&
+		    mapObjectCollisionRadius(mapObjectNode) > 0.0f &&
 		    worldCylindersOverlap(
-			nextX, nextZ, Googelon.width,
-			Googelon.bottom, Googelon.height,
-			temptree->x, temptree->z, TREEBLASTR,
-			temptree->y, structureCollisionTop(temptree)))
+			nextX, nextZ, playerEntityState.width,
+			playerEntityState.bottom, playerEntityState.height,
+			mapObjectNode->x, mapObjectNode->z,
+			mapObjectCollisionRadius(mapObjectNode),
+			mapObjectNode->y, mapObjectCollisionTop(mapObjectNode)))
 		    blocked = 1;
-		temptree = temptree->next;
+		mapObjectNode = mapObjectNode->next;
 		}
 
-	    temptank = tanklist->next;
-	    while ((temptank != NULL) && !blocked)
+	    tempactor = actorlist->next;
+	    while ((tempactor != NULL) && !blocked)
 		{
-		if (temptank->damage > 0 &&
+		if (tempactor->damage > 0 &&
 		    worldCylindersOverlap(
-			nextX, nextZ, Googelon.width,
-			Googelon.bottom, Googelon.height,
-			temptank->x, temptank->z,
-			tankCollisionRadius(temptank),
-			tankCollisionBottom(temptank),
-			tankCollisionTop(temptank)))
+			nextX, nextZ, playerEntityState.width,
+			playerEntityState.bottom, playerEntityState.height,
+			tempactor->x, tempactor->z,
+			actorCollisionRadius(tempactor),
+			actorCollisionBottom(tempactor),
+			actorCollisionTop(tempactor)))
 		    blocked = 1;
-		temptank = temptank->next;
+		tempactor = tempactor->next;
 		}
 
 	    temptarget = targets->next;
 	    while ((temptarget != NULL) && (!blocked))
 		{
-		if (monsterHasSolidCollision(&temptarget->monster) &&
-		    temptarget->monster.monsterIsDead != 1 &&
+		if (playerHasSolidCollision(&temptarget->player) &&
+		    temptarget->player.dead != 1 &&
 		    worldCylindersOverlap(
-			nextX, nextZ, Googelon.width,
-			Googelon.bottom, Googelon.height,
+			nextX, nextZ, playerEntityState.width,
+			playerEntityState.bottom, playerEntityState.height,
 			temptarget->x, temptarget->z,
-			temptarget->monster.width,
-			temptarget->monster.bottom,
-			temptarget->monster.height))
+			temptarget->player.width,
+			temptarget->player.bottom,
+			temptarget->player.height))
 		    blocked = 1;
 		temptarget = temptarget->next;
 		}
@@ -4238,46 +4201,21 @@ void doUpdate()
 
 	if (!blocked)
 	    {
-	    Googelon.x = nextX;
-	    Googelon.z = nextZ;
+	    playerEntityState.x = nextX;
+	    playerEntityState.z = nextZ;
 	    }
 	}
+
+    updateMovementAudio(playerEntityArchetype, playerEntityState.x,
+                        playerEntityState.y, playerEntityState.z,
+                        playerEntityState.moving, mainCounter);
 
     /**********************/
     /* update structures  */
     /**********************/
 
-    if (treelist->next != NULL)
-	updatetrees(treelist, itsChristmas);
-
-    /**********************************/
-    /* isolate the trees on the plane */
-    /*  must come after update trees  */
-    /**********************************/
-
-    numTreesOnPlane = 0;
-    numTreesEverywhere = 0;
-
-    for(temptree = treelist->next; temptree != NULL; temptree = temptree->next)
-	{
-	allTreesEverywhere[numTreesEverywhere]	    = *temptree;
-	allTreesEverywherePtrs[numTreesEverywhere]  = temptree;
-	numTreesEverywhere += 1;
-
-	if ((fabs(temptree->x - Googelon.x) <= PLANESIZE) &&
-	    (fabs(temptree->z - Googelon.z) <= PLANESIZE))
-	    {
-	    allTreesOnPlane[numTreesOnPlane]	    = *temptree;
-	    allTreesOnPlanePtrs[numTreesOnPlane]    = temptree;
-	    numTreesOnPlane += 1;
-
-	    if (numTreesOnPlane >= MAXTREESONPLANE)
-		{
-		showError("Too many trees on the plane");
-		numTreesOnPlane -= 1;
-		}
-	    }
-	}
+    if (mapObjectList->next != NULL)
+	updateMapObjects(mapObjectList, itsChristmas);
 
     /****************************/
     /* update all the targets   */
@@ -4291,10 +4229,10 @@ void doUpdate()
     /* update the vehicles  */
     /************************/
 
-     if (tanklist->next != NULL)
-	updateTanks(tanklist, Googelon.width, Googelon.height, Googelon.bottom,
-	    Googelon.monsterIsDead, Googelon.monster, wrecklist, accuracy,
-	    firingDelay, mainCounter, &Googelon, targets);
+     if (actorlist->next != NULL)
+	updateActors(actorlist, playerEntityState.width, playerEntityState.height, playerEntityState.bottom,
+	    playerEntityState.dead, wrecklist, accuracy,
+	    firingDelay, mainCounter, &playerEntityState, targets);
 
 
     /****************************/
@@ -4309,103 +4247,64 @@ void doUpdate()
     /* update the projectiles */
     /**************************/
 
-    quickTanks();
-
-    if (projectFlight->next != NULL)
-	updateProjectiles();
+    if (runtimeProjectileList->next != NULL)
+	updateRuntimeProjectiles();
 
 
     /**********************************/
-    /* update monster Weapons         */
+    /* update player Weapons         */
     /**********************************/
 
-    if (Googelon.beamOn)
+    if (playerEntityState.beamOn)
 	{
 	turnBeamOnSinceLast();
-	switch (Googelon.monster)
-	    {
-	    case GOOGELON:	updateMonsterBeamFromAsset(
-				    &Googelon, targets, Googelon.x,
-				    Googelon.z, tanklist,
-				    allTreesOnPlanePtrs,
-				    numTreesOnPlane, &Googelon);
-				Googelon.energyRemaining -= 0.15;
-				break;
-
-	    case TECHS:		updateMonsterProjectileFromAsset(
-				    Googelon.x, Googelon.z,
-				    mainCounter, &Googelon,
-				    &Googelon);
-				Googelon.energyRemaining -= 0.09;
-				break;
-
-	    case VAPOUR:	updateMonsterProjectileFromAsset(
-				    Googelon.x, Googelon.z,
-				    mainCounter, &Googelon,
-				    &Googelon);
-				Googelon.energyRemaining -= 0.1;
-				break;
-
-	    case FLUTTER:	updateMonsterBeamFromAsset(
-				    &Googelon, targets, Googelon.x,
-				    Googelon.z, tanklist,
-				    allTreesOnPlanePtrs,
-				    numTreesOnPlane, &Googelon);
-				Googelon.energyRemaining -= 0.15;
-				break;
-
-	    case DATAENTITY: updateConfiguredPlayerWeapon();
-				break;
-
-	    default:		showError("Bogus Monster! (doUpdate)");
-				break;
-	    }
+	updateConfiguredPlayerWeapon();
 	}
 
     /*************************/
     /* update the explosions */
     /*************************/
 
-    if (projectboom->next != NULL)
-	updateBooms(projectboom, tanklist);
+    if (runtimeExplosionList->next != NULL)
+	updateRuntimeExplosions(runtimeExplosionList, actorlist);
 
 
     /***********************/
-    /* update the monster  */
+    /* update the player  */
     /***********************/
 
-    if (!Googelon.beamOn)
-	soundKiller(MONSTERBEAM);
+    if (!playerEntityState.beamOn && playerEntityArchetype != NULL)
+	soundKillerKey(playerEntityArchetype->fireSound);
 
 
     /****************************/
-    /* update monster's energy  */
+    /* update player's energy  */
     /****************************/
 
-    if (Googelon.energyRemaining > 0)
+    if (playerEntityState.energyRemaining > 0)
 	{
-	Googelon.energyRemaining += Googelon.regenRate;
+	playerEntityState.energyRemaining += playerEntityState.regenRate;
 
-	if (Googelon.energyRemaining > MAXLIFE)
-	    Googelon.energyRemaining = MAXLIFE;
+	if (playerEntityState.energyRemaining > MAXLIFE)
+	    playerEntityState.energyRemaining = MAXLIFE;
 
-	Googelon.rot1 = cos(Googelon.moveCount) * 0.02;
-	Googelon.rot2 = sin(Googelon.moveCount) * 0.05;
+	playerEntityState.rot1 = cos(playerEntityState.moveCount) * 0.02;
+	playerEntityState.rot2 = sin(playerEntityState.moveCount) * 0.05;
 	}
     else
 	{
-	updateDeadMonster(Googelon.x, Googelon.z, &Googelon);
+	updateDeadPlayer(playerEntityState.x, playerEntityState.z, &playerEntityState);
 	}
 
-    if (Googelon.monsterMoving)
-	Googelon.moveCount += 1;
+    if (playerEntityState.moving)
+	playerEntityState.moveCount += 1;
 
     /*************************************/
     /* update the high-score list        */
     /*************************************/
 
-   if (Googelon.monsterIsDead && (Googelon.deadCount == 1))
-	updateScores(scorefullPath, Googelon.monster, Googelon.monsterScore, mode, playerName);
+   if (playerEntityState.dead && (playerEntityState.deadCount == 1))
+	updateScores(scorefullPath, playerEntityState.score, mode, playerName);
 
     /*********************************/
     /* deal with dead targets        */
@@ -4415,30 +4314,22 @@ void doUpdate()
     while(temptarget->next != NULL)
 	{
 	    {
-	    if (temptarget->next->monster.timeDead > 250)
+	    if (temptarget->next->player.timeDead > 250)
 		{
-		for(tboom=projectboom->next; tboom != NULL; tboom=tboom->next)
+		for(tboom=runtimeExplosionList->next; tboom != NULL; tboom=tboom->next)
 		    {
-		    if (tboom->mine == &(temptarget->next->monster))
-			tboom->mine = NULL;
+		    if (tboom->owner == &(temptarget->next->player))
+			tboom->owner = NULL;
 		    }
 
-		for(tproj=projectFlight->next; tproj != NULL; tproj=tproj->next)
+		for(tproj=runtimeProjectileList->next; tproj != NULL; tproj=tproj->next)
 		    {
-		    if (tproj->mine == &(temptarget->next->monster))
-			tproj->mine = NULL;
+		    if (tproj->owner == &(temptarget->next->player))
+			tproj->owner = NULL;
 		    }
 
 		temptarg = temptarget->next;
 		temptarget->next = temptarget->next->next;
-
-		if ((temptarg->monster.monster == FLUTTER) ||(temptarg->monster.monster == GOOGELON))
-		    {
-		    addProjectile( temptarg->x-0.2, PLANEY+0.25, temptarg->z+0.2, 3, 0, -0.003, 0, 10000, NULL);
-		    addProjectile( temptarg->x+0.2, PLANEY+0.25, temptarg->z+0.2, 3, 0, -0.003, 0, 10000, NULL);
-		    addProjectile( temptarg->x+0.2, PLANEY+0.25, temptarg->z-0.2, 3, 0, -0.003, 0, 10000, NULL);
-		    addProjectile( temptarg->x-0.2, PLANEY+0.25, temptarg->z-0.2, 3, 0, -0.003, 0, 10000, NULL);
-		    }
 
 		afree(temptarg, arena);
 		}
@@ -4447,10 +4338,9 @@ void doUpdate()
 	    }
 	}
 
-   if ((mode == DEMOMODE) && (Googelon.timeDead > 400))
+   if ((mode == DEMOMODE) && (playerEntityState.timeDead > 400))
 	{
 	stepPlayerEntitySelection(1);
-	Googelon.monster = DATAENTITY;
 	setPlayConditions();
 	}
 
@@ -4482,7 +4372,7 @@ void doUpdate()
 
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
-/* view the scene from the monster's point of view               */
+/* view the scene from the player's point of view               */
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
 static float currentViewportAspect(void)
@@ -4493,7 +4383,7 @@ static float currentViewportAspect(void)
     return cameraViewportAspect(viewport[2], viewport[3]);
     }
 
-void goToMonsterView(int eyeball)
+void goToPlayerView(int eyeball)
     {
     float cameraDistance;
     float cameraX;
@@ -4505,14 +4395,14 @@ void goToMonsterView(int eyeball)
     float playerHeight;
     struct ChaseCameraFrame chaseFrame;
 
-    playerBottom = Googelon.bottom;
-    playerHeight = Googelon.height - Googelon.bottom;
+    playerBottom = playerEntityState.bottom;
+    playerHeight = playerEntityState.height - playerEntityState.bottom;
     cameraDistance = 1.4f;
     nearClip = 0.1f;
     cameraY = playerBottom + playerHeight * 0.75f + 0.20f;
     lookY = cameraY - 0.05f;
     lookZ = 0.4f;
-    if (Googelon.monster == DATAENTITY && playerEntityArchetype != NULL)
+    if (playerEntityArchetype != NULL)
 	{
 	playerBottom = PLANEY + playerEntityArchetype->verticalOffset;
 	playerHeight = playerEntityArchetype->collisionHeight;
@@ -4556,13 +4446,13 @@ void goToMonsterView(int eyeball)
 
     if (lod >= 2)
 	{
-	glFogi(GL_FOG_START,  MONSTERFOGSTART);
-	glFogi(GL_FOG_END,  MONSTERFOGEND);
+	glFogf(GL_FOG_START, (GLfloat)MONSTERFOGSTART);
+	glFogf(GL_FOG_END, (GLfloat)MONSTERFOGEND);
 
 	glEnable(GL_FOG);
 	}
 
-    yrot = - (GLfloat) Googelon.headHorzRotate;
+    yrot = - (GLfloat) playerEntityState.headHorzRotate;
     xrot = 0;
     }
 
@@ -4578,9 +4468,9 @@ void goToFirstPersonView(int eyeball)
     float lookZ;
     float pitch;
 
-    if (Googelon.monster != DATAENTITY || playerEntityArchetype == NULL)
+    if (playerEntityArchetype == NULL)
 	{
-	goToMonsterView(eyeball);
+	goToPlayerView(eyeball);
 	return;
 	}
     glMatrixMode(GL_PROJECTION);
@@ -4594,18 +4484,18 @@ void goToFirstPersonView(int eyeball)
     else if (eyeball == 1)
 	eyeX = -0.015f;
     eyeY = PLANEY + playerEntityArchetype->firstPersonEyeHeight;
-    pitch = Googelon.headVertRotate * BIG_DEG_TO_RAD;
+    pitch = playerEntityState.headVertRotate * BIG_DEG_TO_RAD;
     lookY = eyeY - (float)sin((double)pitch);
     lookZ = 0.1f + (float)cos((double)pitch);
     gluLookAt(eyeX, eyeY, 0.1, eyeX, lookY, lookZ, 0, 1, 0);
 
     if (lod >= 2)
 	{
-	glFogi(GL_FOG_START, MONSTERFOGSTART);
-	glFogi(GL_FOG_END, MONSTERFOGEND);
+	glFogf(GL_FOG_START, (GLfloat)MONSTERFOGSTART);
+	glFogf(GL_FOG_END, (GLfloat)MONSTERFOGEND);
 	glEnable(GL_FOG);
 	}
-    yrot = - (GLfloat) Googelon.headHorzRotate;
+    yrot = - (GLfloat) playerEntityState.headHorzRotate;
     xrot = 0;
     }
 
@@ -4625,20 +4515,20 @@ void goToArmyView(int eyeball)
     glMatrixMode(GL_MODELVIEW);
 
     switch(eyeball){
-	case 2: gluLookAt(lastTankRad * sin(lastTankTheta), lastTankY,
-		lastTankRad*cos(lastTankTheta), 0, lastTankY, 0, 0,1,0);
+	case 2: gluLookAt(lastActorRad * sin(lastActorTheta), lastActorY,
+		lastActorRad*cos(lastActorTheta), 0, lastActorY, 0, 0,1,0);
 		break;
 
-	case 0: gluLookAt(lastTankRad * sin(lastTankTheta + 0.002),
-		lastTankY, lastTankRad * cos(lastTankTheta + 0.002),
-		-lastTankRad * sin(lastTankTheta-0.002), lastTankY,
-		-lastTankRad * cos(lastTankTheta-0.002), 0,1,0);
+	case 0: gluLookAt(lastActorRad * sin(lastActorTheta + 0.002),
+		lastActorY, lastActorRad * cos(lastActorTheta + 0.002),
+		-lastActorRad * sin(lastActorTheta-0.002), lastActorY,
+		-lastActorRad * cos(lastActorTheta-0.002), 0,1,0);
 		break;
 
-	case 1: gluLookAt(lastTankRad * sin(lastTankTheta - 0.002),
-		lastTankY, lastTankRad * cos(lastTankTheta - 0.002),
-		-lastTankRad*sin(lastTankTheta+0.002), lastTankY,
-		-lastTankRad * cos(lastTankTheta+0.002), 0,1,0);
+	case 1: gluLookAt(lastActorRad * sin(lastActorTheta - 0.002),
+		lastActorY, lastActorRad * cos(lastActorTheta - 0.002),
+		-lastActorRad*sin(lastActorTheta+0.002), lastActorY,
+		-lastActorRad * cos(lastActorTheta+0.002), 0,1,0);
 		break;
 	}
 
@@ -4694,7 +4584,7 @@ void goToOverView(int eyeball)
     cameraDistance = 9.0f;
     nearClip = 0.1f;
     centerY = 0.0f;
-    if (Googelon.monster == DATAENTITY && playerEntityArchetype != NULL &&
+    if (playerEntityArchetype != NULL &&
         overviewCameraFrame(PLANEY + playerEntityArchetype->verticalOffset,
                             playerEntityArchetype->collisionHeight,
                             playerEntityArchetype->view2HeightFraction,
@@ -4713,7 +4603,7 @@ void goToOverView(int eyeball)
     glMatrixMode(GL_MODELVIEW);
 
     switch(eyeball){
-	case 2: if (Googelon.monster == DATAENTITY)
+	case 2: if (playerEntityArchetype != NULL)
 		    gluLookAt(0, centerY, cameraDistance,
 		              0, centerY, 0, 0, 1, 0);
 		else
@@ -4739,136 +4629,51 @@ void goToOverView(int eyeball)
 
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
-/* draw a given monster at a given location                      */
+/* draw a given player at a given location                      */
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
-void drawAMonster(float x, struct monsterInfo monster, float z,
+void drawPlayerEntity(float x, struct runtimePlayer player, float z,
 			int isTarget, int view)
     {
-    const struct EntityArchetype *networkArchetype;
+    const struct EntityArchetype *archetype;
     float aimPitch;
     float aimYaw;
     float bodyHeading;
-    float shadowBottom;
-    float shadowHeight;
-    float shadowRadius;
 
-    if ((fabs(x - Googelon.x) <= PLANESIZE) &&
-	(fabs(z - Googelon.z) <= PLANESIZE))
-	{
-	shadowBottom = monster.bottom;
-	shadowHeight = monster.height - monster.bottom;
-	shadowRadius = monster.width;
-	networkArchetype = monsterArchetype(&monster);
-	if (networkArchetype != NULL)
-	    {
-	    shadowBottom = PLANEY + networkArchetype->verticalOffset;
-	    shadowHeight = networkArchetype->collisionHeight;
-	    shadowRadius = networkArchetype->collisionRadius;
-	    }
-	if (!monster.monsterIsDead)
-	    drawEnvironmentShadow(x, z, shadowBottom,
-	                          shadowRadius, shadowHeight,
-	                          &worldEnvironment);
-	glPushMatrix();
-	    glTranslatef(x,  0,  z);
-	    switch(monster.monster){
-		case GOOGELON:  if (monster.energyRemaining <= 0)
-				    {
-				    glTranslatef(0, -monster.deadCount * 0.015, 0);
-				    glRotatef(-monster.deadCount * 2, 1,0,0);
-				    glRotatef(-monster.deadCount * 2, 0,1,0);
-				    }
-				if ((!isTarget) && (view == MONSTERVIEW))
-				    drawSimpleMonster(monster, mainCounter, itsChristmas, lod);
-				else
-				    drawMonster(monster, mainCounter, itsChristmas, lod);
-				break;
-
-		case VAPOUR:    networkArchetype =
-				    networkEntityArchetype(VAPOUR);
-				if (networkArchetype != NULL)
-				    {
-				    if (monster.energyRemaining <= 0)
-					{
-					glTranslatef(0,
-					             -monster.deadCount * 0.015f, 0);
-					glRotatef(-monster.deadCount * 2.0f,
-					          1, 0, 0);
-					}
-				    glTranslatef(0, PLANEY +
-				        networkArchetype->verticalOffset, 0);
-				    glRotatef(monster.headHorzRotate * 0.1f,
-				              0, 1, 0);
-				    drawConfiguredPlayerEntity(
-				        networkArchetype, monster.monsterMoving,
-				        monster.monsterBack, monster.beamOn, mainCounter,
-				        0.0f, 0.0f);
-				    }
-				break;
-
-		case TECHS:	if (monster.energyRemaining <= 0)
-				    {
-				    glTranslatef(0, -monster.deadCount * 0.015, 0);
-				    glRotatef(-monster.deadCount * 2, 1,0,0);
-				    }
-				if ((!isTarget) && (view == MONSTERVIEW))
-				    drawSimpleTechs(monster,lod);
-				else
-				    drawTechs(monster,lod);
-				break;
-
-		case FLUTTER:   if (monster.energyRemaining <= 0)
-				    {
-				    glTranslatef(0, -monster.deadCount * 0.025, 0);
-				    glRotatef(-monster.deadCount * 2.5, 0,1,0);
-				    }
-				if (isTarget)
-				    drawFlutter(monster, mainCounter, itsChristmas,
-					    offsetX, OMNISCIENTVIEW, lod);
-				else
-				    drawFlutter(monster, mainCounter, itsChristmas,
-					    offsetX, view, lod);
-
-				break;
-
-		case DATAENTITY: networkArchetype =
-				     monsterArchetype(&monster);
-				if (networkArchetype == NULL)
-				    break;
-				if ((!isTarget) &&
-				     (view == FIRSTPERSONVIEW) &&
-				     !networkArchetype->firstPersonVisible)
-				    break;
-				if (monster.energyRemaining <= 0)
-				    {
-				    glTranslatef(0, -monster.deadCount * 0.015f, 0);
-				    glRotatef(-monster.deadCount * 2.0f, 1, 0, 0);
-				    }
-				glTranslatef(0,
-				             PLANEY + networkArchetype->verticalOffset,
-				             0);
-				bodyHeading = monster.headHorzRotate * 0.1f;
-				aimYaw = 0.0f;
-				aimPitch = monster.headVertRotate * 0.1f;
-				if ((!isTarget) &&
-				    networkArchetype->controlMode ==
-				        ENTITY_CONTROL_STEERED)
-				    {
-				    bodyHeading = playerBodyHeading * 0.1f;
-				    aimYaw = (monster.headHorzRotate -
-				              playerBodyHeading) * 0.1f;
-				    }
-				glRotatef(bodyHeading,
-				          0, 1, 0);
-				drawConfiguredPlayerEntity(
-				    networkArchetype, monster.monsterMoving,
-				    monster.monsterBack, monster.beamOn, mainCounter,
-				    aimYaw, aimPitch);
-				break;
-	    }
-	glPopMatrix();
-	}
+    if (fabs(x - playerEntityState.x) > PLANESIZE ||
+        fabs(z - playerEntityState.z) > PLANESIZE)
+        return;
+    archetype = playerArchetype(&player);
+    if (archetype == NULL ||
+        (!isTarget && view == FIRSTPERSONVIEW &&
+         !archetype->firstPersonVisible))
+        return;
+    if (!player.dead && archetype->castsShadow)
+        drawEnvironmentShadow(
+            x, z, PLANEY + archetype->verticalOffset,
+            entityArchetypeCollisionRadius(archetype),
+            archetype->collisionHeight,
+            &worldEnvironment);
+    glPushMatrix();
+    glTranslatef(x, PLANEY + archetype->verticalOffset, z);
+    if (player.energyRemaining <= 0)
+        {
+        glTranslatef(0.0f, -player.deadCount * 0.015f, 0.0f);
+        glRotatef(-player.deadCount * 2.0f, 1.0f, 0.0f, 0.0f);
+        }
+    bodyHeading = player.headHorzRotate * 0.1f;
+    aimYaw = 0.0f;
+    aimPitch = player.headVertRotate * 0.1f;
+    if (!isTarget && archetype->controlMode == ENTITY_CONTROL_STEERED)
+        {
+        bodyHeading = playerBodyHeading * 0.1f;
+        aimYaw = (player.headHorzRotate - playerBodyHeading) * 0.1f;
+        }
+    glRotatef(bodyHeading, 0.0f, 1.0f, 0.0f);
+    drawConfiguredPlayerEntity(
+        archetype, player.moving, player.movingBackward,
+        player.beamOn, mainCounter, aimYaw, aimPitch);
+    glPopMatrix();
     }
 
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
@@ -4918,11 +4723,11 @@ void doDrawing (int eyeball)
     /* setting viewing location       */
     /**********************************/
 
-    if (view == MONSTERVIEW)
-	goToMonsterView(eyeball);
+    if (view == PLAYERVIEW)
+	goToPlayerView(eyeball);
     else if (view == FIRSTPERSONVIEW)
 	goToFirstPersonView(eyeball);
-    else if ((view == ARMYVIEW) && (lastTankY > NOTANKONPLANE))
+    else if ((view == ARMYVIEW) && (lastActorY > NOACTORONPLANE))
 	goToArmyView(eyeball);
     else if (view == MAPVIEW)
 	goToMapView();
@@ -4937,10 +4742,10 @@ void doDrawing (int eyeball)
 
     if (xrot != 0)
 	{
-	if (view == OMNISCIENTVIEW && Googelon.monster == DATAENTITY)
+	if (view == OMNISCIENTVIEW && playerEntityArchetype != NULL)
 	    glTranslatef(0, overviewRotationPivotY, 0);
 	glRotatef(0.1 * xrot, 1,0,0);
-	if (view == OMNISCIENTVIEW && Googelon.monster == DATAENTITY)
+	if (view == OMNISCIENTVIEW && playerEntityArchetype != NULL)
 	    glTranslatef(0, -overviewRotationPivotY, 0);
 	}
 
@@ -4949,8 +4754,8 @@ void doDrawing (int eyeball)
 
     glDisable(GL_DEPTH_TEST);
 
-    drawBattlefield(roadSystem, -Googelon.x, -Googelon.z, lod,
-		itsChristmas, view);
+    drawWorldGround(-playerEntityState.x, -playerEntityState.z, lod,
+		    itsChristmas, view);
 
     if (lod != -1)
 	glEnable(GL_DEPTH_TEST);
@@ -4958,14 +4763,15 @@ void doDrawing (int eyeball)
     /* Gameplay state remains in map-world coordinates.  Only the rendered
        world is rebased around the camera/player. */
     glPushMatrix();
-    glTranslatef(-Googelon.x, 0, -Googelon.z);
+    glTranslatef(-playerEntityState.x, 0, -playerEntityState.z);
 
     /**********************************/
     /* draw burning wreck fragments   */
     /**********************************/
 
     if (wrecklist->next != NULL)
-	drawWrecks(wrecklist, Googelon.x, Googelon.z);
+	drawRuntimeDebris(wrecklist, playerEntityState.x, playerEntityState.z,
+	                  lod, itsChristmas);
 
 
     /******************************************************/
@@ -4973,9 +4779,8 @@ void doDrawing (int eyeball)
     /* must come before draw structures for hero entrance */
     /******************************************************/
 
-    if (tanklist->next != NULL)
-	drawTanks(tanklist, mainCounter, Googelon, targets, lod,
-		view, viewW);
+    if (actorlist->next != NULL)
+	drawRuntimeActors(actorlist, mainCounter, playerEntityState, lod, view);
 
 
 
@@ -4983,9 +4788,9 @@ void doDrawing (int eyeball)
     /* draw all projectiles in flight */
     /**********************************/
 
-    if (projectFlight->next != NULL)
-	drawProjectiles(projectFlight, mainCounter, fires,
-	flameCount, itsChristmas, lod, &Googelon, view);
+    if (runtimeProjectileList->next != NULL)
+	drawRuntimeProjectiles(runtimeProjectileList, mainCounter,
+	                       itsChristmas, lod, &playerEntityState, view);
 
 
 
@@ -4993,15 +4798,9 @@ void doDrawing (int eyeball)
     /* draw structures  */
     /********************/
 
-    if (treelist->next != NULL)
-	{
-	if (view == MAPVIEW)
-	    drawtrees(allTreesEverywhere, numTreesEverywhere, mainCounter,
-			lod, itsChristmas, view, Googelon.x, Googelon.z);
-	else
-	    drawtrees(allTreesOnPlane, numTreesOnPlane, mainCounter,
-			lod, itsChristmas, view, Googelon.x, Googelon.z);
-	}
+    if (mapObjectList->next != NULL)
+	drawMapObjects(mapObjectList, mainCounter, lod, itsChristmas, view,
+	               playerEntityState.x, playerEntityState.z);
 
 
 
@@ -5009,62 +4808,33 @@ void doDrawing (int eyeball)
     /* draw monsterBeam               */
     /**********************************/
 
-    beamArchetype = monsterArchetype(&Googelon);
-    if (Googelon.beamOn && beamArchetype != NULL &&
+    beamArchetype = playerArchetype(&playerEntityState);
+    if (playerEntityState.beamOn && beamArchetype != NULL &&
 	beamArchetype->weapon == ENTITY_WEAPON_BEAM)
 	{
-	hasBeamMuzzle = Googelon.monster == DATAENTITY ?
-	    configuredPlayerMuzzleWorld(beamOrigin, beamDirection) :
-	    configuredMuzzleWorld(
-		beamArchetype, Googelon.monsterMoving, Googelon.beamOn,
-		mainCounter, Googelon.x,
-		PLANEY + beamArchetype->verticalOffset, Googelon.z,
-		Googelon.headHorzRotate * 0.1f, 0.0f,
-		Googelon.headVertRotate * 0.1f,
-		beamOrigin, beamDirection);
+	hasBeamMuzzle = configuredPlayerMuzzleWorld(
+	    beamOrigin, beamDirection);
 	if (hasBeamMuzzle)
-	    drawBeam(beamArchetype, lod, beamOrigin, beamDirection);
+	    drawRuntimeBeam(beamArchetype, lod, beamOrigin, beamDirection);
 	}
 
     for (temptarget = targets->next;temptarget != NULL;temptarget = temptarget->next)
 	{
-	beamArchetype = monsterArchetype(&temptarget->monster);
-	if (temptarget->monster.beamOn && beamArchetype != NULL &&
+	beamArchetype = playerArchetype(&temptarget->player);
+	if (temptarget->player.beamOn && beamArchetype != NULL &&
 	    beamArchetype->weapon == ENTITY_WEAPON_BEAM)
 	    {
 	    hasBeamMuzzle = configuredMuzzleWorld(
-		beamArchetype, temptarget->monster.monsterMoving,
-		temptarget->monster.beamOn, mainCounter,
+		beamArchetype, temptarget->player.moving,
+		temptarget->player.beamOn, mainCounter,
 		temptarget->x, PLANEY + beamArchetype->verticalOffset,
 		temptarget->z,
-		temptarget->monster.headHorzRotate * 0.1f, 0.0f,
-		temptarget->monster.headVertRotate * 0.1f,
+		temptarget->player.headHorzRotate * 0.1f, 0.0f,
+		temptarget->player.headVertRotate * 0.1f,
 		beamOrigin, beamDirection);
 	    if (hasBeamMuzzle)
-		drawBeam(beamArchetype, lod, beamOrigin, beamDirection);
+		drawRuntimeBeam(beamArchetype, lod, beamOrigin, beamDirection);
 	    }
-	}
-
-
-
-    /*************************************************/
-    /* draw explosions to be seen through the VAPOUR */
-    /*************************************************/
-/*I suppose technically if ANY monster on the field is the vapour this
- * should be done but that may be too costly
- */
-
-    if ((Googelon.monster == VAPOUR) && (projectboom->next != NULL))
-	{
-	if (lod == -1)
-	    {
-	    glPushAttrib(GL_POLYGON_BIT);
-	    glPolygonMode(GL_FRONT_AND_BACK,GL_POINT);
-	    drawBooms(projectboom, lod);
-	    glPopAttrib();
-	    }
-	else
-	    drawBooms(projectboom, lod);
 	}
 
 
@@ -5074,14 +4844,14 @@ void doDrawing (int eyeball)
     /**********************************/
 
     for(temptarget = targets->next;temptarget != NULL;temptarget = temptarget->next)
-	drawAMonster(temptarget->x, temptarget->monster, temptarget->z, 1,view);
+	drawPlayerEntity(temptarget->x, temptarget->player, temptarget->z, 1,view);
 
 
     /**********************************/
-    /* draw the player's monster      */
+    /* draw the player's player      */
     /**********************************/
 
-    drawAMonster(Googelon.x, Googelon, Googelon.z, 0,view);
+    drawPlayerEntity(playerEntityState.x, playerEntityState, playerEntityState.z, 0,view);
 
     /**********************************/
     /* draw explosions                */
@@ -5091,17 +4861,17 @@ void doDrawing (int eyeball)
     /* throught them                  */
     /**********************************/
 
-    if (projectboom->next != NULL)
+    if (runtimeExplosionList->next != NULL)
 	{
 	if (lod == -1)
 	    {
 	    glPushAttrib(GL_POLYGON_BIT);
 	    glPolygonMode(GL_FRONT_AND_BACK,GL_POINT);
-	    drawBooms(projectboom, lod);
+	    drawRuntimeExplosions(runtimeExplosionList, lod);
 	    glPopAttrib();
 	    }
 	else
-	    drawBooms(projectboom, lod);
+	    drawRuntimeExplosions(runtimeExplosionList, lod);
 	}
 
     glPopMatrix();
@@ -5146,19 +4916,20 @@ textLineWidth = 1.01;
 	/* if line widths are integral Mesa chokes in a large window */
 	glLineWidth(textLineWidth);
 
-	/* showText(Googelon.energyRemaining,  Googelon.monsterScore,
+	/* showText(playerEntityState.energyRemaining,  playerEntityState.score,
 	(long) (viewR-viewL), paused);   */
 
-	showText(targets, Googelon.energyRemaining,  Googelon.monsterScore,
+	showText(targets, playerEntityState.energyRemaining,  playerEntityState.score,
 	    showframes, paused, pointerGrab, playerWeaponUsesReload(),
-	    playerWeaponReadiness(), Googelon.x, Googelon.z);
+	    playerWeaponReadiness(), playerEntityState.x, playerEntityState.z);
 
 	if (mode == DEMOMODE)
 	    {
-	    if (!(Googelon.timeDead > 100) && !showOptions)
+	    if (!(playerEntityState.timeDead > 100) && !showOptions)
 		{
 		if (!showDemoMenu)
-		    showScores(itsChristmas, G, V, T, F, Googelon, mainCounter, offsetX, lod);
+			showScores(itsChristmas, highScores, playerEntityState,
+			           mainCounter, offsetX, lod);
 		else if (!showHelp)
 		    showText2((long) (viewR-viewL), getSoundOn(), noSound, getMusicOn(),
 			mode3D, no3D, lod, paused, itsChristmas, pointerGrab);
@@ -5168,16 +4939,14 @@ textLineWidth = 1.01;
 	    showText3(lod);
 
 	    if (showOptions)
-		doOptions(Googelon, (long) (viewR-viewL),  mainCounter, itsChristmas, offsetX, lod);
+		doOptions(playerEntityState, (long) (viewR-viewL),  mainCounter, itsChristmas, offsetX, lod);
 	    else
 		showText4();
 
-	    if ((Googelon.timeDead > 100) && !showOptions)
-		doSummary(Googelon.monster,  Googelon.timeDead,
-		    (long) (viewR-viewL), killtanks, killmtanks,
-		    killhelos, killCHHs, killmechags, killheros,
-		    killplanes, killlaunchers, killfighters,
-		    mainCounter, lod, moreThanOne);
+	    if ((playerEntityState.timeDead > 100) && !showOptions)
+		doSummary(playerEntityState.timeDead, (long)(viewR - viewL),
+		          playerEntityState.score, mainCounter, lod,
+		          moreThanOne);
 	    }
 
 	if (showHelp)
@@ -5191,351 +4960,144 @@ textLineWidth = 1.01;
 
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
-/* computer controlled monster for demo-mode                     */
+/* computer controlled player for demo-mode                     */
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
-struct monsterInfo autopilot(float centerX, float centerZ, struct monsterInfo thaMonster)
+struct runtimePlayer autopilot(float centerX, float centerZ,
+                                 struct runtimePlayer playerState)
     {
-    struct tank * ttank;
-    struct tree * ttree;
+    const struct EntityArchetype *archetype;
+    struct runtimeActor *actor;
+    struct runtimeMapObject *structure;
+    float targetX;
+    float targetY;
+    float targetZ;
+    float nearest;
+    float deltaX;
+    float deltaZ;
+    float distance;
+    float desiredHeading;
+    float headingDelta;
+    float preferredRange;
+    float minimumRange;
+    float verticalDelta;
+    int turnStep;
+    int pitchStep;
+    int hasTarget;
 
-    struct enemy et, el, em, eh, ec, eg, ehe, ep, eb, ef, eall, einside;
+    archetype = playerArchetype(&playerState);
+    if (archetype == NULL)
+        return playerState;
+    targetX = centerX;
+    targetY = PLANEY;
+    targetZ = centerZ;
+    nearest = BIGNUM;
+    hasTarget = 0;
 
-    float alphaBig;
-    float modHead;
-    float y, ang, r, modR;
-    int speed, speed2;
-    int t;
-    float rad;
-    float tx, tz;
-    float zdiff;
-    float xdiff;
+    for (structure = mapObjectList->next; structure != NULL;
+         structure = structure->next)
+        if (structure->intact && structure->dataArchetype != NULL &&
+            structure->dataArchetype->destructible)
+            {
+            deltaX = structure->x - centerX;
+            deltaZ = structure->z - centerZ;
+            distance = (float)sqrt((double)(deltaX * deltaX +
+                                             deltaZ * deltaZ));
+            if (distance < nearest)
+                {
+                nearest = distance;
+                targetX = structure->x;
+                targetY = structure->y +
+                    structure->dataArchetype->collisionHeight * 0.5f;
+                targetZ = structure->z;
+                hasTarget = 1;
+                }
+            }
 
-    t = -1;
+    for (actor = actorlist->next; actor != NULL; actor = actor->next)
+        if (actor->damage > 0 && actor->dataArchetype != NULL &&
+            actor->dataArchetype->kind != ENTITY_KIND_ZONE &&
+            factionCatalogHostile(&gameFactions, runtimePlayerFaction(),
+                                  actor->dataAgent.faction))
+            {
+            deltaX = actor->x - centerX;
+            deltaZ = actor->z - centerZ;
+            distance = (float)sqrt((double)(deltaX * deltaX +
+                                             deltaZ * deltaZ));
+            if (distance < nearest)
+                {
+                nearest = distance;
+                targetX = actor->x;
+                targetY = actor->y +
+                    actor->dataArchetype->collisionHeight * 0.5f;
+                targetZ = actor->z;
+                hasTarget = 1;
+                }
+            }
 
-    et.r = el.r = em.r = eh.r = ec.r = eg.r =
-    ehe.r = ep.r = eb.r = ef.r = eall.r = BIGNUM;
+    playerState.movingForward = 0;
+    playerState.movingBackward = 0;
+    playerState.moving = 0;
+    playerState.beamOn = 0;
+    if (!hasTarget)
+        return playerState;
 
-    /*************************************/
-    /* find nearest building to destroy  */
-    /*************************************/
+    deltaX = targetX - centerX;
+    deltaZ = targetZ - centerZ;
+    desiredHeading = (float)(atan2((double)deltaX, (double)deltaZ) *
+                             RAD_TO_BIG_DEG);
+    headingDelta = desiredHeading - playerState.headHorzRotate;
+    while (headingDelta > 1800.0f)
+        headingDelta -= 3600.0f;
+    while (headingDelta < -1800.0f)
+        headingDelta += 3600.0f;
+    turnStep = (int)(headingDelta / 15.0f);
+    if (turnStep > (int)(playerState.xspeed * 0.75f))
+        turnStep = (int)(playerState.xspeed * 0.75f);
+    if (turnStep < (int)(-playerState.xspeed * 0.75f))
+        turnStep = (int)(-playerState.xspeed * 0.75f);
+    playerState.headHorzRotate += turnStep;
+    offsetX = 0.8f * offsetX - 0.01f * turnStep;
 
-    for(ttree = treelist->next; ttree != NULL; ttree = ttree->next)
-	if ((ttree->type == 1)  && (ttree->intact == 1))
-	    {
-	    zdiff = ttree->z-centerZ;
-	    xdiff = ttree->x-centerX;
+    minimumRange = archetype->weaponMinRange;
+    if (minimumRange < entityArchetypeCollisionRadius(archetype))
+        minimumRange = entityArchetypeCollisionRadius(archetype);
+    preferredRange = archetype->tacticRadius;
+    if (archetype->tactic != ENTITY_TACTIC_STANDOFF)
+        preferredRange = archetype->weaponRange * 0.7f;
+    if (preferredRange < minimumRange)
+        preferredRange = minimumRange;
 
-	    rad =  sqrt(xdiff * xdiff + zdiff * zdiff);
+    if (playerState.energyRemaining > archetype->playerMoveCost)
+        {
+        if (archetype->tactic == ENTITY_TACTIC_FLYBY)
+            playerState.movingForward = 1;
+        else if (nearest > preferredRange)
+            playerState.movingForward = 1;
+        else if (nearest < minimumRange &&
+                 archetype->collisionMode != ENTITY_COLLISION_PHASE)
+            playerState.movingBackward = 1;
+        }
+    playerState.moving =
+        playerState.movingForward || playerState.movingBackward;
 
-	    if (rad < eb.r)
-		{
-		eb.r    = rad;
-		eb.y    = ttree->y;
-		eb.ang  = computeAngle(zdiff, 0, xdiff, 0);
-		}
-	    }
+    if (archetype->weapon != ENTITY_WEAPON_NONE &&
+        playerState.energyRemaining > archetype->playerFireCost &&
+        nearest <= archetype->weaponRange &&
+        nearest >= archetype->weaponMinRange &&
+        abs(turnStep) < 6)
+        playerState.beamOn = 1;
 
-    /*********************************/
-    /* find nearest military threat  */
-    /*********************************/
-
-    eall = eb;
-    einside = eb;
-
-    for(ttank = tanklist->next; ttank != NULL; ttank = ttank->next)
-	    {
-	    tx = ttank->x;
-	    tz = ttank->z;
-	    rad =  sqrt((tx-centerX) * (tx-centerX) + (tz-centerZ) * (tz-centerZ));
-
-	    if (rad < eall.r)
-		{
-		eall.r   = rad;
-		eall.y   = ttank->y;
-		eall.ang = computeAngle(tz, centerZ, tx, centerX);
-		}
-
-	    if ((rad < einside.r) && (fabs(tx) < fabs(centerX)) && (fabs(tz) < fabs(centerZ)))
-		{
-		 einside.r   = rad;
-		 einside.y   = ttank->y;
-		 einside.ang = computeAngle(tz, centerZ, tx, centerX);
-		}
-
-	    if (rad <= PLANESIZE)
-		{
-
-		switch(ttank->type){
-			case TANK	:   if (rad < et.r)
-						{
-						et.r   = rad;
-						et.y   = ttank->y;
-						et.ang = computeAngle(tz, centerZ, tx, centerX);
-						}
-					    break;
-
-			case LAUNCHER	:   if (rad < el.r)
-						{
-						el.r   = rad;
-						el.y   = ttank->y;
-						el.ang = computeAngle(tz, centerZ, tx, centerX);
-						}
-					    break;
-
-			case MASERTANK	:   if (rad < em.r)
-						{
-						em.r   = rad;
-						em.y   = ttank->y;
-						em.ang = computeAngle(tz, centerZ, tx, centerX);
-						}
-					    break;
-
-			case HELO	:   if (rad < eh.r)
-						{
-						eh.r   = rad;
-						eh.y   = ttank->y;
-						eh.ang = computeAngle(tz, centerZ, tx, centerX);
-						}
-					    break;
-
-			case CHH	:   if (rad < ec.r)
-						{
-						ec.r   = rad;
-						ec.y   = ttank->y;
-						ec.ang = computeAngle(tz, centerZ, tx, centerX);
-						}
-					    break;
-
-			case MECHAG	:   if (rad < eg.r)
-						{
-						eg.r   = rad;
-						eg.y   = ttank->y + 0.5;
-						eg.ang = computeAngle(tz, centerZ, tx, centerX);
-						}
-					    break;
-
-			case HERO	:   if (rad < ehe.r)
-						{
-						ehe.r   = rad;
-						ehe.y   = ttank->y + 0.5;
-						ehe.ang = computeAngle(tz, centerZ, tx, centerX);
-						}
-					    break;
-
-			case AIRPLANE	:   if (rad < ep.r)
-						{
-						ep.r   = rad;
-						ep.y   = ttank->y + 0.5;
-						ep.ang = computeAngle(tz, centerZ, tx, centerX);
-						}
-					    break;
-
-			case FIGHTER	:   if (rad < ef.r)
-						{
-						ef.r   = rad;
-						ef.y   = ttank->y + 0.5;
-						ef.ang = computeAngle(tz, centerZ, tx, centerX);
-						}
-					    break;
-
-			case DATAENTITY: if (rad < et.r)
-						{
-						et.r   = rad;
-						et.y   = ttank->y;
-						et.ang = computeAngle(tz, centerZ,
-						                      tx, centerX);
-						}
-					    break;
-
-			default:	    showError("Bogus Vehicle! (autopilot)");
-					    break;
-			}
-
-		    }
-
-		}
-
-    /****************************/
-    /* choose target to attack  */
-    /****************************/
-
-    if (ehe.r != BIGNUM)
-	    {
-	    r 	= ehe.r;
-	    y 	= ehe.y;
-	    ang = ehe.ang;
-	    t 	= HERO;
-	    }
-    else if (eg.r != BIGNUM)
-	    {
-	    r 	= eg.r;
-	    y 	= eg.y;
-	    ang = eg.ang;
-	    t 	= MECHAG;
-	    }
-    else if (ec.r != BIGNUM)
-	    {
-	    r 	= ec.r;
-	    y 	= ec.y;
-	    ang = ec.ang;
-	    t 	= CHH;
-	    }
-    else if (em.r != BIGNUM)
-	    {
-	    r 	= em.r;
-	    y 	= em.y;
-	    ang = em.ang;
-	    t 	= MASERTANK;
-	    }
-    else if (el.r != BIGNUM)
-	    {
-	    r 	= el.r;
-	    y 	= el.y;
-	    ang = el.ang;
-	    t 	= LAUNCHER;
-	    }
-    else  if ((eb.r < et.r) && (eb.r < eh.r))
-	    {
-	    r 	= eb.r;
-	    y 	= eb.y + 0.5;
-	    ang = eb.ang;
-	    t 	= HERO; /* building */
-	    }
-    else if (eh.r < et.r)
-	    {
-	    r 	= eh.r;
-	    y 	= eh.y;
-	    ang = eh.ang;
-	    t 	= HELO;
-	    }
-    else  if ((ep.r < et.r) && (et.r != BIGNUM))
-	    {
-	    r 	= ep.r;
-	    y 	= ep.y;
-	    ang = ep.ang;
-	    t 	= AIRPLANE;
-	    }
-    else  if ((ef.r < et.r) && (et.r != BIGNUM))
-	    {
-	    r 	= ef.r;
-	    y 	= ef.y;
-	    ang = ef.ang;
-	    t 	= FIGHTER;
-	    }
-    else if (et.r < BIGNUM)
-	    {
-	    r 	= et.r;
-	    y 	= et.y;
-	    ang = et.ang;
-	    t 	= TANK;
-	    }
-    else if (einside.r < BIGNUM)
-	    {
-	    r 	= einside.r;
-	    y 	= einside.y;
-	    ang = einside.ang;
-	    t 	= HERO;
-	    }
-    else
-	    {
-	    r 	= eall.r;
-	    y 	= eall.y;
-	    ang = eall.ang;
-	    t 	= HERO;
-	    }
-
-    /*********************/
-    /* move the monster  */
-    /*********************/
-
-    if (ang < 0)
-	ang += TWOPI;
-
-    modHead = (thaMonster.headHorzRotate+1800);
-    if (modHead > 3600)
-	modHead -= 3600;
-
-    speed = (int) (ang * RAD_TO_BIG_DEG - modHead);
-    if (speed > 1800)
-	speed -= 3600;
-    else if (speed < - 1800)
-	speed += 3600;
-
-    speed = speed / 15;
-    if (speed > 0.75 * thaMonster.xspeed)
-	speed = (int) (0.75 * thaMonster.xspeed);
-    if (speed < -0.75 * thaMonster.xspeed)
-	speed = (int) (-0.75 * thaMonster.xspeed);
-
-    thaMonster.headHorzRotate += speed;
-    offsetX = 0.8*offsetX - 0.2*(speed * 0.05); /* used to bank flutter in demo mode*/
-
-    if ((thaMonster.energyRemaining > 15) && (fabs(speed) < 6) && (r < 3.5))
-	thaMonster.beamOn = 1;
-
-	switch(thaMonster.monster){
-	case GOOGELON:
-	case TECHS:
-	case DATAENTITY:
-	    if ((thaMonster.energyRemaining > 5) && (t != -1)  && (t != HERO) &&
-		(t != MECHAG) && ((fabs(speed) < 3) || (r < 1)))
-		thaMonster.monsterGo = 1;
-
-	    else if (((t == MECHAG)  || (t == HERO)) && (fabs(speed) < 5) && (r > 3))
-		thaMonster.monsterGo = 1;
-
-	    else if (((t == MECHAG)  || (t == HERO)) && (fabs(speed) < 5) && (r < .75))
-		thaMonster.monsterBack = 1;
-	    break;
-
-	case VAPOUR:
-	    if (((t == MECHAG) || (t == CHH) || (t == HERO)) && (r < 0.2))
-		/*stay put on top of the enemy*/;
-
-	    else if ((thaMonster.energyRemaining > 5) && ((fabs(speed) < 10) || (r < 4)))
-		thaMonster.monsterGo = 1;
-	    break;
-
-	case FLUTTER:
-	    if ((thaMonster.energyRemaining > 5) && (t != -1)  && (t != HERO) &&
-		(t != MECHAG) && ((fabs(speed) < 3) || (r < 1)))
-		thaMonster.monsterGo = 1;
-	    else if (((t == MECHAG) || (t == HERO)) && (fabs(speed) < 5) && (r > 3))
-		thaMonster.monsterGo = 1;
-	    else if (((t == MECHAG) || (t == HERO)) && (fabs(speed) < 5) && (r < .75))
-		thaMonster.monsterBack = 1;
-	    else if (!(((t == MECHAG) || (t == HERO)) && (fabs(speed) < 5) && (r < 1)))
-		thaMonster.monsterGo = 1;
-	    break;
-    }
-
-    /************************/
-    /* tilt monster's head  */
-    /************************/
-
-    y = thaMonster.height - 0.1 - y;
-
-    if (thaMonster.monsterGo)
-	modR = r - 1.3;
-    else
-	modR = r - 0.6;
-
-    if (modR <= 0)
-	modR = NEARZERO;
-
-    alphaBig = atan(y / modR) * RAD_TO_BIG_DEG;
-
-    speed2 = (int) (fabs(alphaBig - thaMonster.headVertRotate))/15;
-
-    if (alphaBig > thaMonster.headVertRotate)
-	thaMonster.headVertRotate += speed2;
-    else
-	thaMonster.headVertRotate -= speed2;
-
-    thaMonster.monsterMoving = 1;
-
-    return(thaMonster);
+    verticalDelta = targetY -
+        (PLANEY + archetype->verticalOffset +
+         archetype->collisionHeight * 0.5f);
+    if (nearest < NEARZERO)
+        nearest = NEARZERO;
+    desiredHeading = (float)(-atan2((double)verticalDelta,
+                                    (double)nearest) * RAD_TO_BIG_DEG);
+    pitchStep = (int)((desiredHeading - playerState.headVertRotate) / 15.0f);
+    playerState.headVertRotate += pitchStep;
+    return playerState;
     }
 
 /**********************************/
@@ -5610,27 +5172,27 @@ static void doDisplay(void)
 
 void id()
     {
-    struct tank * ttank;
+    struct runtimeActor * tactor;
     struct targetInfo * temptarget;
 
     if (targets->next != NULL)
 	{
 	for(temptarget = targets->next; temptarget != NULL; temptarget = temptarget->next)
 	    {
-	    temptarget->monster.monsterMoving	= 0;
-	    temptarget->monster.monsterGo	= 0;
-	    temptarget->monster.monsterBack	= 0;
+	    temptarget->player.moving	= 0;
+	    temptarget->player.movingForward	= 0;
+	    temptarget->player.movingBackward	= 0;
 
-	    temptarget->monster.beamOn		= 0;
+	    temptarget->player.beamOn		= 0;
 	    }
 	}
 
     if (mode == DEMOMODE)
 	{
-	Googelon.beamOn = 0;
+	playerEntityState.beamOn = 0;
 	}
 
-    Googelon.monsterMoving = 0;
+    playerEntityState.moving = 0;
 
     checkMouse();
 
@@ -5654,7 +5216,7 @@ void id()
 	mainCounter += 1;
 
 
-    if (Googelon.monsterIsDead && (mode == PLAYMODE))
+    if (playerEntityState.dead && (mode == PLAYMODE))
 	{
 	mode = DEMOMODE;
 	clearPlayerInput();
@@ -5663,21 +5225,21 @@ void id()
 
     oldview = view;
 
-    if ((view == MONSTERVIEW) ||
+    if ((view == PLAYERVIEW) ||
 	(view == FIRSTPERSONVIEW)) /* must be before view change!!!!*/
-	yrot = (GLfloat) -Googelon.headHorzRotate;
+	yrot = (GLfloat) -playerEntityState.headHorzRotate;
     else if (view == OMNISCIENTVIEW)
 	{
 	ysaverot = yrot;
 	xsaverot = xrot;
 	}
 
-    if ((mode == DEMOMODE) && !Googelon.monsterIsDead && !paused)
-	Googelon = autopilot(Googelon.x, Googelon.z, Googelon);
+    if ((mode == DEMOMODE) && !playerEntityState.dead && !paused)
+	playerEntityState = autopilot(playerEntityState.x, playerEntityState.z, playerEntityState);
 
 
     for(temptarget = targets->next; temptarget != NULL; temptarget = temptarget->next)
-	temptarget->monster = autopilot(temptarget->x, temptarget->z, temptarget->monster);
+	temptarget->player = autopilot(temptarget->x, temptarget->z, temptarget->player);
 
 
     /**********************************/
@@ -5685,15 +5247,15 @@ void id()
     /**********************************/
 
     if (netUp)
-	processNetwork(now, mainCounter, totalCounter, treelist,
-		       tanklist, arena, Googelon, buildingBoomSoFarCounter,
-		       buildingBoomThisFrameCounter, buildingBoomSoFar,
-		       buildingBoomThisFrame);
+	processNetwork(now, mainCounter, totalCounter, mapObjectList,
+		       actorlist, arena, playerEntityState, destroyedMapObjectHistoryCount,
+		       destroyedMapObjectFrameCount, destroyedMapObjectHistory,
+		       destroyedMapObjectFrame);
 
     if (client)
-	processClient(now, mainCounter, totalCounter, treelist,
-		      tanklist, arena, sizeTank, Googelon,
-		      buildingBoomThisFrameCounter, buildingBoomThisFrame);
+	processClient(now, mainCounter, totalCounter, mapObjectList,
+		      actorlist, arena, sizeActor, playerEntityState,
+		      destroyedMapObjectFrameCount, destroyedMapObjectFrame);
 
     if (!paused)
 	doUpdate();
@@ -5727,22 +5289,21 @@ void id()
     /* find newest vehicle visible on the plane     */
     /************************************************/
 
-    lastTankY = NOTANKONPLANE;
-    lastTankTheta = lastTankRad = 0;
+    lastActorY = NOACTORONPLANE;
+    lastActorTheta = lastActorRad = 0;
 
-    for(ttank = tanklist->next; (ttank != NULL) && (lastTankY <= NOTANKONPLANE); ttank = ttank->next)
-	if ((fabs(ttank->x - Googelon.x) <= PLANESIZE) &&
-	    (fabs(ttank->z - Googelon.z) <= PLANESIZE) &&
-	    (ttank->damage > 0)
-  	    && (ttank->rad < 10))
+    for(tactor = actorlist->next; (tactor != NULL) && (lastActorY <= NOACTORONPLANE); tactor = tactor->next)
+	if ((fabs(tactor->x - playerEntityState.x) <= PLANESIZE) &&
+	    (fabs(tactor->z - playerEntityState.z) <= PLANESIZE) &&
+	    (tactor->damage > 0) && (tactor->rad < 10))
 	    {
-	    lastTankY	    = ttank->y + 0.4;
-	    lastTankTheta   = ttank->theta + PI;
-	    lastTankRad	    = ttank->rad + 1.5;
+	    lastActorY	    = tactor->y + 0.4;
+	    lastActorTheta   = tactor->theta + PI;
+	    lastActorRad	    = tactor->rad + 1.5;
 	    }
 
     /************************************************/
-    /* ensure all monster variables are within range*/
+    /* ensure all player variables are within range*/
     /************************************************/
 
     if (xrot > 600)
@@ -5757,46 +5318,46 @@ void id()
     if (yrot >= 3600)
 	yrot -= 3600;
 
-    if (Googelon.headHorzRotate < 0)
-	Googelon.headHorzRotate += 3600;
+    if (playerEntityState.headHorzRotate < 0)
+	playerEntityState.headHorzRotate += 3600;
 
-    if (Googelon.headHorzRotate >= 3600)
-	Googelon.headHorzRotate -= 3600;
+    if (playerEntityState.headHorzRotate >= 3600)
+	playerEntityState.headHorzRotate -= 3600;
 
-    if (Googelon.monster == DATAENTITY && playerEntityArchetype != NULL)
+    if (playerEntityArchetype != NULL)
 	{
-	if (Googelon.headVertRotate <
+	if (playerEntityState.headVertRotate <
 	    (int)(playerEntityArchetype->aimPitchMin * 10.0f))
-	    Googelon.headVertRotate =
+	    playerEntityState.headVertRotate =
 		(int)(playerEntityArchetype->aimPitchMin * 10.0f);
-	if (Googelon.headVertRotate >
+	if (playerEntityState.headVertRotate >
 	    (int)(playerEntityArchetype->aimPitchMax * 10.0f))
-	    Googelon.headVertRotate =
+	    playerEntityState.headVertRotate =
 		(int)(playerEntityArchetype->aimPitchMax * 10.0f);
 	}
     else
 	{
-	if (Googelon.headVertRotate < -400)
-	    Googelon.headVertRotate = -400;
-	if (Googelon.headVertRotate > 400)
-	    Googelon.headVertRotate = 400;
+	if (playerEntityState.headVertRotate < -400)
+	    playerEntityState.headVertRotate = -400;
+	if (playerEntityState.headVertRotate > 400)
+	    playerEntityState.headVertRotate = 400;
 	}
 
     if (targets->next != NULL)
 	{
 	for(temptarget = targets->next; temptarget != NULL; temptarget = temptarget->next)
 	    {
-	    if (temptarget->monster.headHorzRotate < 0)
-		temptarget->monster.headHorzRotate += 3600;
+	    if (temptarget->player.headHorzRotate < 0)
+		temptarget->player.headHorzRotate += 3600;
 
-	    if (temptarget->monster.headHorzRotate >= 3600)
-		temptarget->monster.headHorzRotate -= 3600;
+	    if (temptarget->player.headHorzRotate >= 3600)
+		temptarget->player.headHorzRotate -= 3600;
 
-	    if (temptarget->monster.headVertRotate < -400)
-		temptarget->monster.headVertRotate = -400;
+	    if (temptarget->player.headVertRotate < -400)
+		temptarget->player.headVertRotate = -400;
 
-	    if (temptarget->monster.headVertRotate > 400)
-		temptarget->monster.headVertRotate = 400;
+	    if (temptarget->player.headVertRotate > 400)
+		temptarget->player.headVertRotate = 400;
 	    }
 	}
 
@@ -5935,7 +5496,7 @@ static void preparseMapArguments(int argc, char **argv)
 	    if (strcmp(argv[argument], "0") == 0)
 		requestedView = OMNISCIENTVIEW;
 	    else if (strcmp(argv[argument], "1") == 0)
-		requestedView = MONSTERVIEW;
+		requestedView = PLAYERVIEW;
 	    else if (strcmp(argv[argument], "2") == 0)
 		requestedView = ARMYVIEW;
 	    else if (strcmp(argv[argument], "4") == 0)
@@ -5971,7 +5532,6 @@ static int selectRequestedPlayerEntity(void)
     requested = entityCatalogFind(&gameEntities, requestedPlayerEntity);
     if (!setPlayerEntityArchetype(requested))
         return 0;
-    Googelon.monster = DATAENTITY;
     mode = PLAYMODE;
     showOptions = 0;
     showHelp = 0;
@@ -6129,18 +5689,16 @@ main (int argc, char*argv[])
 	    }
 	}
 
-    if ((netUp || client) &&
-	(playerEntityArchetype == NULL ||
-	 playerEntityArchetype->networkCode < 0))
+    if ((netUp || client) && playerEntityArchetype == NULL)
 	{
-	showError("Selected player entity has no network-code");
+	showError("Selected player entity is unavailable");
 	exit(1);
 	}
 
     setStereoLayout(requestedStereoLayout);
 
     /**********************************************/
-    /* set starting conditions for chosen monster */
+    /* set starting conditions for chosen player */
     /* (here so network options are used          */
     /**********************************************/
 

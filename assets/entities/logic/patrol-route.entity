@@ -1,0 +1,15 @@
+# Copyright (c) 2026 Battalion contributors.
+battalion-entity 1
+id logic-patrol-route
+display-name Patrol Route
+description Shared named patrol track assigned to one or more actors.
+kind route
+render-style none
+editor-category logic
+editor-color health-green
+editor-placeable yes
+placement polyline
+collision-mode none
+movement stationary
+destructible no
+casts-shadow no

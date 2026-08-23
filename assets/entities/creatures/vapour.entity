@@ -1,10 +1,22 @@
 battalion-entity 1
 id vapour
+display-name Vapour
+description Phasing creature represented by an animated cloud.
+editor-category creatures
+editor-color red
+wreck-fire-projectile projectile-flame
+destruction-projectile projectile-debris
+destruction-effect explosion-standard
+destruction-sound crash
+destruction-debris-count 7
+destruction-fire-count 3
+destruction-effect-count 1
+debris-life 420
 kind creature
+collision-footprint model
 controllable yes
 control-mode free
 shortcut 8
-network-code 1
 model vapour
 muzzle-node muzzle
 idle-animation vapour-cloud
@@ -12,7 +24,6 @@ move-animation vapour-cloud
 attack-animation vapour-cloud
 animation-speed 0.05
 faction monster
-hostile-faction army
 movement ground
 collision-mode phase
 speed 0.12
@@ -23,7 +34,8 @@ scale 1
 vertical-offset 0
 collision-radius 0.3
 collision-height 1.3
-weapon fire
+weapon projectile
+projectile projectile-flame
 weapon-color orange
 weapon-range 1
 weapon-min-range 0

@@ -14,12 +14,10 @@
 #include <string.h>
 
 extern int noSound;
-extern struct monsterInfo Googelon;
+extern struct runtimePlayer playerEntityState;
 
 int soundOn;
 int musicOn;
-int playingTankFire, playingHeloRocket, playingTankMaser;
-int playingExplosion, playingTech;
 int musicCount, deadCount;
 
 static struct AudioCatalog spatialCatalog;
@@ -29,30 +27,20 @@ static int deathMusicSlots[MAXDEADMUSIC];
 static int deathMusicSlotCount;
 static int backendStarted;
 
-static void stopEffects(void)
+#define AUDIO_EFFECT_TYPE_BASE 1000
+
+static int effectType(const struct AudioCatalogEntry *entry)
     {
-    audioMixerStopType(TANKFIRE);
-    audioMixerStopType(HELOROCKET);
-    audioMixerStopType(TANKMASER);
-    audioMixerStopType(EXPLOSION);
-    audioMixerStopType(MONSTERBEAM);
-    audioMixerStopType(CRASH);
-    audioMixerStopType(TECHSHOOT);
+    return AUDIO_EFFECT_TYPE_BASE + entry->slot;
     }
 
-static const struct AudioCatalogEntry *requiredEntry(const char *key,
-                                                      int expectedSlot)
+static void stopEffects(void)
     {
-    const struct AudioCatalogEntry *entry;
+    size_t index;
 
-    entry = audioCatalogFind(&spatialCatalog, key, "pcm");
-    if (entry == NULL || entry->slot != expectedSlot)
-        {
-        fprintf(stderr, "Required PCM audio asset is missing: %s\n", key);
-        showError("Required PCM audio asset is missing from assets");
-        exit(1);
-        }
-    return entry;
+    for (index = 0; index < spatialCatalog.count; index++)
+        if (strcmp(spatialCatalog.entries[index].backend, "pcm") == 0)
+            audioMixerStopType(effectType(&spatialCatalog.entries[index]));
     }
 
 static void loadEntry(const char *dataPath,
@@ -165,8 +153,6 @@ void initSounds(void)
     musicCount = 0;
     deadCount = 0;
     backendStarted = 0;
-    playingTankFire = playingHeloRocket = playingTankMaser = 0;
-    playingExplosion = playingTech = 0;
     }
 
 void checkSound(char *dataPath)
@@ -193,23 +179,6 @@ void checkSound(char *dataPath)
         exit(1);
         }
 
-    requiredEntry("beam", 0);
-    requiredEntry("boom", 1);
-    requiredEntry("crash", 2);
-    requiredEntry("monster-beam", 3);
-    requiredEntry("rocket", 4);
-    requiredEntry("tank", 6);
-    requiredEntry("tech", 7);
-    requiredEntry("music-1", 10);
-    requiredEntry("music-2", 11);
-    requiredEntry("music-3", 12);
-    requiredEntry("music-4", 13);
-    requiredEntry("music-5", 14);
-    requiredEntry("death-1", 15);
-    requiredEntry("death-2", 16);
-    requiredEntry("death-3", 17);
-    requiredEntry("death-4", 18);
-    requiredEntry("death-5", 19);
     memset(loadedSlots, 0, sizeof(loadedSlots));
     for (index = 0; index < spatialCatalog.count; index++)
         {
@@ -260,6 +229,17 @@ void soundKiller(int soundType)
     audioMixerStopType(soundType);
     }
 
+void soundKillerKey(const char *key)
+    {
+    const struct AudioCatalogEntry *entry;
+
+    if (key == NULL || key[0] == '\0')
+        return;
+    entry = audioCatalogFind(&spatialCatalog, key, "pcm");
+    if (entry != NULL)
+        audioMixerStopType(effectType(entry));
+    }
+
 void audioSetListener(float x, float y, float z, float headingRadians)
     {
     audioMixerSetListener(x, y, z, headingRadians);
@@ -275,64 +255,45 @@ int audioGetSmoothingEnabled(void)
     return audioMixerGetSmoothingEnabled();
     }
 
-static int effectSlot(int soundType)
-    {
-    switch (soundType)
-        {
-        case TANKFIRE: return 6;
-        case HELOROCKET: return 4;
-        case TANKMASER: return 0;
-        case EXPLOSION: return 1;
-        case MONSTERBEAM: return 3;
-        case CRASH: return 2;
-        case TECHSHOOT: return 7;
-        }
-    return -1;
-    }
-
-void doSoundAt(int theSound, float x, float y, float z)
+static void playMusic(void)
     {
     int slot;
-    int unique;
 
     if (noSound)
         return;
-    if (theSound == MUSIC)
+    if (!musicOn || audioMixerIsTypePlaying(MUSIC))
+        return;
+    if (playerEntityState.dead)
         {
-        if (!musicOn || audioMixerIsTypePlaying(MUSIC))
-            return;
-        if (Googelon.monsterIsDead)
-            {
-            slot = deathMusicSlots[deadCount];
-            deadCount = (deadCount + 1) % deathMusicSlotCount;
-            musicCount = 0;
-            }
-        else
-            {
-            slot = musicSlots[musicCount];
-            musicCount = (musicCount + 1) % musicSlotCount;
-            deadCount = 0;
-            }
-        audioMixerPlay(slot, MUSIC, 0, 1, 0, 0.0f, 0.0f, 0.0f, 0.55f);
-        return;
+        slot = deathMusicSlots[deadCount];
+        deadCount = (deadCount + 1) % deathMusicSlotCount;
+        musicCount = 0;
         }
-    if (!soundOn)
+    else
+        {
+        slot = musicSlots[musicCount];
+        musicCount = (musicCount + 1) % musicSlotCount;
+        deadCount = 0;
+        }
+    audioMixerPlay(slot, MUSIC, 0, 1, 0, 0.0f, 0.0f, 0.0f, 0.55f);
+    }
+
+void doSoundKeyAt(const char *key, float x, float y, float z)
+    {
+    const struct AudioCatalogEntry *entry;
+
+    if (noSound || !soundOn || key == NULL || key[0] == '\0')
         return;
-    slot = effectSlot(theSound);
-    if (slot < 0)
-        return;
-    unique = (theSound == TANKMASER || theSound == MONSTERBEAM);
-    audioMixerPlay(slot, theSound, 0, unique, 1, x, y, z, 0.9f);
+    entry = audioCatalogFind(&spatialCatalog, key, "pcm");
+    if (entry != NULL)
+        audioMixerPlay(entry->slot, effectType(entry), 0, entry->unique, 1,
+                       x, y, z, 0.9f);
     }
 
 void doSound(int theSound)
     {
     if (theSound == MUSIC)
-        doSoundAt(theSound, 0.0f, 0.0f, 0.0f);
-    else
-        doSoundAt(theSound, Googelon.x,
-                  (Googelon.bottom + Googelon.height) * 0.5f,
-                  Googelon.z);
+        playMusic();
     }
 
 void OutAudio(int slot)

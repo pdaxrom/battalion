@@ -8,6 +8,7 @@
 #define BATTALION_ENTITY_BEHAVIOR_H
 
 #include "entity_catalog.h"
+#include "faction_catalog.h"
 
 #include <stddef.h>
 
@@ -19,6 +20,18 @@
 #define ENTITY_PATROL_LOOP 1
 #define ENTITY_PATROL_PINGPONG 2
 #define ENTITY_PATROL_ONCE 3
+
+#define ENTITY_ALARM_INHERIT 0
+#define ENTITY_ALARM_CONTINUE 1
+#define ENTITY_ALARM_ATTACK 2
+#define ENTITY_ALARM_RETREAT 3
+#define ENTITY_ALARM_RANDOM 4
+
+#define ENTITY_RETREAT_NONE 0
+#define ENTITY_RETREAT_MOVING 1
+#define ENTITY_RETREAT_WAITING 2
+
+#define ENTITY_SIMULATION_STEPS_PER_SECOND 20
 
 struct EntityWaypoint
     {
@@ -56,9 +69,16 @@ struct EntitySensorDetection
     struct EntityContact contact;
     };
 
+typedef int (*EntityPositionBlocked)(void *context, float x, float z);
+typedef int (*EntityAreaContains)(void *context, float x, float z);
+
 struct EntityAgent
     {
     const struct EntityArchetype *archetype;
+    const struct FactionCatalog *factions;
+    char faction[ENTITY_NAME_SIZE];
+    EntityAreaContains areaContains;
+    void *areaContext;
     const struct EntityWaypoint *waypoints;
     float waypointOffsetX;
     float waypointOffsetZ;
@@ -66,6 +86,15 @@ struct EntityAgent
     size_t waypointIndex;
     int waypointDirection;
     int patrolMode;
+    int alarmResponse;
+    int lastAlarmResponse;
+    int retreatState;
+    int retreatWaitSteps;
+    int retreatWaitRemaining;
+    int hasSafeZone;
+    float safeZoneX;
+    float safeZoneZ;
+    unsigned long alarmRandomState;
     int reaction;
     int active;
     int cooldown;
@@ -98,7 +127,15 @@ void entityAgentInitialize(struct EntityAgent *agent,
                            const struct EntityArchetype *archetype,
                            float x, float z, float heading,
                            const struct EntityWaypoint *waypoints,
-                           size_t waypointCount, int patrolMode);
+                           size_t waypointCount, int patrolMode,
+                           const struct FactionCatalog *factions,
+                           const char *faction);
+void entityAgentSetAreaSensor(struct EntityAgent *agent,
+                              EntityAreaContains contains,
+                              void *context);
+void entityAgentSetAlarmPolicy(struct EntityAgent *agent, int response,
+                               float safeZoneX, float safeZoneZ,
+                               float waitSeconds, unsigned long randomSeed);
 int entityAgentQueueTrigger(struct EntityAgent *agent, const char *event,
                             const struct EntityContact *contact);
 void entityAgentNotifyDamage(struct EntityAgent *agent,
@@ -106,6 +143,10 @@ void entityAgentNotifyDamage(struct EntityAgent *agent,
 void entityAgentStep(struct EntityAgent *agent,
                      const struct EntityContact *contacts,
                      size_t contactCount);
+int entityAgentResolveObstacle(struct EntityAgent *agent,
+                               float oldX, float oldZ,
+                               EntityPositionBlocked blocked,
+                               void *context, int preferredDirection);
 int entitySteeredHeadingDelta(int leftPressed, int rightPressed,
                               float steerRate);
 float entityListenerHeadingRadians(const struct EntityArchetype *archetype,

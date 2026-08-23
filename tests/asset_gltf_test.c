@@ -415,6 +415,11 @@ static int testExportedHelicopter(void)
     struct AssetModel model;
     struct AssetPose pose;
     char error[160];
+    int gunYawNode;
+    int gunPitchNode;
+    int muzzleNode;
+    float neutralMuzzle[16];
+    float raisedMuzzle[16];
     int result;
 
     assetModelInitialize(&model);
@@ -425,22 +430,45 @@ static int testExportedHelicopter(void)
 	fprintf(stderr, "exported helicopter load failed: %s\n", error);
 	return 0;
 	}
-    result = model.meshCount == 3 &&
-	     model.meshes[0].vertexCount == 324 &&
-	     model.meshes[1].vertexCount == 72 &&
-	     model.meshes[2].vertexCount == 36 &&
-	     model.nodeCount == 4 &&
-	     model.sceneRootCount == 4 &&
-	     assetModelFindNode(&model, "muzzle") == 3 &&
-	     nearValue(model.nodes[2].translation[0], 0.04f) &&
-	     nearValue(model.nodes[2].translation[2], 0.375f) &&
+    gunYawNode = assetModelFindNode(&model, "gun-yaw");
+    gunPitchNode = assetModelFindNode(&model, "gun-pitch");
+    muzzleNode = assetModelFindNode(&model, "muzzle");
+    result = model.meshCount == 5 &&
+	     model.meshes[0].vertexCount == 1854 &&
+	     model.meshes[1].vertexCount == 180 &&
+	     model.meshes[2].vertexCount == 180 &&
+	     model.meshes[3].vertexCount == 36 &&
+	     model.meshes[4].vertexCount == 108 &&
+	     model.nodeCount == 7 &&
+	     model.sceneRootCount == 1 &&
+	     gunYawNode == 3 &&
+	     gunPitchNode == 4 &&
+	     muzzleNode == 5 &&
+	     model.nodes[gunYawNode].childCount == 1 &&
+	     model.nodes[gunYawNode].children[0] == gunPitchNode &&
+	     model.nodes[gunPitchNode].childCount == 1 &&
+	     model.nodes[gunPitchNode].children[0] == muzzleNode &&
+	     nearValue(model.nodes[2].translation[0], -0.07f) &&
+	     nearValue(model.nodes[2].translation[2], -0.455f) &&
 	     model.animationCount == 1 &&
 	     model.animations[0].trackCount == 2 &&
 	     strcmp(model.animations[0].name, "rotors") == 0 &&
 	     assetPoseSample(&model, 0, 0.25f, 1, &pose) &&
-	     nearValue(pose.nodes[1].rotation[1], -0.70710678f) &&
+	     nearValue(pose.nodes[1].rotation[1], 0.70710678f) &&
 	     nearValue(pose.nodes[1].rotation[3], 0.70710678f) &&
-	     nearValue(pose.nodes[2].rotation[0], -0.70710678f);
+	     nearValue(pose.nodes[2].rotation[0], 0.70710678f);
+    if (result)
+        result = assetPoseReset(&model, &pose) &&
+                 assetModelNodeWorldMatrix(&model, muzzleNode, &pose,
+                                           neutralMuzzle) &&
+                 assetPoseRotateNode(&pose, (size_t)gunPitchNode,
+                                     -30.0f, 0) &&
+                 assetModelNodeWorldMatrix(&model, muzzleNode, &pose,
+                                           raisedMuzzle) &&
+                 nearValue(neutralMuzzle[9], 0.0f) &&
+                 raisedMuzzle[9] > 0.49f && raisedMuzzle[9] < 0.51f &&
+                 raisedMuzzle[10] > 0.86f && raisedMuzzle[10] < 0.87f &&
+                 raisedMuzzle[13] > neutralMuzzle[13];
     assetPoseDestroy(&pose);
     assetModelDestroy(&model);
     if (!result)
@@ -533,32 +561,28 @@ static int testExternalTextures(void)
 
 static int testCompoundModels(void)
     {
-    static const char *paths[6] = {
+    static const char *paths[4] = {
         "assets/models/vehicles/airplane.glb",
         "assets/models/monsters/googelon.glb",
         "assets/models/monsters/flutter.glb",
-        "assets/models/monsters/techs.glb",
-        "assets/models/effects/boom-high.glb",
-        "assets/models/effects/boom-low.glb"
+        "assets/models/monsters/techs.glb"
     };
-    static const size_t meshCounts[6] = {3, 7, 6, 5, 10, 10};
-    static const size_t nodeCounts[6] = {4, 8, 7, 6, 11, 11};
-    static const char *requiredNodes[6] = {
-        "propeller-right", "tail-simple", "wing-right",
-        "head-simple", "frame-10", "frame-10"
+    static const size_t meshCounts[4] = {3, 7, 6, 5};
+    static const size_t nodeCounts[4] = {4, 8, 7, 6};
+    static const char *requiredNodes[4] = {
+        "propeller-right", "tail-simple", "wing-right", "head-simple"
     };
-    static const char *clips[6] = {
-        "propellers", "tail-sway", "wing-flap", "death", "explode",
-        "explode"
+    static const char *clips[4] = {
+        "propellers", "tail-sway", "wing-flap", "death"
     };
-    static const size_t animationCounts[6] = {1, 2, 1, 1, 1, 1};
+    static const size_t animationCounts[4] = {1, 2, 1, 1};
     struct AssetModel model;
     char error[160];
     int index;
     int valid;
 
     assetModelInitialize(&model);
-    for (index = 0; index < 6; index++)
+    for (index = 0; index < 4; index++)
         {
         valid = assetModelLoadGLB(paths[index], &model,
                                   error, sizeof(error)) &&

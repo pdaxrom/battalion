@@ -104,8 +104,9 @@ SOURCES := \
 
 SOURCES += asset.c asset_gltf.c asset_animation.c asset_skin.c asset_render.c \
 	asset_manifest.c asset_bindings.c asset_tga.c asset_values.c stroke_font_asset.c \
+	entity_asset_validation.c \
 	asset_png.c \
-	audio_catalog.c entity_catalog.c entity_behavior.c entity_wreck.c \
+	audio_catalog.c faction_catalog.c entity_catalog.c entity_behavior.c entity_wreck.c \
 	world_coordinates.c world_environment.c
 
 PLATFORM_CPPFLAGS :=
@@ -245,7 +246,9 @@ OBJECTS := $(OBJECTS:.m=.o)
 DEPS := $(OBJECTS:.o=.d)
 
 EDITOR_SOURCES := map_editor.c map_editor_gui.c map_editor_model.c \
-	map_package.c entity_catalog.c
+	map_package.c faction_catalog.c entity_catalog.c asset_values.c \
+	asset.c asset_gltf.c asset_animation.c asset_skin.c asset_render.c \
+	asset_manifest.c asset_tga.c asset_png.c
 ifeq ($(PLATFORM),macos)
 EDITOR_SOURCES += tk_macos.m renderer/fixed_gl.c renderer/metal.m
 else
@@ -354,17 +357,20 @@ AUDIO_CATALOG_TEST := $(TEST_BUILD_DIR)/audio-catalog-test
 AUDIO_MIXER_TEST := $(TEST_BUILD_DIR)/audio-mixer-test
 ASSET_BINDINGS_TEST := $(TEST_BUILD_DIR)/asset-bindings-test
 ENTITY_CATALOG_TEST := $(TEST_BUILD_DIR)/entity-catalog-test
+FACTION_CATALOG_TEST := $(TEST_BUILD_DIR)/faction-catalog-test
 ENTITY_BEHAVIOR_TEST := $(TEST_BUILD_DIR)/entity-behavior-test
 ENTITY_WRECK_TEST := $(TEST_BUILD_DIR)/entity-wreck-test
+ENTITY_ASSET_VALIDATION_TEST := $(TEST_BUILD_DIR)/entity-asset-validation-test
 NO_EMBEDDED_ASSETS_TEST := $(TEST_BUILD_DIR)/no-embedded-assets-test
+DATA_DRIVEN_CONTENT_TEST := $(TEST_BUILD_DIR)/data-driven-content-test
 WORLD_COORDINATES_TEST := $(TEST_BUILD_DIR)/world-coordinates-test
 WORLD_ENVIRONMENT_TEST := $(TEST_BUILD_DIR)/world-environment-test
 CAMERA_VIEW_TEST := $(TEST_BUILD_DIR)/camera-view-test
 MAP_EDITOR_MODEL_TEST := $(TEST_BUILD_DIR)/map-editor-model-test
 MAP_EDITOR_GUI_TEST := $(TEST_BUILD_DIR)/map-editor-gui-test
 
-$(MAP_TEST): tests/map_test.c map.c map.h map_package.c map_package.h entity_behavior.c entity_behavior.h entity_catalog.c entity_catalog.h Makefile | $(TEST_BUILD_DIR)
-	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< map.c map_package.c entity_behavior.c entity_catalog.c -lm -o $@
+$(MAP_TEST): tests/map_test.c map.c map.h map_package.c map_package.h entity_behavior.c entity_behavior.h entity_catalog.c entity_catalog.h faction_catalog.c faction_catalog.h Makefile | $(TEST_BUILD_DIR)
+	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< map.c map_package.c entity_behavior.c entity_catalog.c faction_catalog.c -lm -o $@
 
 $(ASSET_TEST): tests/asset_gltf_test.c asset.c asset_gltf.c asset_animation.c asset_skin.c asset_write.c asset_tga.c asset_png.c asset.h asset_animation.h asset_skin.h asset_write.h asset_tga.h asset_png.h Makefile | $(TEST_BUILD_DIR)
 	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< asset.c asset_gltf.c asset_animation.c asset_skin.c asset_write.c asset_tga.c asset_png.c -lm -o $@
@@ -393,14 +399,23 @@ $(ASSET_BINDINGS_TEST): tests/asset_bindings_test.c asset_bindings.c asset_bindi
 $(ENTITY_CATALOG_TEST): tests/entity_catalog_test.c entity_catalog.c entity_catalog.h Makefile | $(TEST_BUILD_DIR)
 	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< entity_catalog.c -o $@
 
-$(ENTITY_BEHAVIOR_TEST): tests/entity_behavior_test.c entity_behavior.c entity_behavior.h entity_catalog.c entity_catalog.h Makefile | $(TEST_BUILD_DIR)
-	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< entity_behavior.c entity_catalog.c -lm -o $@
+$(FACTION_CATALOG_TEST): tests/faction_catalog_test.c faction_catalog.c faction_catalog.h Makefile | $(TEST_BUILD_DIR)
+	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< faction_catalog.c -o $@
+
+$(ENTITY_BEHAVIOR_TEST): tests/entity_behavior_test.c entity_behavior.c entity_behavior.h entity_catalog.c entity_catalog.h faction_catalog.c faction_catalog.h Makefile | $(TEST_BUILD_DIR)
+	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< entity_behavior.c entity_catalog.c faction_catalog.c -lm -o $@
 
 $(ENTITY_WRECK_TEST): tests/entity_wreck_test.c entity_wreck.c entity_wreck.h Makefile | $(TEST_BUILD_DIR)
 	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< entity_wreck.c -o $@
 
+$(ENTITY_ASSET_VALIDATION_TEST): tests/entity_asset_validation_test.c entity_asset_validation.c entity_asset_validation.h entity_catalog.c entity_catalog.h asset_manifest.c asset_manifest.h asset.c asset_gltf.c asset_animation.c asset_skin.c asset_render.c asset_tga.c asset_png.c renderer/fixed_gl.c Makefile | $(TEST_BUILD_DIR)
+	$(CC) -I. -DMACOSVERSION $(COMPAT_CFLAGS) $(CFLAGS) $< entity_asset_validation.c entity_catalog.c asset_manifest.c asset.c asset_gltf.c asset_animation.c asset_skin.c asset_render.c asset_tga.c asset_png.c renderer/fixed_gl.c -lm -o $@
+
 $(NO_EMBEDDED_ASSETS_TEST): tests/no_embedded_assets_test.c Makefile | $(TEST_BUILD_DIR)
 	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< -o $@
+
+$(DATA_DRIVEN_CONTENT_TEST): tests/data_driven_content_test.c entity_catalog.c entity_catalog.h audio_catalog.c audio_catalog.h asset_values.c asset_values.h Makefile | $(TEST_BUILD_DIR)
+	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< entity_catalog.c audio_catalog.c asset_values.c -o $@
 
 $(WORLD_COORDINATES_TEST): tests/world_coordinates_test.c world_coordinates.c world_coordinates.h Makefile | $(TEST_BUILD_DIR)
 	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< world_coordinates.c -o $@
@@ -411,8 +426,8 @@ $(WORLD_ENVIRONMENT_TEST): tests/world_environment_test.c world_environment.c wo
 $(CAMERA_VIEW_TEST): tests/camera_view_test.c camera_view.c camera_view.h Makefile | $(TEST_BUILD_DIR)
 	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< camera_view.c -lm -o $@
 
-$(MAP_EDITOR_MODEL_TEST): tests/map_editor_model_test.c map_editor_model.c map_editor_model.h map_package.c map_package.h entity_catalog.c entity_catalog.h Makefile | $(TEST_BUILD_DIR)
-	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< map_editor_model.c map_package.c entity_catalog.c -lm -o $@
+$(MAP_EDITOR_MODEL_TEST): tests/map_editor_model_test.c map_editor_model.c map_editor_model.h map_package.c map_package.h entity_catalog.c entity_catalog.h faction_catalog.c faction_catalog.h Makefile | $(TEST_BUILD_DIR)
+	$(CC) -I. $(COMPAT_CFLAGS) $(CFLAGS) $< map_editor_model.c map_package.c entity_catalog.c faction_catalog.c -lm -o $@
 
 $(MAP_EDITOR_GUI_TEST): tests/map_editor_gui_test.c map_editor_gui.c map_editor_gui.h renderer/fixed_gl.c renderer/fixed_gl.h renderer/backend.h vendor/nuklear/nuklear.h Makefile | $(TEST_BUILD_DIR)
 	$(CC) -I. -DMACOSVERSION -DRENDERER_METAL $(COMPAT_CFLAGS) $(CFLAGS) $< map_editor_gui.c renderer/fixed_gl.c -lm -o $@
@@ -420,7 +435,7 @@ $(MAP_EDITOR_GUI_TEST): tests/map_editor_gui_test.c map_editor_gui.c map_editor_
 $(TEST_BUILD_DIR):
 	mkdir -p $@
 
-test: c89-check $(MAP_TEST) $(ASSET_TEST) $(ASSET_SKIN_TEST) $(ASSET_CATALOG_TEST) $(ASSET_VALUES_TEST) $(STROKE_FONT_TEST) $(AUDIO_CATALOG_TEST) $(AUDIO_MIXER_TEST) $(ASSET_BINDINGS_TEST) $(ENTITY_CATALOG_TEST) $(ENTITY_BEHAVIOR_TEST) $(ENTITY_WRECK_TEST) $(NO_EMBEDDED_ASSETS_TEST) $(WORLD_COORDINATES_TEST) $(WORLD_ENVIRONMENT_TEST) $(CAMERA_VIEW_TEST) $(MAP_EDITOR_MODEL_TEST) $(MAP_EDITOR_GUI_TEST)
+test: c89-check $(MAP_TEST) $(ASSET_TEST) $(ASSET_SKIN_TEST) $(ASSET_CATALOG_TEST) $(ASSET_VALUES_TEST) $(STROKE_FONT_TEST) $(AUDIO_CATALOG_TEST) $(AUDIO_MIXER_TEST) $(ASSET_BINDINGS_TEST) $(ENTITY_CATALOG_TEST) $(FACTION_CATALOG_TEST) $(ENTITY_BEHAVIOR_TEST) $(ENTITY_WRECK_TEST) $(ENTITY_ASSET_VALIDATION_TEST) $(NO_EMBEDDED_ASSETS_TEST) $(DATA_DRIVEN_CONTENT_TEST) $(WORLD_COORDINATES_TEST) $(WORLD_ENVIRONMENT_TEST) $(CAMERA_VIEW_TEST) $(MAP_EDITOR_MODEL_TEST) $(MAP_EDITOR_GUI_TEST)
 	./$(MAP_TEST)
 	./$(ASSET_TEST)
 	./$(ASSET_SKIN_TEST)
@@ -431,9 +446,12 @@ test: c89-check $(MAP_TEST) $(ASSET_TEST) $(ASSET_SKIN_TEST) $(ASSET_CATALOG_TES
 	./$(AUDIO_MIXER_TEST)
 	./$(ASSET_BINDINGS_TEST)
 	./$(ENTITY_CATALOG_TEST)
+	./$(FACTION_CATALOG_TEST)
 	./$(ENTITY_BEHAVIOR_TEST)
 	./$(ENTITY_WRECK_TEST)
+	./$(ENTITY_ASSET_VALIDATION_TEST)
 	./$(NO_EMBEDDED_ASSETS_TEST)
+	./$(DATA_DRIVEN_CONTENT_TEST)
 	./$(WORLD_COORDINATES_TEST)
 	./$(WORLD_ENVIRONMENT_TEST)
 	./$(CAMERA_VIEW_TEST)

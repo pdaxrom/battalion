@@ -1,0 +1,28 @@
+battalion-entity 1
+id building-fast-food-alternate
+display-name Fast Food Alternate
+description Authored GLB structure with editable transform, properties, and trigger routes.
+kind structure
+editor-category buildings
+editor-color brown
+editor-placeable yes
+placement tile
+model building-28-high
+model-low building-28-low
+idle-animation building-28-sign-spin
+animation-speed 0.4
+collision-mode solid
+collision-footprint model
+movement stationary
+collision-radius 0.25
+collision-height 0.8
+destructible yes
+destruction-projectile projectile-debris
+destruction-effect explosion-standard
+destruction-sound crash
+destruction-debris-count 7
+destruction-fire-count 3
+destruction-effect-count 1
+debris-life 420
+destruction-fire-projectile projectile-flame
+casts-shadow yes

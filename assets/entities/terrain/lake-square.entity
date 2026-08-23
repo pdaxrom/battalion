@@ -1,0 +1,19 @@
+battalion-entity 1
+id lake-square
+display-name Square Lake Tile
+description Catalog terrain tile editable through the shared map instance model.
+property water-kind string freshwater
+kind terrain
+editor-category lakes
+editor-color water
+editor-placeable yes
+placement tile
+model water-square
+model-seasonal water-square-xmas
+collision-mode none
+movement stationary
+vertical-offset 0.001
+collision-radius 0.25
+collision-height 0.1
+destructible no
+casts-shadow no

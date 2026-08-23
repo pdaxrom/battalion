@@ -2,10 +2,10 @@
 battalion-audio 1
 
 # Portable PCM assets used by every native audio backend.
-entry beam pcm 0 sounds/beam.wav
+entry beam pcm 0 sounds/beam.wav unique
 entry boom pcm 1 sounds/boom.wav
 entry crash pcm 2 sounds/crash.wav
-entry monster-beam pcm 3 sounds/monsterbeam.wav
+entry beam-heavy pcm 3 sounds/monsterbeam.wav unique
 entry rocket pcm 4 sounds/rocket.wav
 entry tank pcm 6 sounds/tank.wav
 entry tech pcm 7 sounds/tech.wav
@@ -22,3 +22,5 @@ entry death-5 pcm 19 music/mbatt2.wav
 
 entry electrical pcm 8 sounds/electrical.wav
 entry teleporter pcm 9 sounds/teleporter.wav
+entry engine-rumble pcm 20 sounds/tank.wav unique
+entry road-clank pcm 21 sounds/crash.wav unique

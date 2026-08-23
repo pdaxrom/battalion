@@ -16,16 +16,19 @@ The engine composes authored data from a fixed set of reusable capabilities.
 Without recompiling the game, an author can:
 
 - add or replace a static or animated GLB model;
-- add a new `vehicle`, `npc`, `creature`, `object`, `device`, or `structure`;
+- add a new `vehicle`, `npc`, `creature`, `object`, `device`, `structure`,
+  `route`, or `zone`;
 - make any archetype controllable by the player;
 - select ground, air, or stationary movement and free or steered controls;
 - select an existing weapon capability and tune its ranges and timing;
 - define collision, health, scoring, random spawning, camera, and a GLB muzzle
   node;
 - add proximity, vision, hearing, and damage sensors in any combination;
+- define polygonal protected-area sensors and shared named patrol routes;
 - define enter, stay, exit, and externally triggered reactions;
 - emit events and route them to another actor or a group of actors;
-- place actors, patrol paths, initial state, and trigger links in a map;
+- place actors, shared patrol routes, protected areas, initial state, and
+  trigger links in a map;
 - replace models, textures, animations, sounds, music, UI values, and effect
   parameters through external catalogs.
 
@@ -44,8 +47,8 @@ All runtime files live below lowercase `assets/`:
 assets/
   manifest.txt                  global asset catalog
   audio/catalog.txt             semantic sound and music catalog
+  factions/catalog.txt          faction identities and relationships
   config/
-    animation.values            controller constants
     effects.values              live-effect appearance constants
     palette.values              renderer colours
     render.bindings             stable engine role -> manifest key
@@ -57,7 +60,11 @@ assets/
     vehicles/*.entity
     objects/*.entity            create when first needed
     devices/*.entity            create when first needed
+    effects/*.entity
+    projectiles/*.entity
+    roads/*.entity
     structures/*.entity         create when first needed
+    terrain/*.entity
   fonts/stroke.font
   maps/<map-id>/map.json
   models/
@@ -118,9 +125,11 @@ Most new gameplay objects follow this sequence:
 6. Place an instance in a version 2 map, or configure random spawning.
 7. Run `make test` and then test the object in the game.
 
-Replacing an existing render role, such as a terrain tile or explosion model,
-uses `assets/config/render.bindings` instead of an entity descriptor. A GLB is
-only visual content; a descriptor is what turns a model into a gameplay object.
+Only truly renderer-owned roles, such as the title, ground plane, direction
+arrow, and shared explosion animation, use `assets/config/render.bindings`.
+Roads, terrain tiles, structures, actors, and other authored world content use
+entity descriptors. A GLB is only visual content; a descriptor is what turns a
+model into a gameplay object.
 
 ## GLB model authoring profile
 
@@ -135,7 +144,7 @@ The engine uses:
 - `+Y` as up;
 - the `X/Z` plane as the battlefield;
 - `+Z` as forward when heading is zero;
-- radians for map actor headings.
+- degrees for all map object headings.
 
 All gameplay positions are persistent map-world coordinates. Movement changes
 the moving object's coordinates, never the map, paths, contacts, projectiles,
@@ -504,19 +513,23 @@ battalion-bindings 1
 It maps a stable engine role to a manifest key:
 
 ```text
-model effect-boom-high boom-high
-animation effect-boom-high boom-high-explode
-texture road-surface road
 file config-effects effect-values
+model ui-title-high title-high
 ```
 
-Use bindings when replacing content for a role already known by the engine,
-such as terrain, bound structures, projectiles, explosions, UI geometry, or a
-configuration file. Do not add a new binding slot speculatively: a slot is only
-active if an engine capability consumes it.
+Use bindings only for engine-owned roles such as UI geometry, the generic
+ground plane, the stroke font, or a configuration file. World content,
+projectiles, destruction effects, roads, structures, and terrain must select
+their model and animations from their archetype descriptor. Do not add a new
+binding slot speculatively: a slot is only active if an engine capability
+consumes it.
 
 New generic actors normally reference model and animation manifest keys
 directly from their `.entity` descriptor and do not need new render slots.
+
+Editor viewport colors are also catalog data. Every placeable descriptor must
+set `editor-color` to a key from `assets/config/palette.values`; the editor does
+not infer a color from `kind`, an id, or a model name.
 
 ## Entity catalog
 
@@ -537,7 +550,7 @@ entity entities/structures/radar-station.entity
 ```
 
 Descriptor paths are relative to `assets/`. They must be lowercase safe paths.
-Entity ids, player shortcuts, and network codes must be unique.
+Entity ids and player shortcuts must be unique.
 The fallback must name a catalog entry. The game also verifies that every
 referenced model, clip, and aim node exists.
 
@@ -549,18 +562,19 @@ Every descriptor begins with exactly:
 battalion-entity 1
 ```
 
-Comments beginning in column one with `#` and blank lines are ignored. Every
-ordinary directive has one value; `display-name` is the sole directive whose
-value may contain spaces. Sensors have five arguments after the word `sensor`,
-and reaction rules have three.
+Comments beginning in column one with `#` and blank lines are ignored. Most
+directives have one value; `display-name` and `description` may contain spaces.
+Sensors have five arguments after the word `sensor`, reaction rules have three,
+properties have three, and surface sound rules have three.
 
-The four required directives are:
+The required identity and visual directives are:
 
 ```text
 id <lowercase-id>
-kind <vehicle|npc|object|device|structure|creature>
+display-name <human-readable name>
+description <human-readable description>
+kind <vehicle|npc|object|device|structure|creature|road|terrain|projectile|effect>
 model <manifest-model-key>
-faction <lowercase-faction>
 ```
 
 `kind` classifies content for authors and future capability policies. Current
@@ -582,6 +596,15 @@ vehicle can be stationary, and an object can have sensors.
 | `height` | none | Desired rest-pose Y extent in world units; computes uniform scale after loading the GLB. Mutually exclusive with `scale`. |
 | `scale` | `1` | Optional explicit uniform render scale. Must be positive and cannot be combined with `height`. |
 | `vertical-offset` | `0` | Model-origin height relative to the battlefield plane. |
+| `render-color` | `white` | Runtime palette key used by generic colored rendering capabilities. |
+| `render-style` | `model` | Generic renderer capability: `model`, `particle-plume`, `particle-burst`, or `none`. Logic routes and zones use `none`. |
+| `particle-start-color`, `particle-middle-color`, `particle-end-color` | none | Palette keys defining a particle capability's lifetime gradient. |
+| `particle-count`, `particle-cycle-frames` | `0` | Particle population and lifetime/cycle, both required for particle styles. |
+| `particle-size`, `particle-speed`, `particle-spread`, `particle-gravity` | `0` | Renderer-neutral particle motion parameters stored in the archetype. |
+| `editor-color` | required when placeable | Palette key used for the object in the 2D editor viewport. |
+| `editor-category` | required when placeable | Palette section label; it does not select runtime behavior. |
+| `editor-placeable` | `yes` | Whether the archetype is offered by the map editor. |
+| `placement` | `point` | Generic editor/runtime geometry: `none`, `point`, `tile`, `polyline`, or `area`. |
 | `aim-yaw-node` | none | Named GLB node receiving live yaw. Requires pitch node. For a controllable entity it also defines the horizontal listener/camera facing independently of the body. |
 | `aim-pitch-node` | none | Named GLB node receiving live pitch. Requires yaw node. |
 | `render-node` | none | Repeat to draw only named model subtrees; with no entries the active scene is drawn. |
@@ -602,13 +625,30 @@ one source model without drawing every optional subtree at once.
 | --- | ---: | --- |
 | `id` | required | Unique archetype id. |
 | `kind` | required | Authoring category. |
-| `faction` | required | This archetype's faction. |
-| `hostile-faction` | none | Repeat up to eight times to declare enemies. |
-| `network-code` | none | Optional numeric wire id for multiplayer. It does not select behavior or rendering. |
+| `faction` | required for actors | Default faction id from `assets/factions/catalog.txt`. |
 | `model-yaw-offset` | `0` | Visual yaw correction in degrees; gameplay forward remains `+Z`. |
 
-Hostility is directional. If `guards` lists `raiders`, that does not make
-`raiders` hostile to `guards` unless their descriptor says so too.
+Faction relationships do not belong to individual archetypes. The shared
+`assets/factions/catalog.txt` declares arbitrary faction ids, the player
+faction, editor colours, and directional `neutral`, `ally`, or `hostile`
+relations. Adding a faction never requires a C enum or branch.
+
+The faction catalog syntax is:
+
+```text
+battalion-factions 1
+faction player health-green
+faction army yellow
+faction civilians white
+player-faction player
+relation player army hostile
+relation player civilians ally
+relation army player hostile
+```
+
+Relations are directional and omitted pairs are neutral. An entity instance
+may override its archetype default with the map `faction` field; this is how
+the same actor archetype can be placed as an enemy, neutral, or player ally.
 
 ### Movement, collision, and control
 
@@ -616,12 +656,16 @@ Hostility is directional. If `guards` lists `raiders`, that does not make
 | --- | ---: | --- |
 | `movement` | `ground` | `stationary`, `ground`, or `air`. |
 | `speed` | `0.03` | Distance advanced per simulation step; zero is allowed. |
+| `player-speed` | `speed` | Optional speed used only while this archetype is player-controlled. |
 | `turn-rate` | `0.2` | Fraction of heading error applied per AI step; must be positive. |
 | `tactic` | `standoff` | `standoff` stops in weapon range; `flyby` keeps moving through an attack pass. |
 | `tactic-radius` | `20` | Distance inside which a flyby actor keeps its current heading. |
 | `collision-mode` | `solid` | `solid` blocks; `phase` passes through structures and actors. |
+| `collision-footprint` | `radius` | `radius` uses the authored radius; `model` derives a conservative footprint from the resolved GLB bounds and scale. |
 | `collision-radius` | `0.25` | Horizontal collision radius; must be positive. |
 | `collision-height` | `0.3` | Physical height; must be positive. |
+| `spawn-clearance` | `0.15` | Additional free space required around a newly spawned actor. |
+| `grounding` | `model-min` | `model-min` places the lowest model point on the map Y; `origin` preserves the GLB's authored vertical origin. |
 | `control-mode` | `free` | `free` strafes; `steered` turns the hull with A/D. |
 
 `movement stationary` prevents AI path movement. It does not make an object
@@ -630,6 +674,32 @@ sensors, switches, and other fixed actors.
 
 `collision-mode phase` is reusable for vapour, ghosts, smoke, or any other
 non-solid actor. It is not tied to a particular entity id.
+
+### Audio components
+
+Sound behavior belongs to archetypes and semantic audio keys, never to a
+specific object id in C:
+
+| Directive | Default | Meaning |
+| --- | ---: | --- |
+| `fire-sound` | none | Semantic PCM key played when the archetype fires. |
+| `destruction-sound` | none | Semantic PCM key played when an instance is destroyed. |
+| `move-sound` | none | Semantic PCM key played while the actor is moving. |
+| `move-sound-interval` | `20` | Simulation frames between movement-sound submissions; at least one. |
+| `contact-audio-tag` | none | Reusable mover tag, for example `tracked` or `footsteps`. |
+| `surface-sound <tag> <sound> <interval>` | none | Repeatable rule on a surface archetype. It plays `sound` while a moving actor with the matching contact tag occupies that surface. |
+
+Every sound name is resolved through `assets/audio/catalog.txt` and validated
+when tests run. A road, metal deck, bridge, mud tile, shallow-water area, or
+other surface can declare any number of `surface-sound` rules without naming
+the actor that may cross it. Conversely, a moving actor only declares its
+contact tag; it does not know which roads or terrain exist. Runtime matching
+uses the map instance transform and archetype placement bounds.
+
+These are archetype components, so the map editor shows them read-only in the
+selected object's Audio section. Instance-specific customization should use a
+typed archetype property and a generic capability; it must not introduce an
+object-id branch in gameplay code.
 
 ### Damage, scoring, and spawning
 
@@ -640,6 +710,14 @@ non-solid actor. It is not tied to a particular entity id.
 | `spawn-weight` | `0` | Relative random-spawn weight; zero disables random spawning. |
 | `spawn-after` | `0` | Simulation counter before random spawning is allowed. |
 | `max-active` | `0` | Maximum random/map instances counted for spawning; zero is unlimited. |
+| `destruction-debris-count` | `0` | Number of catalog-selected debris projectiles/fragments. |
+| `destruction-fire-count` | `0` | Number of persistent fire projectiles left after destruction. |
+| `destruction-effect-count` | `0` | Number of `destruction-effect` instances spread across the source bounds. |
+| `debris-life` | `0` | Lifetime in frames for landed runtime fragments. |
+| `destruction-projectile` | none | Projectile archetype used as debris visual/ballistic fragment. |
+| `destruction-fire-projectile` | none | Persistent fire projectile used by map objects. |
+| `wreck-fire-projectile` | none | Persistent fire projectile used by actors and controllable entities. |
+| `destruction-effect` | none | Timed `kind effect` archetype spawned on destruction. |
 
 Random spawn weights are relative to other eligible descriptors. Do not treat
 the number as a percentage. Explicit
@@ -653,11 +731,27 @@ scenario.
 
 | Directive | Default | Meaning |
 | --- | ---: | --- |
-| `weapon` | `none` | `none`, `shell`, `rocket`, `beam`, `fire`, or `plasma`. |
-| `weapon-color` | `blue` | Palette key used by the visible weapon effect. |
+| `weapon` | `none` | Generic capability: `none`, `projectile`, or `beam`. |
+| `projectile` | none | `kind projectile` archetype used by a projectile weapon. Required for `weapon projectile`. |
+| `weapon-color` | none | Palette key used by the outer beam. Required for `weapon beam`. |
+| `weapon-core-color` | none | Palette key used by the beam core. Required for `weapon beam`. |
+| `weapon-trace-color` | none | Optional palette key for the beam ground trace. |
+| `weapon-damage` | `0` | Damage per beam simulation step. Required positive when beam actor damage is enabled. |
+| `weapon-damages-actors` | `no` | Whether a beam damages runtime actors and players. |
+| `weapon-destroys-map-objects` | `no` | Whether a beam destroys destructible map objects. |
 | `weapon-range` | `6` | Maximum attack range; non-negative. |
 | `weapon-min-range` | `0.5` | Minimum attack range; between zero and maximum. |
 | `projectile-speed` | `0.08` | Projectile capability speed; must be positive. |
+| `projectile-collides-ground` | `no` | Whether this projectile expires and runs its impact effect on ground contact. |
+| `projectile-continuous` | `no` | Whether holding fire emits continuously instead of using the latched/reload path. |
+| `projectile-trail-marker` | `no` | Render this projectile as a point in the generic linked trail instead of drawing its model. |
+| `projectile-damages-actors` | `yes` | Whether direct projectile contact damages players. |
+| `projectile-collides-actors` | `yes` | Whether its swept path collides with runtime actors. |
+| `projectile-collides-map-objects` | `yes` | Whether its swept path collides with map objects. |
+| `projectile-destroys-map-objects` | `yes` | Whether a collision destroys a destructible map object. |
+| `projectile-damage` | `2` | Direct-hit damage. |
+| `projectile-arming-frames` | `8` | Frames before the projectile can collide with its emitter. |
+| `impact-effect` | none | `kind effect` archetype spawned on impact. |
 | `fire-interval` | `120` | Simulation steps between shots; at least one. |
 | `burst-count` | `1` | Projectiles emitted per attack, from one through 32. |
 | `accuracy` | `10` | Existing weapon spread/accuracy parameter; non-negative. |
@@ -760,6 +854,7 @@ Supported types are:
 | `vision` | Range plus a forward cone; also requires world line of sight. |
 | `hearing` | Range plus an audible contact; not blocked by structures. |
 | `damage` | Reacts to the recorded damage source. Use conventional `0 360`. |
+| `area` | Tests contacts against the polygon on the map zone instance; range is conventionally `0`. |
 
 Range must be non-negative. Angle must be greater than zero and no more than
 360 degrees. The angle is the complete vision cone, not its half angle.
@@ -768,11 +863,11 @@ Proximity and hearing normally use 360.
 The faction filter is one of:
 
 - `any` for every contact;
-- `hostile` for factions listed by `hostile-faction`;
+- `hostile` for a hostile relationship in the faction catalog;
+- `ally` for the same faction or an allied relationship;
 - an exact faction name.
 
-A `hostile` sensor requires at least one `hostile-faction` when reactions are
-defined. Vision visibility and hearing audibility come from live world state;
+Vision visibility and hearing audibility come from live world state;
 the descriptor configures the zone but does not bypass occlusion or generate
 sound by itself.
 
@@ -806,11 +901,12 @@ Supported reactions are:
 Behavioral reactions have increasing priority in the order listed through
 `flee`; a weaker rule does not replace an already stronger state. `activate`
 and `deactivate` are state commands. Multiple rules may consume the same event,
-which allows an actor to activate and then attack:
+which allows an actor to activate and then investigate the transmitted last
+known position:
 
 ```text
 on-trigger base-alarm activate none
-on-trigger base-alarm attack none
+on-trigger base-alarm investigate none
 ```
 
 An archetype may define up to 32 sensor and trigger rules. Event names use the
@@ -832,6 +928,39 @@ does not depend on linked-list or map actor order.
 Inactive actors do not perceive or patrol, but queued triggers are processed
 first. An `activate` rule can wake an inactive actor; a second rule for the same
 event can immediately assign its target and reaction.
+
+Randomly spawned actors receive the generic lifecycle event `spawned` carrying
+the local player's last known contact. There is no implicit tank or aircraft
+behavior: an archetype moves on spawn only when its descriptor opts in, for
+example `on-trigger spawned pursue none`. Its `forget-range` and `lost-frames`
+then control how long the actor searches before returning to passive/patrol
+behavior.
+
+### Per-instance patrol alarm policy
+
+A map actor assigned to a shared patrol route may override the reusable
+archetype reaction after it receives a recognized trigger event. The map
+field `alarm-response` accepts:
+
+| Value | Result after a new alarm |
+| --- | --- |
+| `inherit` | Keep the reactions declared by the archetype's `on-trigger` rules. |
+| `continue` | Clear the transmitted alarm contact and continue the patrol. |
+| `attack` | Activate and attack the transmitted intruder contact. |
+| `retreat` | Move to the referenced safe-zone, wait, then resume the patrol. |
+| `random` | Choose independently between `continue`, `attack`, and `retreat` for each alarm. |
+
+`retreat` and `random` require `safe-zone`, which references a normal map
+object whose archetype has `kind zone`, plus a non-negative
+`safe-wait-seconds`. The actor moves to that zone object's world `x`/`z`
+position. One game second is twenty simulation steps; pausing the game also
+pauses this timer. After the timer expires, the actor resumes its existing
+shared route at its current waypoint. Waiting suppresses movement and weapon
+fire, but perception and event propagation remain active.
+
+The policy applies only when the received event matches a behavioral
+`on-trigger` rule. Random runtime spawns have no map-instance policy, and old
+maps or actors left on `inherit` preserve their descriptor-defined behavior.
 
 ## Complete archetype examples
 
@@ -872,7 +1001,6 @@ model radar-dish
 idle-animation radar-dish-scan
 animation-speed 0.05
 faction army
-hostile-faction monster
 movement stationary
 weapon none
 health 3
@@ -909,7 +1037,6 @@ animation-speed 0.05
 height 0.18
 vertical-offset 0
 faction army
-hostile-faction monster
 movement ground
 control-mode free
 speed 0.025
@@ -943,7 +1070,8 @@ on-trigger squad-alert attack none
 spawn-weight 0
 ```
 
-The route and patrol path belong to the map instance, not this reusable NPC
+The trigger routes and shared patrol-route assignment belong to map instances,
+not this reusable NPC
 archetype. The requested `height 0.18` makes this guard 1.8 metres tall whether
 the source GLB is authored in metres, centimetres, or another consistent unit.
 The collision values remain explicit world-unit values and do not inherit the
@@ -962,7 +1090,6 @@ aim-pitch-node barrel
 muzzle-node muzzle
 animation-speed 0.05
 faction army
-hostile-faction monster
 movement ground
 control-mode steered
 speed 0.04
@@ -1027,7 +1154,6 @@ idle-animation scout-drone-rotors
 move-animation scout-drone-rotors
 attack-animation scout-drone-rotors
 faction army
-hostile-faction monster
 movement air
 control-mode free
 vertical-offset 1.2
@@ -1062,9 +1188,10 @@ collision-mode phase
 Transparency is a GLB material property, not a consequence of phased
 collision. Configure both independently.
 
-## Map authoring and actor instances
+## Map authoring and object instances
 
-Battlefields are `assets/maps/<id>/map.json`. A map with generic actors uses:
+Battlefields are `assets/maps/<id>/map.json`. Every authored world item is a
+catalog archetype instance in the single `objects` array:
 
 ```json
 {
@@ -1072,60 +1199,99 @@ Battlefields are `assets/maps/<id>/map.json`. A map with generic actors uses:
   "version": 2,
   "id": "test-yard",
   "name": "Test Yard",
-  "roads": [],
-  "structures": [],
-  "actors": []
+  "objects": []
 }
 ```
 
-`roads`, `structures`, and `actors` are required in version 2, even when empty.
-Historical numeric `units` are no longer part of the format; every gameplay
-entity uses `actors`, whose geometry and behavior come from archetypes.
+`objects` is required in version 2, even when empty. Historical numeric
+`roads`, `structures`, and `units`, plus the split `actors` array, are no
+longer part of the format. Roads, structures, actors, terrain, devices, and
+effects all use the same record whose geometry and behavior come from its
+archetype.
 
-### Actor fields
+### Object fields
 
 | Field | Required | Default | Meaning |
 | --- | --- | ---: | --- |
-| `id` | yes | — | Unique lowercase map-instance id. |
+| `id` | no | empty | Unique map-instance id; required when referenced by a trigger. |
 | `archetype` | yes | — | Id from the entity catalog. |
 | `x` | yes | — | World X coordinate. |
+| `y` | no | `0` | World Y coordinate. |
 | `z` | yes | — | World Z coordinate. |
+| `description` | no | empty | Authored instance description. |
 | `group` | no | empty | Lowercase event-routing group. |
-| `heading` | no | `0` | Initial heading in radians; zero faces `+Z`. |
+| `faction` | no | archetype faction | Per-instance faction override from the faction catalog. |
+| `heading` | no | `0` | Heading in degrees; zero faces `+Z`. |
+| `scale` | no | `1` | Per-instance uniform scale. |
 | `active` | no | `true` | Whether perception, patrol, and reactions start enabled. |
 | `patrol-mode` | no | `loop` | `loop`, `pingpong`, or `once`. |
-| `path` | no | empty | Ordered array of `{ "x", "z" }` waypoints. |
+| `patrol-route` | no | empty | Id of a shared `kind route` object. Any number of actors may reference it. |
+| `alarm-response` | no | `inherit` | `inherit`, `continue`, `attack`, `retreat`, or `random` for recognized alarm triggers. |
+| `safe-zone` | conditional | empty | Id of a `kind zone` object; required by `retreat` and `random`. |
+| `safe-wait-seconds` | no | `0` | Non-negative game-time wait in the safe-zone. Used by `retreat` and `random`. |
+| `path` | no | empty | Ordered `{ "x", "z" }` points owned only by a `kind route` object. |
+| `geometry` | no | empty | Archetype placement geometry as `{ "x", "z" }` points. |
+| `properties` | no | empty | Typed archetype property overrides as name/value pairs. |
 | `triggers` | no | empty | Emitted-event routing rules. |
 
-Actor ids must be unique. A trigger target id or group must exist somewhere in
-the same map package. A path on `movement stationary` is valid data but cannot
-move the actor. Actor positions and every waypoint use map-world coordinates.
-The actor, its current target, sensor contacts, queued events, and the complete
+Object ids must be unique. A trigger target id/group and a `patrol-route` id
+must exist in the same map package. A `safe-zone` id must resolve to an area
+zone in that package. A route has at least two points. Actors do
+not duplicate route points: editing the route changes every assigned actor.
+Object positions and every point use map-world coordinates.
+An actor's current target, sensor contacts, queued events, and the complete
 path retain those coordinates while the player moves; no path point is
 relative to the player or camera.
 
 ### Patrol and group alarm example
 
 ```json
-{
-  "id": "guard-a",
-  "archetype": "rifle-guard",
-  "group": "base-guards",
-  "x": 5,
-  "z": 5,
-  "heading": 0,
-  "active": true,
-  "patrol-mode": "loop",
-  "path": [
-    {"x": 5, "z": 5},
-    {"x": 8, "z": 5},
-    {"x": 8, "z": 8}
-  ],
-  "triggers": [
-    {"event": "squad-alert", "target-group": "base-guards"},
-    {"event": "radar-alert", "target-id": "gate-turret"}
-  ]
-}
+[
+  {
+    "id": "yard-route",
+    "archetype": "logic-patrol-route",
+    "x": 5, "z": 5,
+    "path": [
+      {"x": 5, "z": 5},
+      {"x": 8, "z": 5},
+      {"x": 8, "z": 8}
+    ]
+  },
+  {
+    "id": "yard-shelter",
+    "archetype": "logic-safe-zone",
+    "x": 4, "z": 4,
+    "geometry": [
+      {"x": 3, "z": 3},
+      {"x": 5, "z": 3},
+      {"x": 5, "z": 5},
+      {"x": 3, "z": 5}
+    ]
+  },
+  {
+    "id": "guard-a",
+    "archetype": "rifle-guard",
+    "group": "base-guards",
+    "x": 5, "z": 5,
+    "patrol-route": "yard-route",
+    "patrol-mode": "loop",
+    "alarm-response": "attack",
+    "triggers": [
+      {"event": "squad-alert", "target-group": "base-guards"}
+    ]
+  },
+  {
+    "id": "guard-b",
+    "archetype": "rifle-guard",
+    "group": "base-guards",
+    "x": 8, "z": 8,
+    "patrol-route": "yard-route",
+    "patrol-mode": "pingpong",
+    "alarm-response": "random",
+    "safe-zone": "yard-shelter",
+    "safe-wait-seconds": 8
+  }
+]
 ```
 
 Each trigger contains exactly one of `target-id` or `target-group`. The event
@@ -1160,23 +1326,42 @@ Projectiles, explosions, fire meshes, and spheres are GLB models under
 as every other model. Shadows are generated at runtime from entity collision
 bounds and the current sun or moon direction; they are not authored assets.
 
-An animated explosion is registered like this:
+An animated explosion model is registered like this:
 
 ```text
 model shockwave models/effects/shockwave.glb
 animation shockwave-expand shockwave expand once
 ```
 
-To replace an existing engine effect role, bind the new keys:
+Then a normal catalog descriptor defines the runtime component:
 
 ```text
-model effect-boom-high shockwave
-animation effect-boom-high shockwave-expand
+battalion-entity 1
+id explosion-shockwave
+display-name Shockwave Explosion
+description Timed catalog-driven explosion.
+kind effect
+editor-placeable no
+placement none
+model shockwave
+idle-animation shockwave-expand
+fire-sound boom
+collision-mode none
+movement stationary
+effect-duration 18
+effect-sound-frame 2
+effect-damage-frame 4
+effect-damage 1
+effect-fade-start 16
+effect-fade-rate 0.0625
+destructible no
+casts-shadow no
 ```
 
-The binding slot must already be consumed by the engine. Adding a new model
-and new arbitrary binding slot does not define when it is spawned, what it
-damages, or when it expires.
+Projectile archetypes select it with `impact-effect`; destructible archetypes
+select it with `destruction-effect`. The descriptor defines the model,
+animation, sound, damage frame, lifetime, and fade. No effect model binding or
+effect id exists in C.
 
 An effect that should exist as a persistent map object can instead be a normal
 `kind object` entity, often with `movement stationary` and `collision-mode
@@ -1192,9 +1377,10 @@ renderer-neutral dynamic primitive layer; reusable appearance values live in
 
 ```text
 battalion-values 1
-value monster-beam-line-width 5.01
-value monster-beam-lines 4 25 40
-value monster-beam-jitter 0.04
+value beam-core-line-width 2.01
+value beam-outer-line-width 5.01
+value beam-line-counts 1 4 8
+value beam-jitter 0.04
 ```
 
 Existing keys have required component counts. Preserve those counts when
@@ -1217,9 +1403,11 @@ applies distance attenuation and stereo direction on macOS, Linux, IRIX,
 Solaris, and SunOS. Sound effects should normally be mono so the runtime can
 position them accurately. See `docs/audio.md` for the backend contract and
 asset requirements.
-Entity descriptors currently do not have arbitrary sound-event directives.
-Replacing an existing sound is data-only; defining a new gameplay sound event
-requires a reusable audio-event capability before descriptors can select it.
+Entity descriptors select reusable fire, movement, and surface-contact audio
+components with semantic catalog keys. Adding a new sound file or assigning an
+existing component is data-only. Defining a new event lifecycle still requires
+a generic audio capability; it must not be implemented as an archetype-id
+check.
 
 ## Validation workflow
 

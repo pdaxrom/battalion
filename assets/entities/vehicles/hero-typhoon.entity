@@ -1,8 +1,20 @@
-# Data-driven replacement for legacy unit type 5.
+# Copyright (c) 2026 Battalion contributors.
 battalion-entity 1
 id hero-typhoon
 display-name Hero Typhoon
+description Articulated heavy actor using an animated plasma projectile.
+editor-category vehicles
+editor-color yellow
+wreck-fire-projectile projectile-flame
+destruction-projectile projectile-debris
+destruction-effect explosion-standard
+destruction-sound crash
+destruction-debris-count 7
+destruction-fire-count 3
+destruction-effect-count 1
+debris-life 420
 kind vehicle
+collision-footprint model
 model hero-typhoon
 render-node head-back
 render-node head-front
@@ -33,7 +45,6 @@ move-animation hero-typhoon-walk
 attack-animation hero-typhoon-fire
 animation-speed 0.05
 faction army
-hostile-faction monster
 movement ground
 burst-count 2
 speed 0.03
@@ -44,15 +55,17 @@ scale 1
 vertical-offset 0.58
 collision-radius 0.3
 collision-height 1.2
-weapon plasma
+weapon projectile
+projectile projectile-hero
+fire-sound tech
 weapon-color white
 weapon-range 4
 weapon-min-range 0.5
 projectile-speed 0.12
 fire-interval 80
 accuracy 75
-forget-range 14
-lost-frames 240
+forget-range 60
+lost-frames 1200
 sensor nearby proximity 2 360 hostile
 sensor sight vision 10 140 hostile
 sensor noise hearing 14 360 hostile
@@ -63,6 +76,7 @@ on-enter noise investigate hero-alert
 on-enter damaged attack hero-alert
 on-trigger hero-alert activate none
 on-trigger hero-alert attack none
+on-trigger spawned pursue none
 spawn-weight 2
 spawn-after 3000
 max-active 2

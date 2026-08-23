@@ -1,0 +1,19 @@
+battalion-entity 1
+id road-intersection
+display-name Road Intersection
+description Authored GLB road surface tile placed on the map grid.
+kind road
+surface-sound tracked road-clank 20
+editor-category roads
+editor-color grey-3
+editor-placeable yes
+placement tile
+model road-type-2
+render-node surface
+texture road
+texture-node surface
+render-color white
+collision-mode none
+movement stationary
+destructible no
+casts-shadow no

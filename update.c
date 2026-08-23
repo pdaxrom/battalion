@@ -27,65 +27,6 @@ void showError(char * theString)
     fflush(stderr);
     }
 
-/*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
-/*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
-/* compute height of a building                                  */
-/*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
-
-float buildingHeight(int type,  int shape)
-    {
-    float height;
-    
-    switch(type){
-	case 0:	    height = 0.5;
-		    break;
-		    
-	case 1:	    switch(shape){
-			case 1:	
-			case 11:
-			case 14:
-			case 22:
-			case 23:
-			case 24:
-			case 37:    height = 0.8;
-				    break;
-				    
-			case 9:	    height = 0.2;
-				    break; 
-				     
-			case 5:
-			case 6:
-			case 13:
-			case 28:    height = -0.2;
-				    break;
-				    
-			case 31:
-			case 32:    height = -0.4;
-				    break;
-				    
-			default:    height = 0.0;
-				    break;
-		    }
-		    break;
-		    
-	case 2:	    height = -0.8;
-		    break;
-		    
-	case 3:	    if (shape == 0)
-			height = -0.4;   
-		    else
-			height = -0.6;
-		    break;
-		    
-	default:    showError("invalid building type (buildingHeight)");
-		    break;
-	}
-	
-    return(height);
-    }
-
-/*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
-
 int same(char * first,  char * second)
     {
     if (strcmp(first, second) == 0)
@@ -107,79 +48,74 @@ int different(char * first,  char * second)
 
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
-struct monsterInfo resetMonsterParameters(struct monsterInfo Googelon)
+struct runtimePlayer resetPlayerState(struct runtimePlayer playerEntityState)
     {
     const struct EntityArchetype *playerEntity;
 
     /************************************/
-    /* reset general monster parmeters  */
+    /* reset general player parmeters  */
     /************************************/
 
-    Googelon.monsterScore	= 0;
-    Googelon.monsterIsDead	= 0;
-    Googelon.deadCount		= 0;
-    Googelon.timeDead		= 0;
+    playerEntityState.score	= 0;
+    playerEntityState.dead	= 0;
+    playerEntityState.deadCount		= 0;
+    playerEntityState.timeDead		= 0;
 
-    Googelon.energyRemaining	= MAXLIFE;
+    playerEntityState.energyRemaining	= MAXLIFE;
 
-    Googelon.moveCount		= 0;
+    playerEntityState.moveCount		= 0;
 
-    Googelon.headHorzRotate	= 0;
-    Googelon.headVertRotate	= 150;
-    Googelon.beamOn		= 0;
+    playerEntityState.headHorzRotate	= 0;
+    playerEntityState.headVertRotate	= 150;
+    playerEntityState.beamOn		= 0;
 
-    Googelon.monsterID		= rand();
+    playerEntityState.playerId		= rand();
 
     /*************************************/
-    /* reset specific monster parameters */
+    /* reset specific player parameters */
     /*************************************/
 
-    if (Googelon.monster == DATAENTITY)
-	{
+    playerEntity = playerEntityState.dataArchetype;
+    if (playerEntity == NULL)
 	playerEntity = selectedPlayerArchetype();
-	if (playerEntity == NULL)
-	    playerEntity = Googelon.dataArchetype;
-	if (playerEntity != NULL)
-	    Googelon.headVertRotate =
-		(int)(playerEntity->aimPitchDefault * 10.0f);
-	}
-    else
-	playerEntity = networkEntityArchetype(Googelon.monster);
     if (playerEntity == NULL)
 	{
 	showError("No entity archetype for player type");
-	return Googelon;
+	return playerEntityState;
 	}
-    Googelon.dataArchetype = playerEntity;
-    Googelon.x = 0.0f;
-    Googelon.z = 0.0f;
-    Googelon.y = PLANEY + playerEntity->verticalOffset;
-    Googelon.energyRemaining = playerEntity->playerEnergy;
-    Googelon.speed = playerEntity->speed;
-    Googelon.xspeed = playerEntity->playerTurnRate;
-    Googelon.moveCost = playerEntity->playerMoveCost;
-    Googelon.height = PLANEY + playerEntity->playerHeight;
-    Googelon.width = playerEntity->playerWidth;
-    Googelon.bottom = PLANEY + playerEntity->playerBottom;
-    Googelon.regenRate = playerEntity->playerRegen;
+    playerEntityState.dataArchetype = playerEntity;
+    playerEntityState.headVertRotate =
+	(int)(playerEntity->aimPitchDefault * 10.0f);
+    playerEntityState.x = 0.0f;
+    playerEntityState.z = 0.0f;
+    playerEntityState.y = PLANEY + playerEntity->verticalOffset;
+    playerEntityState.energyRemaining = playerEntity->playerEnergy;
+    playerEntityState.speed = entityArchetypePlayerSpeed(playerEntity);
+    playerEntityState.xspeed = playerEntity->playerTurnRate;
+    playerEntityState.moveCost = playerEntity->playerMoveCost;
+    playerEntityState.height = PLANEY + playerEntity->playerHeight;
+    playerEntityState.width = playerEntity->playerWidth;
+    playerEntityState.bottom = PLANEY + playerEntity->playerBottom;
+    playerEntityState.regenRate = playerEntity->playerRegen;
     
-    return(Googelon);
+    return(playerEntityState);
     }
 
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
-/* googelon/flutter is firing their energy beam                  */
+/* active entity is firing its energy beam                  */
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
 static void beamDamageSource(struct EntityContact *contact,
-	struct monsterInfo *player, struct targetInfo *targetList,
-	struct monsterInfo *owner, float x, float y, float z)
+	struct runtimePlayer *player, struct targetInfo *targetList,
+	struct runtimePlayer *owner, float x, float y, float z)
     {
     struct targetInfo *target;
     int number;
 
     memset(contact, 0, sizeof(*contact));
-    strcpy(contact->faction, "monster");
+    strcpy(contact->faction,
+           owner != NULL ? runtimePlayerFaction() : "neutral");
     contact->x = x;
     contact->y = y;
     contact->z = z;
@@ -194,7 +130,7 @@ static void beamDamageSource(struct EntityContact *contact,
     number = 0;
     for (target = targetList->next; target != NULL; target = target->next)
 	{
-	if (owner == &target->monster)
+	if (owner == &target->player)
 	    {
 	    sprintf(contact->id, "target-%d", number);
 	    return;
@@ -204,36 +140,36 @@ static void beamDamageSource(struct EntityContact *contact,
     strcpy(contact->id, "beam-source");
     }
 
-void updateBeam(struct monsterInfo * g, struct targetInfo * t,
-		struct tank * allTanks,
-		struct tree ** allTreePtrs, int numTrees, struct monsterInfo * m,
+void updateBeam(struct runtimePlayer * g, struct targetInfo * t,
+		struct runtimeActor * allActors,
+		struct runtimeMapObject * allMapObjects, struct runtimePlayer * m,
 		const struct EntityArchetype *archetype,
 		const float muzzleOrigin[3], const float muzzleDirection[3])
     {
     struct targetInfo * temptarget;
-    struct tank * ttank, * temptank;
-    struct tree * ttree;
+    struct runtimeActor * tactor, * tempactor;
+    struct runtimeMapObject * object;
     float loc1[3],  loc3[3];
-    float rtankhorz,  rtankvert;
-    float atankhorz,  atankvert;
+    float ractorhorz,  ractorvert;
+    float aactorhorz,  aactorvert;
     float abeamhorz,  abeamvert;
     float rbeamhorz,  rbeamvert;
     float hdiff,  vdiff;
-    float tankx,  tanky,  tankz;
+    float actorx,  actory,  actorz;
     float beamx,  beamy,  beamz;
     float height;
     float beamRange;
     float R;
+    const struct EntityArchetype *impactProjectile;
     struct EntityContact damageSource;
     int itsDead;
-    int i;
     if (archetype == NULL || muzzleOrigin == NULL ||
-		muzzleDirection == NULL)
+		muzzleDirection == NULL || allMapObjects == NULL)
 	return;
     beamRange = archetype->weaponRange;
 
-    doSoundAt(MONSTERBEAM, muzzleOrigin[0], muzzleOrigin[1],
-	      muzzleOrigin[2]);
+    doSoundKeyAt(archetype->fireSound, muzzleOrigin[0], muzzleOrigin[1],
+	         muzzleOrigin[2]);
 
     R = beamRange;
     loc1[0] = muzzleOrigin[0];
@@ -247,7 +183,12 @@ void updateBeam(struct monsterInfo * g, struct targetInfo * t,
 
     if (loc3[1] <= PLANEY + 0.1)
 	{
-	addProjectile(loc3[0], PLANEY + 0.175, loc3[2], PROJSCAR, 0, -0.0075, 0, 0, NULL);
+	impactProjectile = gameEntityArchetype(archetype->impactProjectile);
+	if (impactProjectile != NULL)
+	    spawnProjectile(loc3[0], PLANEY + impactProjectile->verticalOffset,
+	                    loc3[2], impactProjectile,
+	                    0.0f, -impactProjectile->projectileSpeed,
+	                    0.0f, 0.0f, NULL);
 	}
 	
     /******************************/
@@ -282,138 +223,77 @@ void updateBeam(struct monsterInfo * g, struct targetInfo * t,
 	abeamvert += PI;
 
     /**********************************/
-    /* does beam touch a tank         */
+    /* does beam touch a actor         */
     /**********************************/
 	    
-    temptank	= allTanks;
+    tempactor	= allActors;
 
-    while(temptank->next != NULL)
+    while(tempactor->next != NULL)
 	{
-	ttank = temptank->next;
+	tactor = tempactor->next;
 
-	if ((ttank->z - loc1[2]) == 0)
+	if ((tactor->z - loc1[2]) == 0)
 	    loc1[2] += NEARZERO; 
 
-	rtankhorz = fabs(sqrt((pow(ttank->x - loc1[0], 2) + pow(ttank->z - loc1[2], 2))));
-	atankhorz = atan( (ttank->x - loc1[0]) / (ttank->z - loc1[2]));
+	ractorhorz = fabs(sqrt((pow(tactor->x - loc1[0], 2) + pow(tactor->z - loc1[2], 2))));
+	aactorhorz = atan( (tactor->x - loc1[0]) / (tactor->z - loc1[2]));
 
-	if ((ttank->z - loc1[2]) < 0)
-	    atankhorz += PI;
+	if ((tactor->z - loc1[2]) < 0)
+	    aactorhorz += PI;
     
-	tankx = rtankhorz * sin(atankhorz + hdiff);
-	tankz = rtankhorz * cos(atankhorz + hdiff);
+	actorx = ractorhorz * sin(aactorhorz + hdiff);
+	actorz = ractorhorz * cos(aactorhorz + hdiff);
 
-	if (tankz == 0)
-	    tankz = NEARZERO;
+	if (actorz == 0)
+	    actorz = NEARZERO;
 
-	if ((ttank->type == HELO) || (ttank->type == CHH))
+	if (tactor->dataArchetype == NULL)
 	    {
-	    rtankvert = fabs(sqrt(pow(ttank->y - loc1[1], 2) + tankz*tankz));
-	    atankvert = atan( (ttank->y - loc1[1]) / tankz);
+	    tempactor = tempactor->next;
+	    continue;
 	    }
-	else /* tanks are positioned IN the ground so raise them up a bit */
-	    {
-	    rtankvert = fabs(sqrt(pow(ttank->y+0.2 - loc1[1], 2) + tankz*tankz));
-	    atankvert = atan( (ttank->y+0.2 - loc1[1]) / tankz);
-	    }
+	ractorvert = fabs(sqrt(pow(tactor->y +
+	    tactor->dataArchetype->collisionHeight * 0.5f - loc1[1], 2) +
+	    actorz * actorz));
+	aactorvert = atan((tactor->y +
+	    tactor->dataArchetype->collisionHeight * 0.5f - loc1[1]) / actorz);
 
-	if (tankz < 0)
-	    atankvert += PI;
+	if (actorz < 0)
+	    aactorvert += PI;
 
-	tanky = rtankvert * sin(atankvert + vdiff);
-	tankz = rtankvert * cos(atankvert + vdiff);
+	actory = ractorvert * sin(aactorvert + vdiff);
+	actorz = ractorvert * cos(aactorvert + vdiff);
 
 	itsDead = 0;
 
-	switch(ttank->type){
-	    case TANK:
-	    case LAUNCHER:
-	    case MASERTANK: if (worldSegmentIntersectsCylinder(
-				loc1[0], loc1[1], loc1[2],
-				loc3[0], loc3[1], loc3[2],
-				ttank->x, ttank->z, BEAMKILL,
-				ttank->y - 0.1f, ttank->y + 0.5f))
-				itsDead = 1;
-			    break;
-			    
-	    case HELO:
-	    case CHH:	    if ((tankz >= 0) && (tankz <= (beamz + 0.2)) &&
-				(fabs(tankx) < 0.15) && (fabs(tanky) < 0.15))  
-				itsDead = 1;
-			    break;
+	if (tactor->dataArchetype != NULL &&
+	    worldSegmentIntersectsCylinder(
+		loc1[0], loc1[1], loc1[2], loc3[0], loc3[1], loc3[2],
+		tactor->x, tactor->z,
+		tactor->dataArchetype->collisionRadius,
+		tactor->y,
+		tactor->y + tactor->dataArchetype->collisionHeight))
+	    itsDead = 1;
 
-	    case AIRPLANE: if ((tankz >= 0) && (tankz <= (beamz + 0.2)) &&
-				(fabs(tankx) < 0.50) && (fabs(tanky) < 0.40))
-				itsDead = 1;
-			    break;
-
-	    case FIGHTER: if ((tankz >= 0) && (tankz <= (beamz + 0.2)) &&
-				(fabs(tankx) < 0.40) && (fabs(tanky) < 0.30))
-				itsDead = 1;
-			    break;
-		    
-	    case MECHAG:    if ((tankz >= 0) && (tankz <= (beamz+0.2)) &&
-				(fabs(tankx) < 0.25) && (fabs(tanky) < 0.55))
-				itsDead = 1;
-			    break;
-
-	    case HERO:	    if ((tankz >= 0) && (tankz <= (beamz+0.2)) &&
-				(fabs(tankx) < 0.2) && (fabs(tanky) < 0.55))
-				itsDead = 1;
-			    break;
-
-	    case DATAENTITY: if ((tankz >= 0) && (tankz <= (beamz + 0.2)) &&
-				(fabs(tankx) < ttank->dataArchetype->collisionRadius) &&
-				(fabs(tanky) < ttank->dataArchetype->collisionHeight))
-				itsDead = 1;
-			    break;
-			        
-	    default:	    showError("Bogus Vehicle in Tank List! (updateBeam)");
-			    break;
-	    }
-
-	if (itsDead)
+	if (itsDead && archetype->weaponDamagesActors)
 	    {
-	    ttank->damage -= 1;
-	    if (ttank->type == DATAENTITY)
+	    tactor->damage -= archetype->weaponDamage;
+	    if (tactor->dataArchetype != NULL)
 		{
 		beamDamageSource(&damageSource, g, t, m,
 			muzzleOrigin[0], muzzleOrigin[1], muzzleOrigin[2]);
-		entityAgentNotifyDamage(&ttank->dataAgent, &damageSource);
+		entityAgentNotifyDamage(&tactor->dataAgent, &damageSource);
 		}
 
-	    switch (ttank->type)
+	    if (tactor->damage <= 0)
 		{
-		case TANK:
-		case LAUNCHER:
-		case MASERTANK:
-		case AIRPLANE:
-		case FIGHTER:
-		case HELO:	    addScore(ttank->type, m);
-				    break;
-				    
-		case MECHAG:	    addScore(PARTIALM, m);
-				    break;
-				    
-		case CHH:	    addScore(PARTIALC, m);
-				    break;
-				    
-		case HERO:	    addScore(PARTIALH, m);
-				    break;
-
-		case DATAENTITY: if (m != NULL)
-					m->monsterScore +=
-					    ttank->dataArchetype->score;
-				    break;
-		}
-	    
-	    if (ttank->damage <= 0)
-		{
-		ttank->damage = -99;
+		if (m != NULL && tactor->dataArchetype != NULL)
+		    m->score += tactor->dataArchetype->score;
+		tactor->damage = -99;
 		}		
 	    }
 	    
-	temptank = temptank->next;
+	tempactor = tempactor->next;
 	}
 
 /***********************/
@@ -424,66 +304,45 @@ void updateBeam(struct monsterInfo * g, struct targetInfo * t,
 
     while(temptarget != NULL)
 	{
-	if (temptarget->monster.monsterID != m->monsterID)
+	if (temptarget->player.playerId != m->playerId)
 	    {
 	    if ((temptarget->z - loc1[2]) == 0)
 		loc1[2] += NEARZERO; 
     
-	    rtankhorz = fabs(sqrt((pow(temptarget->x - loc1[0], 2) + pow(temptarget->z - loc1[2], 2))));
-	    atankhorz = atan( (temptarget->x - loc1[0]) / (temptarget->z - loc1[2]));
+	    ractorhorz = fabs(sqrt((pow(temptarget->x - loc1[0], 2) + pow(temptarget->z - loc1[2], 2))));
+	    aactorhorz = atan( (temptarget->x - loc1[0]) / (temptarget->z - loc1[2]));
     
 	    if ((temptarget->z - loc1[2]) < 0)
-		atankhorz += PI;
+		aactorhorz += PI;
 	
-	    tankx = rtankhorz * sin(atankhorz + hdiff);
-	    tankz = rtankhorz * cos(atankhorz + hdiff);
+	    actorx = ractorhorz * sin(aactorhorz + hdiff);
+	    actorz = ractorhorz * cos(aactorhorz + hdiff);
     
-	    if (tankz == 0)
-		tankz = NEARZERO;
+	    if (actorz == 0)
+		actorz = NEARZERO;
     
-	    rtankvert = fabs(sqrt(pow(((temptarget->monster.height * 0.5 + temptarget->monster.bottom * 0.5) - loc1[1]), 2) + tankz*tankz));
-	    atankvert = atan( ((temptarget->monster.height * 0.5 + temptarget->monster.bottom * 0.5) - loc1[1]) / tankz);
+	    ractorvert = fabs(sqrt(pow(((temptarget->player.height * 0.5 + temptarget->player.bottom * 0.5) - loc1[1]), 2) + actorz*actorz));
+	    aactorvert = atan( ((temptarget->player.height * 0.5 + temptarget->player.bottom * 0.5) - loc1[1]) / actorz);
 
 
     
-	    if (tankz < 0)
-		atankvert += PI;
+	    if (actorz < 0)
+		aactorvert += PI;
     
-	    tanky = rtankvert * sin(atankvert + vdiff);
-	    tankz = rtankvert * cos(atankvert + vdiff);
+	    actory = ractorvert * sin(aactorvert + vdiff);
+	    actorz = ractorvert * cos(aactorvert + vdiff);
     
 	    itsDead = 0;
     
-	    switch(temptarget->monster.monster){
+	    if ((actorz >= 0) && (actorz <= (beamz + 0.2)) &&
+		(fabs(actorx) < temptarget->player.width) &&
+		(fabs(actory) < (temptarget->player.height -
+		                    temptarget->player.bottom) * 0.5f))
+		itsDead = 1;
     
-		case FLUTTER: if ((tankz >= 0) && (tankz <= (beamz + 0.2)) &&
-				    (fabs(tankx) < 0.40) && (fabs(tanky) < 0.30))
-				    itsDead = 1;
-				break;
-			
-		case GOOGELON:
-		case VAPOUR:
-		case TECHS:    if ((tankz >= 0) && (tankz <= (beamz+0.2)) &&
-				    (fabs(tankx) < 0.25) && (fabs(tanky) < 0.55))
-				    itsDead = 1;
-				break;
-
-		case DATAENTITY: if ((tankz >= 0) &&
-				    (tankz <= (beamz + 0.2)) &&
-				    (fabs(tankx) < temptarget->monster.width) &&
-				    (fabs(tanky) < (temptarget->monster.height -
-				                       temptarget->monster.bottom) * 0.5f))
-				    itsDead = 1;
-				break;
-    				    
-		default:	    showError("Bogus Monster in Target List! (updateBeam)");
-				break;
-		}
-    
-	    if (itsDead)
+	    if (itsDead && archetype->weaponDamagesActors)
 		{
-/* 		addScore(MONSTER, m); */
-		temptarget->monster.energyRemaining -= 1;
+		temptarget->player.energyRemaining -= archetype->weaponDamage;
 		}
 		
 	    }
@@ -492,7 +351,7 @@ void updateBeam(struct monsterInfo * g, struct targetInfo * t,
 
 
 /**************************/
-/* check player's monster */
+/* check player's player */
 /**************************/
 
 	if (g != m)
@@ -500,61 +359,40 @@ void updateBeam(struct monsterInfo * g, struct targetInfo * t,
 	    if ((g->z - loc1[2]) == 0)
 		loc1[2] += NEARZERO; 
     
-	    rtankhorz = fabs(sqrt(pow(g->x - loc1[0], 2) +
+	    ractorhorz = fabs(sqrt(pow(g->x - loc1[0], 2) +
 	                           pow(g->z - loc1[2], 2)));
-	    atankhorz = atan((g->x - loc1[0]) / (g->z - loc1[2]));
+	    aactorhorz = atan((g->x - loc1[0]) / (g->z - loc1[2]));
     
 	    if ((g->z - loc1[2]) < 0)
-		atankhorz += PI;
+		aactorhorz += PI;
 	
-	    tankx = rtankhorz * sin(atankhorz + hdiff);
-	    tankz = rtankhorz * cos(atankhorz + hdiff);
+	    actorx = ractorhorz * sin(aactorhorz + hdiff);
+	    actorz = ractorhorz * cos(aactorhorz + hdiff);
     
-	    if (tankz == 0)
-		tankz = NEARZERO;
+	    if (actorz == 0)
+		actorz = NEARZERO;
     
-	    rtankvert = fabs(sqrt(pow(((g->height * 0.5 + g->bottom * 0.5) - loc1[1]), 2) + tankz*tankz));
-	    atankvert = atan( ((g->height * 0.5 + g->bottom * 0.5) - loc1[1]) / tankz);
+	    ractorvert = fabs(sqrt(pow(((g->height * 0.5 + g->bottom * 0.5) - loc1[1]), 2) + actorz*actorz));
+	    aactorvert = atan( ((g->height * 0.5 + g->bottom * 0.5) - loc1[1]) / actorz);
 
 
     
-	    if (tankz < 0)
-		atankvert += PI;
+	    if (actorz < 0)
+		aactorvert += PI;
     
-	    tanky = rtankvert * sin(atankvert + vdiff);
-	    tankz = rtankvert * cos(atankvert + vdiff);
+	    actory = ractorvert * sin(aactorvert + vdiff);
+	    actorz = ractorvert * cos(aactorvert + vdiff);
     
 	    itsDead = 0;
     
-	    switch(g->monster){
+	    if ((actorz >= 0) && (actorz <= (beamz + 0.2)) &&
+		(fabs(actorx) < g->width) &&
+		(fabs(actory) < (g->height - g->bottom) * 0.5f))
+		itsDead = 1;
     
-		case FLUTTER: if ((tankz >= 0) && (tankz <= (beamz + 0.2)) &&
-				    (fabs(tankx) < 0.40) && (fabs(tanky) < 0.30))
-				    itsDead = 1;
-				break;
-			
-		case GOOGELON:
-		case VAPOUR:
-		case TECHS:    if ((tankz >= 0) && (tankz <= (beamz+0.2)) &&
-				    (fabs(tankx) < 0.25) && (fabs(tanky) < 0.55))
-				    itsDead = 1;
-				break;
-
-		case DATAENTITY: if ((tankz >= 0) &&
-				    (tankz <= (beamz + 0.2)) &&
-				    (fabs(tankx) < g->width) &&
-				    (fabs(tanky) < (g->height - g->bottom) * 0.5f))
-				    itsDead = 1;
-				break;
-    				    
-		default:	    showError("Bogus Monster in Target List! (updateBeam)");
-				break;
-		}
-    
-	    if (itsDead)
+	    if (itsDead && archetype->weaponDamagesActors)
 		{
-		addScore(MONSTER, m);
-		g->energyRemaining -= 1;
+		g->energyRemaining -= archetype->weaponDamage;
 		}
 		
 	    }
@@ -565,67 +403,53 @@ void updateBeam(struct monsterInfo * g, struct targetInfo * t,
 
 	
         /**********************************/
-        /* does beam touch a tree         */
+        /* does beam touch a map object   */
         /**********************************/
- 
-    for (i=0;i<numTrees;i++)
+
+    for (object = allMapObjects->next; object != NULL; object = object->next)
 	{
-	ttree = allTreePtrs[i];
-	
-	if ((ttree->z - loc1[2]) == 0)
+	if (!object->intact || object->dataArchetype == NULL ||
+	    object->dataArchetype->collisionMode == ENTITY_COLLISION_NONE)
+	    continue;
+	if ((object->z - loc1[2]) == 0)
 	    loc1[2] += NEARZERO; 
 
-	rtankhorz = fabs(sqrt(pow(ttree->x - loc1[0], 2) + pow(ttree->z - loc1[2], 2)));
-	atankhorz = atan( (ttree->x - loc1[0]) / (ttree->z - loc1[2]));
+	ractorhorz = fabs(sqrt(pow(object->x - loc1[0], 2) + pow(object->z - loc1[2], 2)));
+	aactorhorz = atan( (object->x - loc1[0]) / (object->z - loc1[2]));
 
-	if ((ttree->z - loc1[2]) < 0)
-	    atankhorz += PI;
+	if ((object->z - loc1[2]) < 0)
+	    aactorhorz += PI;
     
-	tankx = rtankhorz * sin(atankhorz + hdiff);
-	tankz = rtankhorz * cos(atankhorz + hdiff);
+	actorx = ractorhorz * sin(aactorhorz + hdiff);
+	actorz = ractorhorz * cos(aactorhorz + hdiff);
 	
-	/* y of building is located on the plane*/
-
-	if (ttree->type == 1)
-	    switch(ttree->treeshape){
-		case 1:	
-		case 11:
-		case 14:
-		case 22:
-		case 23:
-		case 24:    height = 0.8;
-			    break;
-		case 5:
-		case 6:
-		case 13:
-		case 28:
-		case 31:
-		case 32:    height = 0.3;
-			    break;
-		default:    height = 0.5;
-			    break;
-		}
-	else
-	    height = 0.5;
+	height = object->height;
 	
-	if (tankz == 0)
-	    tankz = NEARZERO;
+	if (actorz == 0)
+	    actorz = NEARZERO;
 
-	rtankvert = fabs(sqrt(pow(ttree->y + height - loc1[1], 2) + tankz * tankz));
-	atankvert = atan( (ttree->y + height - loc1[1]) / tankz);
+	ractorvert = fabs(sqrt(pow(object->y + height - loc1[1], 2) + actorz * actorz));
+	aactorvert = atan( (object->y + height - loc1[1]) / actorz);
 
-	if (tankz < 0)
-	    atankvert += PI;
+	if (actorz < 0)
+	    aactorvert += PI;
 
-	tanky = rtankvert * sin(atankvert + vdiff);
-	tankz = rtankvert * cos(atankvert + vdiff);
+	actory = ractorvert * sin(aactorvert + vdiff);
+	actorz = ractorvert * cos(aactorvert + vdiff);
 
-	if ((tankz >= 0) && (tankz <= (beamz + 0.2)) &&
-	    (fabs(tankx) < 0.4) && (fabs(tanky) < height))
+	if ((actorz >= 0) && (actorz <= (beamz + 0.2)) &&
+	    object->dataArchetype != NULL &&
+	    (fabs(actorx) < object->dataArchetype->collisionRadius *
+	                     object->instanceScale) &&
+	    (fabs(actory) < height))
 		{
-		if ((ttree->intact) && (ttree->type == 1))
-		    addScore(BUILDING, m);
-		ttree->intact = 0;
+		if (archetype->weaponDestroysMapObjects && object->intact &&
+		    object->dataArchetype->destructible)
+		    {
+		    if (m != NULL)
+			m->score += object->dataArchetype->score;
+		    object->intact = 0;
+		    }
 		}
 	}
     }
@@ -636,52 +460,21 @@ void updateBeam(struct monsterInfo * g, struct targetInfo * t,
 /* decide whether a vehicle has been hit                         */
 /*-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 
-int tankHit(struct tank * ttank, float xloc, float yloc, float zloc)
+int actorHit(const struct runtimeActor *tactor,
+             float xloc, float yloc, float zloc)
     {
     float blastx, blasty, blastz;
-    
-     switch(ttank->type){
-	case TANK:
-	case LAUNCHER:
-	case MASERTANK:	    blastx = blasty = blastz = BLASTRX05;
-			    break;
 
-	case HELO:	    blastx = blastz = BLASTRX075;
-			    blasty = BLASTRX07;
-			    break;
-
-	case AIRPLANE:	    blastx = blastz = BLASTR;
-			    blasty = BLASTRX07;
-			    break;
-
-	case FIGHTER:	    blastx = blastz = BLASTR;
-			    blasty = BLASTRX05;
-			    break;
-
-	case CHH:	    blastx = blastz = BLASTRX06;
-			    blasty = BLASTRX04;
-			    break;
-
-	case MECHAG:	    blastx = blastz = BLASTR;
-			    blasty = BLASTRX2;
-			    break;
-
-	case HERO:	    blastx = blastz = BLASTRX04;
-			    blasty = BLASTRX2;
-			    break;
-
-	case DATAENTITY: blastx = blastz =
-			        ttank->dataArchetype->collisionRadius;
-			    blasty = ttank->dataArchetype->collisionHeight;
-			    break;
-
-	default:	    showError("Bogus Vehicle in Tank List! (tankHit)");
-			    break;
-	}
+    if (tactor->dataArchetype == NULL ||
+        tactor->dataArchetype->collisionMode == ENTITY_COLLISION_NONE)
+        return 0;
+    blastx = blastz = entityArchetypeCollisionRadius(
+        tactor->dataArchetype);
+    blasty = tactor->dataArchetype->collisionHeight;
 		
-    if ((fabs(ttank->x - xloc) < blastx) &&
-	(fabs(ttank->z - zloc) < blastz) &&
-	(fabs(ttank->y - yloc) < blasty))
+    if ((fabs(tactor->x - xloc) < blastx) &&
+	(fabs(tactor->z - zloc) < blastz) &&
+	(fabs(tactor->y - yloc) < blasty))
 	    return(1);
     else
 	    return(0);

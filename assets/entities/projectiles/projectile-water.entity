@@ -1,0 +1,22 @@
+battalion-entity 1
+id projectile-water
+display-name Water Droplet
+description Decorative water projectile affected by gravity.
+kind projectile
+editor-placeable no
+placement none
+model projectile-water
+collision-mode none
+movement air
+projectile-collides-ground no
+projectile-continuous no
+projectile-trail-marker no
+projectile-gravity 0.01
+projectile-damage 0
+projectile-arming-frames 0
+projectile-damages-actors no
+projectile-collides-actors no
+projectile-collides-map-objects no
+projectile-destroys-map-objects no
+destructible no
+casts-shadow no

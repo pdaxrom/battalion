@@ -66,7 +66,9 @@ int main(void)
             valid = 0;
             }
     if (assetBindingsFind(&bindings, ASSET_BINDING_MODEL,
-                          "building-satellite-dish") == NULL ||
+                          "ui-title-high") == NULL ||
+        assetBindingsFind(&bindings, ASSET_BINDING_FILE,
+                          "game-entities") == NULL ||
         assetBindingsFind(&bindings, ASSET_BINDING_FILE,
                           "help-sgi-showcase") == NULL)
         valid = 0;

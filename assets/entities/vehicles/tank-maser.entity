@@ -1,12 +1,27 @@
-# Data-driven replacement for legacy unit type 1.
+# Copyright (c) 2026 Battalion contributors.
 battalion-entity 1
 id tank-maser
 display-name Maser Tank
+description Ground tank with an instantaneous beam weapon.
+editor-category vehicles
+editor-color yellow
+wreck-fire-projectile projectile-flame
+destruction-projectile projectile-debris
+destruction-effect explosion-standard
+destruction-sound crash
+destruction-debris-count 7
+destruction-fire-count 3
+destruction-effect-count 1
+debris-life 420
+impact-projectile projectile-scar
 kind vehicle
+collision-footprint model
+move-sound engine-rumble
+move-sound-interval 18
+contact-audio-tag tracked
 model tank-maser
 muzzle-node muzzle
 faction army
-hostile-faction monster
 movement ground
 speed 0.036
 turn-rate 0.2
@@ -17,14 +32,20 @@ vertical-offset 0
 collision-radius 0.25
 collision-height 0.45
 weapon beam
+fire-sound beam
 weapon-color blue
+weapon-core-color white
+weapon-trace-color black
+weapon-damage 1
+weapon-damages-actors yes
+weapon-destroys-map-objects yes
 weapon-range 3
 weapon-min-range 0.5
 projectile-speed 0.1
 fire-interval 1
 accuracy 1000
-forget-range 12
-lost-frames 180
+forget-range 60
+lost-frames 1200
 sensor nearby proximity 2 360 hostile
 sensor sight vision 8 120 hostile
 sensor noise hearing 12 360 hostile
@@ -35,6 +56,7 @@ on-enter noise investigate army-alert
 on-enter damaged attack army-alert
 on-trigger army-alert activate none
 on-trigger army-alert attack none
+on-trigger spawned pursue none
 spawn-weight 28
 spawn-after 750
 max-active 0

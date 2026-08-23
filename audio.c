@@ -19,8 +19,6 @@ extern int noSound;
 
 int soundOn;
 int musicOn;
-int playingTankFire, playingHeloRocket, playingTankMaser;
-int playingExplosion, playingTech;
 int musicCount, deadCount;
 
 void turnSoundOff(void)
@@ -69,8 +67,6 @@ void initSounds(void)
     musicOn = 0;
     musicCount = 0;
     deadCount = 0;
-    playingTankFire = playingHeloRocket = playingTankMaser = 0;
-    playingExplosion = playingTech = 0;
     }
 
 void checkSound(char *dataPath)
@@ -90,14 +86,19 @@ void soundKiller(int soundType)
     (void)soundType;
     }
 
+void soundKillerKey(const char *key)
+    {
+    (void)key;
+    }
+
 void doSound(int soundType)
     {
     (void)soundType;
     }
 
-void doSoundAt(int soundType, float x, float y, float z)
+void doSoundKeyAt(const char *key, float x, float y, float z)
     {
-    (void)soundType;
+    (void)key;
     (void)x;
     (void)y;
     (void)z;

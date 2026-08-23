@@ -1,8 +1,21 @@
-# Data-driven replacement for legacy unit type 3.
+# Copyright (c) 2026 Battalion contributors.
 battalion-entity 1
 id mechag
 display-name Mechagoogelon
+description Heavy articulated mechanical actor with a beam weapon.
+editor-category vehicles
+editor-color yellow
+wreck-fire-projectile projectile-flame
+destruction-projectile projectile-debris
+destruction-effect explosion-standard
+destruction-sound crash
+destruction-debris-count 7
+destruction-fire-count 3
+destruction-effect-count 1
+debris-life 420
+impact-projectile projectile-scar
 kind vehicle
+collision-footprint model
 model mecha
 render-node head-back-intact
 render-node head-intact
@@ -26,7 +39,6 @@ move-animation mecha-eye-scan
 attack-animation mecha-eye-scan
 animation-speed 0.05
 faction army
-hostile-faction monster
 movement ground
 speed 0.03
 turn-rate 0.15
@@ -37,14 +49,20 @@ vertical-offset 0.4
 collision-radius 0.5
 collision-height 1.3
 weapon beam
+fire-sound beam
 weapon-color red
+weapon-core-color white
+weapon-trace-color black
+weapon-damage 1
+weapon-damages-actors yes
+weapon-destroys-map-objects yes
 weapon-range 4.5
 weapon-min-range 0.5
 projectile-speed 0.1
 fire-interval 1
 accuracy 1000
-forget-range 14
-lost-frames 240
+forget-range 60
+lost-frames 1200
 sensor nearby proximity 2 360 hostile
 sensor sight vision 10 140 hostile
 sensor noise hearing 14 360 hostile
@@ -55,6 +73,7 @@ on-enter noise investigate army-alert
 on-enter damaged attack army-alert
 on-trigger army-alert activate none
 on-trigger army-alert attack none
+on-trigger spawned pursue none
 spawn-weight 3
 spawn-after 1250
 max-active 2

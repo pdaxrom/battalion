@@ -1,24 +1,11 @@
-# Dynamic effect appearance. Geometry endpoints are supplied by live gameplay.
+# Generic runtime effect appearance. Geometry endpoints come from live state.
 battalion-values 1
 
-value maser-inner-width 0.0057 0.0029
-value maser-outer-width 0.011 0.0057
+value beam-core-line-width 2.01
+value beam-outer-line-width 5.01
+value beam-line-counts 1 4 8
+value beam-jitter 0.04
+value beam-trace-line-width 2.01
 
-value hero-angle-radius 0.16
-value hero-source-radius 0.22
-value hero-target-radius 0.04
-value hero-vertical-source-radius 0.03
-value hero-vertical-target-radius 0.02
-
-value monster-beam-line-width 5.01
-value monster-beam-lines 4 25 40
-value monster-beam-jitter 0.04
-value monster-beam-green 0.5 0.5
-value monster-beam-primary 0.95
-
-value projectile-standard-scale 1.5
-value projectile-plasma-scale 2.5
-value projectile-hero-scale 2.0
-
-value beam-scar-line-width 2.01
-value beam-scar-link-distance 0.3
+value trail-line-width 2.01
+value trail-link-distance 0.3

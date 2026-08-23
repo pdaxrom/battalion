@@ -1,0 +1,25 @@
+battalion-entity 1
+id building-office-tower-white
+display-name Office Tower White
+description Authored GLB structure with editable transform, properties, and trigger routes.
+kind structure
+editor-category buildings
+editor-color brown
+editor-placeable yes
+placement tile
+model building-24-white
+collision-mode solid
+collision-footprint model
+movement stationary
+collision-radius 0.25
+collision-height 1.8
+destructible yes
+destruction-projectile projectile-debris
+destruction-effect explosion-standard
+destruction-sound crash
+destruction-debris-count 7
+destruction-fire-count 3
+destruction-effect-count 1
+debris-life 420
+destruction-fire-projectile projectile-flame
+casts-shadow yes

@@ -2,7 +2,19 @@
 battalion-entity 1
 id moira-brown
 display-name Moira Brown
+description Controllable civilian NPC with forward and backward animation clips.
+editor-category npcs
+editor-color blue
+wreck-fire-projectile projectile-flame
+destruction-projectile projectile-debris
+destruction-effect explosion-standard
+destruction-sound crash
+destruction-debris-count 7
+destruction-fire-count 3
+destruction-effect-count 1
+debris-life 420
 kind npc
+collision-footprint model
 controllable yes
 control-mode free
 model moira-brown
@@ -11,7 +23,6 @@ move-animation moira-forward
 backward-animation moira-backward
 animation-speed 0.02
 faction civilian
-hostile-faction monster
 movement ground
 speed 0.03
 turn-rate 0.2
@@ -22,6 +33,7 @@ vertical-offset 0
 collision-radius 0.045
 collision-height 0.165
 weapon none
+on-trigger base-alarm flee none
 weapon-range 0
 weapon-min-range 0
 projectile-speed 0.1

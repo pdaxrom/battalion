@@ -1,0 +1,29 @@
+# Copyright (c) 2026 Battalion contributors.
+battalion-entity 1
+id explosion-standard
+display-name Standard Explosion
+description Data-driven outward particle burst used by impact and destruction components.
+kind effect
+editor-placeable no
+placement none
+render-style particle-burst
+particle-start-color white
+particle-middle-color orange
+particle-end-color red-3
+particle-count 32
+particle-cycle-frames 30
+particle-size 0.06
+particle-speed 0.034
+particle-spread 0.05
+particle-gravity 0.00045
+fire-sound boom
+collision-mode none
+movement stationary
+effect-duration 30
+effect-sound-frame 1
+effect-damage-frame 4
+effect-damage 1
+effect-fade-start 1
+effect-fade-rate 0
+destructible no
+casts-shadow no

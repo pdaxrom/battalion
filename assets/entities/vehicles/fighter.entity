@@ -1,13 +1,24 @@
-# Generic flyby fighter replacing legacy unit type 8.
+# Copyright (c) 2026 Battalion contributors.
 battalion-entity 1
 id fighter
 display-name Fighter
+description Fast fixed-wing fighter using flyby movement and rockets.
+editor-category vehicles
+editor-color yellow
+wreck-fire-projectile projectile-flame
+destruction-projectile projectile-debris
+destruction-effect explosion-standard
+destruction-sound crash
+destruction-debris-count 7
+destruction-fire-count 3
+destruction-effect-count 1
+debris-life 420
 kind vehicle
+collision-footprint model
 model fighter-body
 muzzle-node muzzle
 model-yaw-offset 180
 faction army
-hostile-faction monster
 movement air
 tactic flyby
 tactic-radius 20
@@ -20,15 +31,17 @@ scale 2
 vertical-offset 2
 collision-radius 0.38
 collision-height 0.24
-weapon rocket
+weapon projectile
+projectile projectile-rocket
+fire-sound rocket
 weapon-color white
 weapon-range 5
 weapon-min-range 4.5
 projectile-speed 0.14
 fire-interval 1000
 accuracy 75
-forget-range 30
-lost-frames 240
+forget-range 60
+lost-frames 1200
 sensor sight vision 24 160 hostile
 sensor noise hearing 24 360 hostile
 sensor damaged damage 0 360 hostile
@@ -37,6 +50,7 @@ on-enter noise investigate air-alert
 on-enter damaged attack air-alert
 on-trigger air-alert activate none
 on-trigger air-alert attack none
+on-trigger spawned pursue none
 spawn-weight 5
 spawn-after 750
 max-active 1

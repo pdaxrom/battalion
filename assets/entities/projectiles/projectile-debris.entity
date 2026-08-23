@@ -1,0 +1,32 @@
+battalion-entity 1
+id projectile-debris
+display-name Structure Debris
+description Ballistic catalog-driven fragment emitted by destructible map objects.
+kind projectile
+editor-placeable no
+placement none
+model projectile-standard-high
+model-low projectile-standard-low
+model-seasonal projectile-standard-high-xmas
+model-low-seasonal projectile-standard-low-xmas
+render-color brown
+idle-animation projectile-standard-high-spin
+animation-low projectile-standard-low-spin
+animation-seasonal projectile-standard-high-xmas-spin
+animation-low-seasonal projectile-standard-low-xmas-spin
+collision-mode none
+movement air
+scale 1.0
+projectile-collides-ground yes
+projectile-continuous no
+projectile-trail-marker no
+projectile-gravity 0.01
+projectile-damage 0
+projectile-arming-frames 0
+projectile-damages-actors no
+projectile-collides-actors no
+projectile-collides-map-objects no
+projectile-destroys-map-objects no
+impact-effect explosion-standard
+destructible no
+casts-shadow no

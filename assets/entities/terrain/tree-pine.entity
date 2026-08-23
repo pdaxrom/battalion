@@ -1,0 +1,31 @@
+battalion-entity 1
+id tree-pine
+display-name Pine Tree
+description Catalog terrain tile editable through the shared map instance model.
+kind terrain
+editor-category trees
+editor-color tree
+editor-placeable yes
+placement tile
+model pine-tree
+texture tree-wood
+texture-node pine-trunk
+render-node pine-trunk
+render-node pine-crown
+render-node pine-crown-vector
+render-node pine-lights
+collision-mode solid
+movement stationary
+vertical-offset 0
+collision-radius 0.25
+collision-height 1.5
+destructible yes
+destruction-projectile projectile-debris
+destruction-effect explosion-standard
+destruction-sound crash
+destruction-debris-count 7
+destruction-fire-count 3
+destruction-effect-count 1
+debris-life 420
+destruction-fire-projectile projectile-flame
+casts-shadow yes

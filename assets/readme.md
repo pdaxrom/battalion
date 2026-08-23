@@ -16,6 +16,7 @@ assets/
   audio/             backend-neutral audio catalog
   config/            render bindings and renderer-neutral controller values
   entities/          gameplay archetypes grouped by entity kind
+  factions/          faction identities and directional relationships
   fonts/             external stroke-font glyphs and metrics
   maps/              versioned JSON battlefield packages
   models/            Khronos glTF 2.0 binary models and animation clips
@@ -64,8 +65,6 @@ and explosion frames are likewise stored as clips in their GLB files.
 The tank's individual tread plates and their looping `tracks` clip are stored
 inside `models/vehicles/tank.glb`; the entity descriptor selects that clip only
 while the tank is moving.
-Gameplay-driven controller values, such as live aiming scales and damage-part
-thresholds, live in `config/animation.values` instead of C source.
 Dynamic beam endpoints still come from live gameplay, while their widths,
 radii, jitter and density live in `config/effects.values`. Road surfaces,
 texture coordinates, normals and lane markers are authored GLB assets rather
@@ -73,7 +72,9 @@ than procedural geometry in `graphics.c`. The renderer palette lives in
 `config/palette.values`, HUD layout values live in `config/ui.values`, and the
 complete SGI stroke font lives in `fonts/stroke.font` rather than compiled C
 tables. `audio/catalog.txt` maps semantic sound and music names to portable
-PCM files and mixer slots. The shared spatial mixer feeds the native CoreAudio,
+PCM files and mixer slots. Entity descriptors select fire and movement sounds,
+and surface archetypes map reusable contact tags to sounds; no road or vehicle
+id is compiled into the audio path. The shared spatial mixer feeds the native CoreAudio,
 SGI AL, OSS, and Sun `/dev/audio` outputs; audio file names and music sequence
 lengths are not compiled into gameplay code.
 Beams, particles, impact scars, and HUD rectangles are runtime primitives
@@ -91,7 +92,12 @@ objects all use the same catalog and runtime representation.
 
 Sensor reactions support `on-enter`, `on-stay`, and `on-exit` transitions.
 Maps route emitted events to an actor id or group, including inactive
-actors that an `activate` trigger rule can wake.
+actors that an `activate` trigger rule can wake. Named route objects own patrol
+points and may be assigned to one or more actors through `patrol-route`.
+Polygonal zone objects use the generic `area` sensor and can also serve as
+safe destinations. A patrolling map actor may continue, attack, retreat and
+wait, or choose randomly after a routed alarm. Faction ids and
+ally/neutral/hostile relationships come only from `factions/catalog.txt`.
 
 An archetype with `controllable yes` can be used as the local player without a
 new C type or a rebuild:

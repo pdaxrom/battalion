@@ -66,6 +66,16 @@ int main(void)
     const struct EntityArchetype *techs;
     const struct EntityArchetype *airplane;
     const struct EntityArchetype *fighter;
+    const struct EntityArchetype *road;
+    const struct EntityArchetype *hill;
+    const struct EntityArchetype *fastFood;
+    const struct EntityArchetype *fastFoodAlternate;
+    const struct EntityArchetype *explosion;
+    const struct EntityArchetype *flameProjectile;
+    const struct EntityArchetype *trailProjectile;
+    const struct EntityArchetype *waterProjectile;
+    const struct EntityArchetype *route;
+    const struct EntityArchetype *zone;
     char error[256];
     size_t index;
 
@@ -78,8 +88,21 @@ int main(void)
         }
     for (index = 0; index < catalog.count; index++)
         {
-        if (!manifestContainsModel(catalog.entries[index].model) ||
+        if ((catalog.entries[index].renderStyle == ENTITY_RENDER_MODEL &&
+             !manifestContainsModel(catalog.entries[index].model)) ||
+            (catalog.entries[index].lowModel[0] != '\0' &&
+             !manifestContainsModel(catalog.entries[index].lowModel)) ||
+            (catalog.entries[index].seasonalModel[0] != '\0' &&
+             !manifestContainsModel(catalog.entries[index].seasonalModel)) ||
+            (catalog.entries[index].seasonalLowModel[0] != '\0' &&
+             !manifestContainsModel(
+                 catalog.entries[index].seasonalLowModel)) ||
             !manifestContainsAnimation(catalog.entries[index].idleAnimation) ||
+            !manifestContainsAnimation(catalog.entries[index].lowAnimation) ||
+            !manifestContainsAnimation(
+                catalog.entries[index].seasonalAnimation) ||
+            !manifestContainsAnimation(
+                catalog.entries[index].seasonalLowAnimation) ||
             !manifestContainsAnimation(catalog.entries[index].moveAnimation) ||
             !manifestContainsAnimation(
                 catalog.entries[index].backwardAnimation) ||
@@ -93,7 +116,8 @@ int main(void)
         }
     tank = entityCatalogFind(&catalog, "tank-standard");
     if (tank == NULL || tank->kind != ENTITY_KIND_VEHICLE ||
-        tank->weapon != ENTITY_WEAPON_SHELL ||
+        tank->weapon != ENTITY_WEAPON_PROJECTILE ||
+        strcmp(tank->projectile, "projectile-shell") != 0 ||
         tank->controlMode != ENTITY_CONTROL_STEERED ||
         strcmp(tank->aimYawNode, "turret") != 0 ||
         strcmp(tank->aimPitchNode, "barrel") != 0 ||
@@ -102,15 +126,16 @@ int main(void)
         tank->projectileSpeed < 0.299f || tank->aimPitchDefault != 0.0f ||
         tank->firstPersonVisible ||
         tank->targetMode != ENTITY_TARGET_ALL ||
-        tank->sensorCount != 4 || tank->reactionRuleCount != 6 ||
+        tank->sensorCount != 4 || tank->reactionRuleCount != 7 ||
         tank->sensors[1].type != ENTITY_SENSOR_VISION ||
         tank->sensors[2].type != ENTITY_SENSOR_HEARING ||
         tank->reactionRules[0].reaction != ENTITY_REACTION_ATTACK ||
         tank->reactionRules[0].phase != ENTITY_SENSOR_PHASE_ENTER ||
         strcmp(tank->reactionRules[0].emit, "base-alarm") != 0 ||
         tank->spawnWeight != 20 ||
-        !entityArchetypeIsHostileTo(tank, "monster") ||
-        entityArchetypeIsHostileTo(tank, "army"))
+        strcmp(tank->moveSound, "engine-rumble") != 0 ||
+        tank->moveSoundInterval != 18 ||
+        strcmp(tank->contactAudioTag, "tracked") != 0)
         {
         entityCatalogDestroy(&catalog);
         return 1;
@@ -123,15 +148,97 @@ int main(void)
     techs = entityCatalogFind(&catalog, "techs");
     airplane = entityCatalogFind(&catalog, "airplane-bomber");
     fighter = entityCatalogFind(&catalog, "fighter");
+    road = entityCatalogFind(&catalog, "road-paved-tile");
+    hill = entityCatalogFind(&catalog, "hill-center");
+    fastFood = entityCatalogFind(&catalog, "building-fast-food");
+    fastFoodAlternate = entityCatalogFind(
+        &catalog, "building-fast-food-alternate");
+    explosion = entityCatalogFind(&catalog, "explosion-standard");
+    flameProjectile = entityCatalogFind(&catalog, "projectile-flame");
+    trailProjectile = entityCatalogFind(&catalog, "projectile-scar");
+    waterProjectile = entityCatalogFind(&catalog, "projectile-water");
+    route = entityCatalogFind(&catalog, "logic-patrol-route");
+    zone = entityCatalogFind(&catalog, "logic-guard-zone");
     if (airplane == NULL || fighter == NULL || helicopter == NULL ||
+        road == NULL || hill == NULL || fastFood == NULL ||
+        fastFoodAlternate == NULL ||
+        explosion == NULL || flameProjectile == NULL ||
+        trailProjectile == NULL || waterProjectile == NULL ||
+        route == NULL || zone == NULL ||
+        !flameProjectile->projectileContinuous ||
+        !flameProjectile->projectileCollidesGround ||
+        flameProjectile->projectileTrailMarker ||
+        !trailProjectile->projectileTrailMarker ||
+        trailProjectile->projectileCollidesGround ||
+        waterProjectile->projectileCollidesGround ||
+        flameProjectile->renderStyle != ENTITY_RENDER_PARTICLE_PLUME ||
+        flameProjectile->particleCount != 18 ||
+        explosion->renderStyle != ENTITY_RENDER_PARTICLE_BURST ||
+        explosion->particleCount != 32 ||
+        explosion->kind != ENTITY_KIND_EFFECT ||
+        explosion->effectDuration != 30 ||
+        explosion->effectSoundFrame != 1 ||
+        explosion->effectDamageFrame != 4 ||
+        explosion->effectDamage != 1 ||
+        strcmp(explosion->fireSound, "boom") != 0 ||
+        road->surfaceSoundCount != 1 ||
+        strcmp(road->surfaceSounds[0].contactTag, "tracked") != 0 ||
+        strcmp(road->surfaceSounds[0].sound, "road-clank") != 0 ||
+        road->surfaceSounds[0].interval != 20 ||
+        hill->grounding != ENTITY_GROUNDING_ORIGIN ||
+        fastFood->collisionFootprint !=
+            ENTITY_COLLISION_FOOTPRINT_MODEL ||
+        tank->collisionFootprint != ENTITY_COLLISION_FOOTPRINT_MODEL ||
+        tank->spawnClearance != 0.15f ||
+        fastFood->animationSpeed != 0.4f ||
+        fastFoodAlternate->animationSpeed != 0.4f ||
         airplane->tactic != ENTITY_TACTIC_FLYBY ||
         airplane->tacticRadius != 20.0f ||
         fighter->tactic != ENTITY_TACTIC_FLYBY ||
-        fighter->burstCount != 4 || helicopter->spawnWeight != 17)
+        fighter->burstCount != 4 || helicopter->spawnWeight != 17 ||
+        entityArchetypePlayerSpeed(helicopter) != 0.12f ||
+        route->kind != ENTITY_KIND_ROUTE ||
+        route->renderStyle != ENTITY_RENDER_NONE ||
+        zone->kind != ENTITY_KIND_ZONE ||
+        zone->sensors[0].type != ENTITY_SENSOR_AREA)
         {
         entityCatalogDestroy(&catalog);
         return 1;
         }
+
+    {
+    struct EntityArchetype footprint;
+
+    footprint = *tank;
+    footprint.modelFootprintRadius = 0.47f;
+    if (entityArchetypeCollisionRadius(&footprint) != 0.47f)
+        {
+        entityCatalogDestroy(&catalog);
+        return 1;
+        }
+    footprint.collisionHeight = 0.3f;
+    footprint.modelMinimumY = -0.54f;
+    footprint.modelMaximumY = 0.78f;
+    if (entityArchetypeCollisionBottomOffset(&footprint) != -0.54f ||
+        entityArchetypeCollisionTopOffset(&footprint) != 0.78f)
+        {
+        entityCatalogDestroy(&catalog);
+        return 1;
+        }
+    footprint.collisionFootprint = ENTITY_COLLISION_FOOTPRINT_RADIUS;
+    if (entityArchetypeCollisionRadius(&footprint) !=
+        footprint.collisionRadius)
+        {
+        entityCatalogDestroy(&catalog);
+        return 1;
+        }
+    if (entityArchetypeCollisionBottomOffset(&footprint) != 0.0f ||
+        entityArchetypeCollisionTopOffset(&footprint) != 0.3f)
+        {
+        entityCatalogDestroy(&catalog);
+        return 1;
+        }
+    }
 
     {
     const struct EntityArchetype *moira;
@@ -178,7 +285,11 @@ int main(void)
         flutter == NULL ||
         vapour == NULL || techs == NULL ||
         !helicopter->controllable || !soldier->controllable ||
-        helicopter->modelYawOffset != 180.0f ||
+        helicopter->modelYawOffset != 0.0f ||
+        strcmp(helicopter->aimYawNode, "gun-yaw") != 0 ||
+        strcmp(helicopter->aimPitchNode, "gun-pitch") != 0 ||
+        strcmp(helicopter->muzzleNode, "muzzle") != 0 ||
+        helicopter->projectileSpeed != 0.3f ||
         helicopter->playerBottom != 1.0f ||
         helicopter->playerHeight != 1.4f ||
         !monster->controllable || !vapour->controllable ||
@@ -197,18 +308,27 @@ int main(void)
         strcmp(vapour->muzzleNode, "muzzle") != 0 ||
         strcmp(techs->muzzleNode, "muzzle") != 0 ||
         strcmp(monster->renderNodes[0], "body") != 0 ||
-        vapour->weapon != ENTITY_WEAPON_FIRE ||
+        vapour->weapon != ENTITY_WEAPON_PROJECTILE ||
+        strcmp(vapour->projectile, "projectile-flame") != 0 ||
         vapour->health != 8 || vapour->spawnWeight != 0 ||
         vapour->collisionMode != ENTITY_COLLISION_PHASE ||
         strcmp(vapour->idleAnimation, "vapour-cloud") != 0 ||
         vapour->shortcut != '8' ||
-        vapour->networkCode != 1 ||
         vapour->sensorCount != 4 ||
-        techs->weapon != ENTITY_WEAPON_PLASMA ||
+        techs->weapon != ENTITY_WEAPON_PROJECTILE ||
+        strcmp(techs->projectile, "projectile-plasma") != 0 ||
         techs->health != 8 || techs->spawnWeight != 0 ||
         strcmp(monster->weaponColor, "blue") != 0 ||
+        strcmp(monster->weaponCoreColor, "white") != 0 ||
+        strcmp(monster->weaponTraceColor, "black") != 0 ||
+        monster->weaponDamage != 1 || !monster->weaponDamagesActors ||
+        !monster->weaponDestroysMapObjects ||
+        strcmp(monster->destructionSound, "crash") != 0 ||
+        monster->destructionDebrisCount != 7 ||
+        monster->destructionFireCount != 3 ||
+        monster->destructionEffectCount != 1 ||
+        monster->debrisLife != 420 ||
         entityCatalogFindShortcut(&catalog, '6') != monster ||
-        entityCatalogFindNetworkCode(&catalog, 1) != vapour ||
         strcmp(catalog.fallback, "googelon") != 0 ||
         entityCatalogControllableCount(&catalog) != 8 ||
         entityCatalogControllableAt(&catalog, 0) != monster)

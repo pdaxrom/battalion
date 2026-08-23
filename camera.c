@@ -6,7 +6,7 @@
 
 #include "battalion.h"
 
-GLuint makeMonsterLookat(void)
+GLuint makePlayerLookat(void)
     {
     GLuint displayList;
 

@@ -1,13 +1,25 @@
-# Data-driven replacement for legacy unit type 4.
+# Copyright (c) 2026 Battalion contributors.
 battalion-entity 1
 id hunter-chh
 display-name Hunter CHH
+description Hovering hunter actor with a beam weapon.
+editor-category vehicles
+editor-color yellow
+wreck-fire-projectile projectile-flame
+destruction-projectile projectile-debris
+destruction-effect explosion-standard
+destruction-sound crash
+destruction-debris-count 7
+destruction-fire-count 3
+destruction-effect-count 1
+debris-life 420
+impact-projectile projectile-scar
 kind vehicle
+collision-footprint model
 model hunter
 render-node damage-00
 muzzle-node muzzle
 faction army
-hostile-faction monster
 movement air
 speed 0.036
 turn-rate 0.16
@@ -18,14 +30,20 @@ vertical-offset 1
 collision-radius 0.3
 collision-height 0.4
 weapon beam
+fire-sound beam
 weapon-color red
+weapon-core-color white
+weapon-trace-color black
+weapon-damage 1
+weapon-damages-actors yes
+weapon-destroys-map-objects yes
 weapon-range 4.5
 weapon-min-range 0.5
 projectile-speed 0.1
 fire-interval 1
 accuracy 1000
-forget-range 14
-lost-frames 180
+forget-range 60
+lost-frames 1200
 sensor nearby proximity 2 360 hostile
 sensor sight vision 10 140 hostile
 sensor noise hearing 14 360 hostile
@@ -36,6 +54,7 @@ on-enter noise investigate hunter-alert
 on-enter damaged attack hunter-alert
 on-trigger hunter-alert activate none
 on-trigger hunter-alert attack none
+on-trigger spawned pursue none
 spawn-weight 5
 spawn-after 2000
 max-active 0

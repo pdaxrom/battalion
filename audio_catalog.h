@@ -13,6 +13,7 @@ struct AudioCatalogEntry
     char *backend;
     char *path;
     int slot;
+    int unique;
     };
 
 struct AudioCatalog

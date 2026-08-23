@@ -202,20 +202,25 @@ static int objectValue(const char *json, const struct MapJsonToken *tokens,
                        int tokenCount, int object, const char *key)
     {
     int index;
+    int expectKey;
 
     if (object < 0 || object >= tokenCount ||
         tokens[object].type != MAP_JSON_OBJECT)
         return -1;
+    expectKey = 1;
     for (index = object + 1; index + 1 < tokenCount; index++)
         {
         if (tokens[index].start >= tokens[object].end)
             break;
-        if (tokens[index].parent == object && tokenEquals(json, &tokens[index], key))
+        if (tokens[index].parent != object)
+            continue;
+        if (expectKey && tokenEquals(json, &tokens[index], key))
             {
             if (tokens[index + 1].parent == object)
                 return index + 1;
             return -1;
             }
+        expectKey = !expectKey;
         }
     return -1;
     }
@@ -351,86 +356,10 @@ static size_t arrayCount(const struct MapJsonToken *tokens, int tokenCount,
     return count;
     }
 
-static int loadRoads(const char *json, const struct MapJsonToken *tokens,
-                     int tokenCount, int array, struct BattalionMapPackage *map)
-    {
-    size_t output;
-    int index;
-    int xToken;
-    int zToken;
-    int typeToken;
-
-    if (array < 0 || tokens[array].type != MAP_JSON_ARRAY)
-        return 0;
-    map->roadCount = arrayCount(tokens, tokenCount, array);
-    if (map->roadCount > 0)
-        map->roads = (struct BattalionMapRoad *)calloc(
-            map->roadCount, sizeof(struct BattalionMapRoad));
-    if (map->roadCount > 0 && map->roads == NULL)
-        return 0;
-    output = 0;
-    for (index = array + 1; index < tokenCount && output < map->roadCount; index++)
-        if (tokens[index].parent == array)
-            {
-            if (tokens[index].type != MAP_JSON_OBJECT)
-                return 0;
-            xToken = objectValue(json, tokens, tokenCount, index, "x");
-            zToken = objectValue(json, tokens, tokenCount, index, "z");
-            typeToken = objectValue(json, tokens, tokenCount, index, "type");
-            if (xToken < 0 || zToken < 0 || typeToken < 0 ||
-                !tokenFloat(json, &tokens[xToken], &map->roads[output].x) ||
-                !tokenFloat(json, &tokens[zToken], &map->roads[output].z) ||
-                !tokenInt(json, &tokens[typeToken], &map->roads[output].type))
-                return 0;
-            output++;
-            }
-    return output == map->roadCount;
-    }
-
-static int loadStructures(const char *json, const struct MapJsonToken *tokens,
+static int loadObjectPath(const char *json,
+                          const struct MapJsonToken *tokens,
                           int tokenCount, int array,
-                          struct BattalionMapPackage *map)
-    {
-    size_t output;
-    int index;
-    int xToken;
-    int zToken;
-    int typeToken;
-    int shapeToken;
-
-    if (array < 0 || tokens[array].type != MAP_JSON_ARRAY)
-        return 0;
-    map->structureCount = arrayCount(tokens, tokenCount, array);
-    if (map->structureCount > 0)
-        map->structures = (struct BattalionMapStructure *)calloc(
-            map->structureCount, sizeof(struct BattalionMapStructure));
-    if (map->structureCount > 0 && map->structures == NULL)
-        return 0;
-    output = 0;
-    for (index = array + 1; index < tokenCount && output < map->structureCount; index++)
-        if (tokens[index].parent == array)
-            {
-            if (tokens[index].type != MAP_JSON_OBJECT)
-                return 0;
-            xToken = objectValue(json, tokens, tokenCount, index, "x");
-            zToken = objectValue(json, tokens, tokenCount, index, "z");
-            typeToken = objectValue(json, tokens, tokenCount, index, "type");
-            shapeToken = objectValue(json, tokens, tokenCount, index, "shape");
-            if (xToken < 0 || zToken < 0 || typeToken < 0 || shapeToken < 0 ||
-                !tokenFloat(json, &tokens[xToken], &map->structures[output].x) ||
-                !tokenFloat(json, &tokens[zToken], &map->structures[output].z) ||
-                !tokenInt(json, &tokens[typeToken], &map->structures[output].type) ||
-                !tokenInt(json, &tokens[shapeToken], &map->structures[output].shape))
-                return 0;
-            output++;
-            }
-    return output == map->structureCount;
-    }
-
-static int loadActorPath(const char *json,
-                         const struct MapJsonToken *tokens,
-                         int tokenCount, int array,
-                         struct BattalionMapActor *actor)
+                          struct BattalionMapObject *object)
     {
     size_t output;
     int index;
@@ -441,15 +370,15 @@ static int loadActorPath(const char *json,
         return 1;
     if (tokens[array].type != MAP_JSON_ARRAY)
         return 0;
-    actor->waypointCount = arrayCount(tokens, tokenCount, array);
-    if (actor->waypointCount > 0)
-        actor->waypoints = (struct EntityWaypoint *)calloc(
-            actor->waypointCount, sizeof(struct EntityWaypoint));
-    if (actor->waypointCount > 0 && actor->waypoints == NULL)
+    object->waypointCount = arrayCount(tokens, tokenCount, array);
+    if (object->waypointCount > 0)
+        object->waypoints = (struct EntityWaypoint *)calloc(
+            object->waypointCount, sizeof(struct EntityWaypoint));
+    if (object->waypointCount > 0 && object->waypoints == NULL)
         return 0;
     output = 0;
     for (index = array + 1;
-         index < tokenCount && output < actor->waypointCount; index++)
+         index < tokenCount && output < object->waypointCount; index++)
         if (tokens[index].parent == array)
             {
             if (tokens[index].type != MAP_JSON_OBJECT)
@@ -458,19 +387,103 @@ static int loadActorPath(const char *json,
             zToken = objectValue(json, tokens, tokenCount, index, "z");
             if (xToken < 0 || zToken < 0 ||
                 !tokenFloat(json, &tokens[xToken],
-                            &actor->waypoints[output].x) ||
+                            &object->waypoints[output].x) ||
                 !tokenFloat(json, &tokens[zToken],
-                            &actor->waypoints[output].z))
+                            &object->waypoints[output].z))
                 return 0;
             output++;
             }
-    return output == actor->waypointCount;
+    return output == object->waypointCount;
     }
 
-static int loadActorTriggers(const char *json,
-                             const struct MapJsonToken *tokens,
-                             int tokenCount, int array,
-                             struct BattalionMapActor *actor)
+static int loadObjectGeometry(const char *json,
+                              const struct MapJsonToken *tokens,
+                              int tokenCount, int array,
+                              struct BattalionMapObject *object)
+    {
+    size_t output;
+    int index;
+    int xToken;
+    int zToken;
+
+    if (array < 0)
+        return 1;
+    if (tokens[array].type != MAP_JSON_ARRAY)
+        return 0;
+    object->geometryCount = arrayCount(tokens, tokenCount, array);
+    if (object->geometryCount > 0)
+        object->geometry = (struct BattalionMapPoint *)calloc(
+            object->geometryCount, sizeof(struct BattalionMapPoint));
+    if (object->geometryCount > 0 && object->geometry == NULL)
+        return 0;
+    output = 0;
+    for (index = array + 1;
+         index < tokenCount && output < object->geometryCount; index++)
+        if (tokens[index].parent == array)
+            {
+            if (tokens[index].type != MAP_JSON_OBJECT)
+                return 0;
+            xToken = objectValue(json, tokens, tokenCount, index, "x");
+            zToken = objectValue(json, tokens, tokenCount, index, "z");
+            if (xToken < 0 || zToken < 0 ||
+                !tokenFloat(json, &tokens[xToken],
+                            &object->geometry[output].x) ||
+                !tokenFloat(json, &tokens[zToken],
+                            &object->geometry[output].z))
+                return 0;
+            output++;
+            }
+    return output == object->geometryCount;
+    }
+
+static int loadObjectProperties(const char *json,
+                                const struct MapJsonToken *tokens,
+                                int tokenCount, int array,
+                                struct BattalionMapObject *object)
+    {
+    size_t output;
+    int index;
+    int nameToken;
+    int valueToken;
+    struct BattalionMapProperty *property;
+
+    if (array < 0)
+        return 1;
+    if (tokens[array].type != MAP_JSON_ARRAY)
+        return 0;
+    object->propertyCount = arrayCount(tokens, tokenCount, array);
+    if (object->propertyCount > 0)
+        object->properties = (struct BattalionMapProperty *)calloc(
+            object->propertyCount, sizeof(struct BattalionMapProperty));
+    if (object->propertyCount > 0 && object->properties == NULL)
+        return 0;
+    output = 0;
+    for (index = array + 1;
+         index < tokenCount && output < object->propertyCount; index++)
+        if (tokens[index].parent == array)
+            {
+            if (tokens[index].type != MAP_JSON_OBJECT)
+                return 0;
+            nameToken = objectValue(json, tokens, tokenCount, index, "name");
+            valueToken = objectValue(json, tokens, tokenCount, index, "value");
+            if (nameToken < 0 || valueToken < 0)
+                return 0;
+            property = &object->properties[output];
+            if (!copyString(json, &tokens[nameToken], property->name,
+                            sizeof(property->name)) ||
+                !copyString(json, &tokens[valueToken], property->value,
+                            sizeof(property->value)) ||
+                !validEntityName(property->name))
+                return 0;
+            output++;
+            }
+    return output == object->propertyCount;
+    }
+
+static int loadObjectTriggers(const char *json,
+                              const struct MapJsonToken *tokens,
+                              int tokenCount, int array,
+                              struct BattalionMapObject *object)
     {
     size_t output;
     int index;
@@ -483,15 +496,15 @@ static int loadActorTriggers(const char *json,
         return 1;
     if (tokens[array].type != MAP_JSON_ARRAY)
         return 0;
-    actor->triggerCount = arrayCount(tokens, tokenCount, array);
-    if (actor->triggerCount > 0)
-        actor->triggers = (struct BattalionMapTrigger *)calloc(
-            actor->triggerCount, sizeof(struct BattalionMapTrigger));
-    if (actor->triggerCount > 0 && actor->triggers == NULL)
+    object->triggerCount = arrayCount(tokens, tokenCount, array);
+    if (object->triggerCount > 0)
+        object->triggers = (struct BattalionMapTrigger *)calloc(
+            object->triggerCount, sizeof(struct BattalionMapTrigger));
+    if (object->triggerCount > 0 && object->triggers == NULL)
         return 0;
     output = 0;
     for (index = array + 1;
-         index < tokenCount && output < actor->triggerCount; index++)
+         index < tokenCount && output < object->triggerCount; index++)
         if (tokens[index].parent == array)
             {
             if (tokens[index].type != MAP_JSON_OBJECT)
@@ -505,7 +518,7 @@ static int loadActorTriggers(const char *json,
             if (eventToken < 0 ||
                 ((targetIdToken >= 0) == (targetGroupToken >= 0)))
                 return 0;
-            trigger = &actor->triggers[output];
+            trigger = &object->triggers[output];
             if (!copyString(json, &tokens[eventToken], trigger->event,
                             sizeof(trigger->event)))
                 return 0;
@@ -528,7 +541,7 @@ static int loadActorTriggers(const char *json,
                 return 0;
             output++;
             }
-    return output == actor->triggerCount;
+    return output == object->triggerCount;
     }
 
 static int patrolModeValue(const char *json,
@@ -543,114 +556,205 @@ static int patrolModeValue(const char *json,
     return 0;
     }
 
-static int loadActors(const char *json, const struct MapJsonToken *tokens,
-                      int tokenCount, int array,
-                      struct BattalionMapPackage *map)
+static int alarmResponseValue(const char *json,
+                              const struct MapJsonToken *token)
+    {
+    if (tokenEquals(json, token, "inherit"))
+        return ENTITY_ALARM_INHERIT;
+    if (tokenEquals(json, token, "continue"))
+        return ENTITY_ALARM_CONTINUE;
+    if (tokenEquals(json, token, "attack"))
+        return ENTITY_ALARM_ATTACK;
+    if (tokenEquals(json, token, "retreat"))
+        return ENTITY_ALARM_RETREAT;
+    if (tokenEquals(json, token, "random"))
+        return ENTITY_ALARM_RANDOM;
+    return -1;
+    }
+
+static int loadObjects(const char *json, const struct MapJsonToken *tokens,
+                       int tokenCount, int array,
+                       struct BattalionMapPackage *map)
     {
     size_t output;
     int index;
     int idToken;
     int archetypeToken;
+    int descriptionToken;
     int groupToken;
+    int factionToken;
+    int patrolRouteToken;
+    int safeZoneToken;
     int xToken;
+    int yToken;
     int zToken;
     int headingToken;
+    int scaleToken;
     int activeToken;
     int patrolModeToken;
+    int alarmResponseToken;
+    int safeWaitToken;
     int pathToken;
+    int geometryToken;
+    int propertiesToken;
     int triggersToken;
-    struct BattalionMapActor *actor;
+    struct BattalionMapObject *object;
 
     if (array < 0 || tokens[array].type != MAP_JSON_ARRAY)
         return 0;
-    map->actorCount = arrayCount(tokens, tokenCount, array);
-    if (map->actorCount > 0)
-        map->actors = (struct BattalionMapActor *)calloc(
-            map->actorCount, sizeof(struct BattalionMapActor));
-    if (map->actorCount > 0 && map->actors == NULL)
+    map->objectCount = arrayCount(tokens, tokenCount, array);
+    if (map->objectCount > 0)
+        map->objects = (struct BattalionMapObject *)calloc(
+            map->objectCount, sizeof(struct BattalionMapObject));
+    if (map->objectCount > 0 && map->objects == NULL)
         return 0;
     output = 0;
     for (index = array + 1;
-         index < tokenCount && output < map->actorCount; index++)
+         index < tokenCount && output < map->objectCount; index++)
         if (tokens[index].parent == array)
             {
             if (tokens[index].type != MAP_JSON_OBJECT)
                 return 0;
-            actor = &map->actors[output];
-            actor->active = 1;
-            actor->patrolMode = ENTITY_PATROL_LOOP;
+            object = &map->objects[output];
+            object->active = 1;
+            object->scale = 1.0f;
+            object->patrolMode = ENTITY_PATROL_LOOP;
+            object->alarmResponse = ENTITY_ALARM_INHERIT;
             idToken = objectValue(json, tokens, tokenCount, index, "id");
             archetypeToken = objectValue(json, tokens, tokenCount, index,
                                          "archetype");
+            descriptionToken = objectValue(json, tokens, tokenCount, index,
+                                           "description");
             groupToken = objectValue(json, tokens, tokenCount, index,
                                      "group");
+            factionToken = objectValue(json, tokens, tokenCount, index,
+                                       "faction");
+            patrolRouteToken = objectValue(json, tokens, tokenCount, index,
+                                           "patrol-route");
+            safeZoneToken = objectValue(json, tokens, tokenCount, index,
+                                        "safe-zone");
             xToken = objectValue(json, tokens, tokenCount, index, "x");
+            yToken = objectValue(json, tokens, tokenCount, index, "y");
             zToken = objectValue(json, tokens, tokenCount, index, "z");
             headingToken = objectValue(json, tokens, tokenCount, index,
                                        "heading");
+            scaleToken = objectValue(json, tokens, tokenCount, index,
+                                     "scale");
             activeToken = objectValue(json, tokens, tokenCount, index,
                                       "active");
             patrolModeToken = objectValue(json, tokens, tokenCount, index,
                                           "patrol-mode");
+            alarmResponseToken = objectValue(
+                json, tokens, tokenCount, index, "alarm-response");
+            safeWaitToken = objectValue(
+                json, tokens, tokenCount, index, "safe-wait-seconds");
             pathToken = objectValue(json, tokens, tokenCount, index, "path");
+            geometryToken = objectValue(json, tokens, tokenCount, index,
+                                        "geometry");
+            propertiesToken = objectValue(json, tokens, tokenCount, index,
+                                          "properties");
             triggersToken = objectValue(json, tokens, tokenCount, index,
                                         "triggers");
-            if (idToken < 0 || archetypeToken < 0 || xToken < 0 ||
-                zToken < 0 ||
-                !copyString(json, &tokens[idToken], actor->id,
-                            sizeof(actor->id)) ||
-                !copyString(json, &tokens[archetypeToken], actor->archetype,
-                            sizeof(actor->archetype)) ||
-                !validEntityName(actor->id) ||
-                !validEntityName(actor->archetype) ||
-                !tokenFloat(json, &tokens[xToken], &actor->x) ||
-                !tokenFloat(json, &tokens[zToken], &actor->z))
+            if (archetypeToken < 0 || xToken < 0 || zToken < 0 ||
+                !copyString(json, &tokens[archetypeToken], object->archetype,
+                            sizeof(object->archetype)) ||
+                !validEntityName(object->archetype) ||
+                !tokenFloat(json, &tokens[xToken], &object->x) ||
+                !tokenFloat(json, &tokens[zToken], &object->z))
+                return 0;
+            if (idToken >= 0 &&
+                (!copyString(json, &tokens[idToken], object->id,
+                             sizeof(object->id)) ||
+                 !validEntityName(object->id)))
+                return 0;
+            if (descriptionToken >= 0 &&
+                !copyString(json, &tokens[descriptionToken],
+                            object->description,
+                            sizeof(object->description)))
                 return 0;
             if (groupToken >= 0 &&
-                (!copyString(json, &tokens[groupToken], actor->group,
-                             sizeof(actor->group)) ||
-                 !validEntityName(actor->group)))
+                (!copyString(json, &tokens[groupToken], object->group,
+                             sizeof(object->group)) ||
+                 !validEntityName(object->group)))
+                return 0;
+            if (factionToken >= 0 &&
+                (!copyString(json, &tokens[factionToken], object->faction,
+                             sizeof(object->faction)) ||
+                 !validEntityName(object->faction)))
+                return 0;
+            if (patrolRouteToken >= 0 &&
+                (!copyString(json, &tokens[patrolRouteToken],
+                             object->patrolRoute,
+                             sizeof(object->patrolRoute)) ||
+                 !validEntityName(object->patrolRoute)))
+                return 0;
+            if (safeZoneToken >= 0 &&
+                (!copyString(json, &tokens[safeZoneToken],
+                             object->safeZone,
+                             sizeof(object->safeZone)) ||
+                 !validEntityName(object->safeZone)))
                 return 0;
             if (headingToken >= 0 &&
-                !tokenFloat(json, &tokens[headingToken], &actor->heading))
+                !tokenFloat(json, &tokens[headingToken], &object->heading))
+                return 0;
+            if (yToken >= 0 &&
+                !tokenFloat(json, &tokens[yToken], &object->y))
+                return 0;
+            if (scaleToken >= 0 &&
+                !tokenFloat(json, &tokens[scaleToken], &object->scale))
                 return 0;
             if (activeToken >= 0 &&
-                !tokenBool(json, &tokens[activeToken], &actor->active))
+                !tokenBool(json, &tokens[activeToken], &object->active))
                 return 0;
             if (patrolModeToken >= 0)
                 {
-                actor->patrolMode = patrolModeValue(
+                object->patrolMode = patrolModeValue(
                     json, &tokens[patrolModeToken]);
-                if (actor->patrolMode == 0)
+                if (object->patrolMode == 0)
                     return 0;
                 }
-            if (!loadActorPath(json, tokens, tokenCount, pathToken, actor) ||
-                !loadActorTriggers(json, tokens, tokenCount, triggersToken,
-                                   actor))
+            if (alarmResponseToken >= 0)
+                {
+                object->alarmResponse = alarmResponseValue(
+                    json, &tokens[alarmResponseToken]);
+                if (object->alarmResponse < 0)
+                    return 0;
+                }
+            if (safeWaitToken >= 0 &&
+                !tokenFloat(json, &tokens[safeWaitToken],
+                            &object->safeWaitSeconds))
+                return 0;
+            if (!loadObjectPath(json, tokens, tokenCount, pathToken, object) ||
+                !loadObjectGeometry(json, tokens, tokenCount, geometryToken,
+                                    object) ||
+                !loadObjectProperties(json, tokens, tokenCount,
+                                      propertiesToken, object) ||
+                !loadObjectTriggers(json, tokens, tokenCount, triggersToken,
+                                    object))
                 return 0;
             output++;
             }
-    return output == map->actorCount;
+    return output == map->objectCount;
     }
 
-static int actorIdExists(const struct BattalionMapPackage *map,
-                         const char *id)
+static int objectIdExists(const struct BattalionMapPackage *map,
+                          const char *id)
     {
     size_t index;
 
-    for (index = 0; index < map->actorCount; index++)
-        if (strcmp(map->actors[index].id, id) == 0)
+    for (index = 0; index < map->objectCount; index++)
+        if (strcmp(map->objects[index].id, id) == 0)
             return 1;
     return 0;
     }
 
-static int actorGroupExists(const struct BattalionMapPackage *map,
-                            const char *group)
+static int objectGroupExists(const struct BattalionMapPackage *map,
+                             const char *group)
     {
     size_t index;
 
-    for (index = 0; index < map->actorCount; index++)
-        if (strcmp(map->actors[index].group, group) == 0)
+    for (index = 0; index < map->objectCount; index++)
+        if (strcmp(map->objects[index].group, group) == 0)
             return 1;
     return 0;
     }
@@ -660,59 +764,133 @@ static int validFloat(float value)
     return value == value && value <= FLT_MAX && value >= -FLT_MAX;
     }
 
-static int validateActors(const struct BattalionMapPackage *map,
-                          char *error, size_t errorSize)
+static int validateObjects(const struct BattalionMapPackage *map,
+                           char *error, size_t errorSize)
     {
-    size_t actorIndex;
+    size_t objectIndex;
     size_t otherIndex;
+    size_t propertyIndex;
     size_t triggerIndex;
     const struct BattalionMapTrigger *trigger;
+    const struct BattalionMapObject *object;
 
-    for (actorIndex = 0; actorIndex < map->actorCount; actorIndex++)
+    for (objectIndex = 0; objectIndex < map->objectCount; objectIndex++)
         {
-        if (!validEntityName(map->actors[actorIndex].id) ||
-            !validEntityName(map->actors[actorIndex].archetype) ||
-            (map->actors[actorIndex].group[0] != '\0' &&
-             !validEntityName(map->actors[actorIndex].group)) ||
-            !validFloat(map->actors[actorIndex].x) ||
-            !validFloat(map->actors[actorIndex].z) ||
-            !validFloat(map->actors[actorIndex].heading) ||
-            (map->actors[actorIndex].active != 0 &&
-             map->actors[actorIndex].active != 1) ||
-            (map->actors[actorIndex].patrolMode != ENTITY_PATROL_LOOP &&
-             map->actors[actorIndex].patrolMode != ENTITY_PATROL_PINGPONG &&
-             map->actors[actorIndex].patrolMode != ENTITY_PATROL_ONCE) ||
-            (map->actors[actorIndex].waypointCount > 0 &&
-             map->actors[actorIndex].waypoints == NULL) ||
-            (map->actors[actorIndex].triggerCount > 0 &&
-             map->actors[actorIndex].triggers == NULL))
+        object = &map->objects[objectIndex];
+        if ((object->id[0] != '\0' && !validEntityName(object->id)) ||
+            !validEntityName(object->archetype) ||
+            (object->group[0] != '\0' && !validEntityName(object->group)) ||
+            (object->faction[0] != '\0' &&
+             !validEntityName(object->faction)) ||
+            (object->patrolRoute[0] != '\0' &&
+             !validEntityName(object->patrolRoute)) ||
+            (object->safeZone[0] != '\0' &&
+             !validEntityName(object->safeZone)) ||
+            !validFloat(object->x) || !validFloat(object->y) ||
+            !validFloat(object->z) || !validFloat(object->heading) ||
+            !validFloat(object->scale) || object->scale <= 0.0f ||
+            !validFloat(object->safeWaitSeconds) ||
+            object->safeWaitSeconds < 0.0f ||
+            (object->active != 0 && object->active != 1) ||
+            (object->patrolMode != ENTITY_PATROL_LOOP &&
+             object->patrolMode != ENTITY_PATROL_PINGPONG &&
+             object->patrolMode != ENTITY_PATROL_ONCE) ||
+            (object->alarmResponse < ENTITY_ALARM_INHERIT ||
+             object->alarmResponse > ENTITY_ALARM_RANDOM) ||
+            (object->waypointCount > 0 && object->waypoints == NULL) ||
+            (object->geometryCount > 0 && object->geometry == NULL) ||
+            (object->propertyCount > 0 && object->properties == NULL) ||
+            (object->triggerCount > 0 && object->triggers == NULL))
             {
-            setMapError(error, errorSize, "Invalid map actor fields");
+            setMapError(error, errorSize, "Invalid map object fields");
             return 0;
             }
-        for (otherIndex = actorIndex + 1; otherIndex < map->actorCount;
-             otherIndex++)
-            if (strcmp(map->actors[actorIndex].id,
-                       map->actors[otherIndex].id) == 0)
+        if (object->patrolRoute[0] != '\0' &&
+            !objectIdExists(map, object->patrolRoute))
+            {
+            setMapError(error, errorSize,
+                        "Patrol route references an unknown object id");
+            return 0;
+            }
+        if (object->safeZone[0] != '\0' &&
+            !objectIdExists(map, object->safeZone))
+            {
+            setMapError(error, errorSize,
+                        "Safe zone references an unknown object id");
+            return 0;
+            }
+        if (object->alarmResponse != ENTITY_ALARM_INHERIT &&
+            object->patrolRoute[0] == '\0')
+            {
+            setMapError(error, errorSize,
+                        "Alarm response requires a patrol route");
+            return 0;
+            }
+        if ((object->alarmResponse == ENTITY_ALARM_RETREAT ||
+             object->alarmResponse == ENTITY_ALARM_RANDOM) !=
+            (object->safeZone[0] != '\0'))
+            {
+            setMapError(error, errorSize,
+                        "Retreat response requires exactly one safe zone");
+            return 0;
+            }
+        if (object->alarmResponse != ENTITY_ALARM_RETREAT &&
+            object->alarmResponse != ENTITY_ALARM_RANDOM &&
+            object->safeWaitSeconds != 0.0f)
+            {
+            setMapError(error, errorSize,
+                        "Safe wait is only valid for retreat responses");
+            return 0;
+            }
+        if (object->id[0] != '\0')
+            for (otherIndex = objectIndex + 1;
+                 otherIndex < map->objectCount; otherIndex++)
+                if (strcmp(object->id, map->objects[otherIndex].id) == 0)
                 {
-                setMapError(error, errorSize, "Map actor ids must be unique");
+                setMapError(error, errorSize, "Map object ids must be unique");
                 return 0;
                 }
         for (otherIndex = 0;
-             otherIndex < map->actors[actorIndex].waypointCount;
+             otherIndex < object->waypointCount;
              otherIndex++)
-            if (!validFloat(map->actors[actorIndex].waypoints[otherIndex].x) ||
-                !validFloat(map->actors[actorIndex].waypoints[otherIndex].z))
+            if (!validFloat(object->waypoints[otherIndex].x) ||
+                !validFloat(object->waypoints[otherIndex].z))
                 {
                 setMapError(error, errorSize,
                             "Invalid patrol waypoint coordinates");
                 return 0;
                 }
+        for (otherIndex = 0; otherIndex < object->geometryCount; otherIndex++)
+            if (!validFloat(object->geometry[otherIndex].x) ||
+                !validFloat(object->geometry[otherIndex].z))
+                {
+                setMapError(error, errorSize,
+                            "Invalid object geometry coordinates");
+                return 0;
+                }
+        for (propertyIndex = 0; propertyIndex < object->propertyCount;
+             propertyIndex++)
+            {
+            if (!validEntityName(object->properties[propertyIndex].name))
+                {
+                setMapError(error, errorSize, "Invalid object property name");
+                return 0;
+                }
+            for (otherIndex = propertyIndex + 1;
+                 otherIndex < object->propertyCount; otherIndex++)
+                if (strcmp(object->properties[propertyIndex].name,
+                           object->properties[otherIndex].name) == 0)
+                    {
+                    setMapError(error, errorSize,
+                                "Object property names must be unique");
+                    return 0;
+                    }
+            }
         for (triggerIndex = 0;
-             triggerIndex < map->actors[actorIndex].triggerCount;
+             triggerIndex < object->triggerCount;
              triggerIndex++)
             {
-            trigger = &map->actors[actorIndex].triggers[triggerIndex];
+            trigger = &object->triggers[triggerIndex];
             if (!validEntityName(trigger->event) ||
                 !validEntityName(trigger->target))
                 {
@@ -721,19 +899,19 @@ static int validateActors(const struct BattalionMapPackage *map,
                 }
             if (trigger->targetType == BATTALION_MAP_TRIGGER_ID)
                 {
-                if (!actorIdExists(map, trigger->target))
+                if (!objectIdExists(map, trigger->target))
                     {
                     setMapError(error, errorSize,
-                                "Trigger route targets an unknown actor id");
+                                "Trigger route targets an unknown object id");
                     return 0;
                     }
                 }
             else if (trigger->targetType == BATTALION_MAP_TRIGGER_GROUP)
                 {
-                if (!actorGroupExists(map, trigger->target))
+                if (!objectGroupExists(map, trigger->target))
                     {
                     setMapError(error, errorSize,
-                                "Trigger route targets an unknown actor group");
+                                "Trigger route targets an unknown object group");
                     return 0;
                     }
                 }
@@ -758,57 +936,64 @@ int battalionMapPackageValidate(const struct BattalionMapPackage *map,
         memchr(map->id, '\0', sizeof(map->id)) == NULL ||
         memchr(map->name, '\0', sizeof(map->name)) == NULL ||
         map->id[0] == '\0' || map->name[0] == '\0' ||
-        (map->version != 1 && map->version != 2) ||
-        (map->roadCount > 0 && map->roads == NULL) ||
-        (map->structureCount > 0 && map->structures == NULL) ||
-        (map->actorCount > 0 && map->actors == NULL))
+        map->version != 2 ||
+        (map->objectCount > 0 && map->objects == NULL))
         {
         setMapError(error, errorSize, "Invalid map package fields");
         return 0;
         }
-    for (index = 0; index < map->actorCount; index++)
+    for (index = 0; index < map->objectCount; index++)
         {
-        if (memchr(map->actors[index].id, '\0',
-                   sizeof(map->actors[index].id)) == NULL ||
-            memchr(map->actors[index].archetype, '\0',
-                   sizeof(map->actors[index].archetype)) == NULL ||
-            memchr(map->actors[index].group, '\0',
-                   sizeof(map->actors[index].group)) == NULL ||
-            (map->actors[index].waypointCount > 0 &&
-             map->actors[index].waypoints == NULL) ||
-            (map->actors[index].triggerCount > 0 &&
-             map->actors[index].triggers == NULL))
+        if (memchr(map->objects[index].id, '\0',
+                   sizeof(map->objects[index].id)) == NULL ||
+            memchr(map->objects[index].archetype, '\0',
+                   sizeof(map->objects[index].archetype)) == NULL ||
+            memchr(map->objects[index].description, '\0',
+                   sizeof(map->objects[index].description)) == NULL ||
+            memchr(map->objects[index].group, '\0',
+                   sizeof(map->objects[index].group)) == NULL ||
+            memchr(map->objects[index].faction, '\0',
+                   sizeof(map->objects[index].faction)) == NULL ||
+            memchr(map->objects[index].patrolRoute, '\0',
+                   sizeof(map->objects[index].patrolRoute)) == NULL ||
+            memchr(map->objects[index].safeZone, '\0',
+                   sizeof(map->objects[index].safeZone)) == NULL ||
+            (map->objects[index].waypointCount > 0 &&
+             map->objects[index].waypoints == NULL) ||
+            (map->objects[index].geometryCount > 0 &&
+             map->objects[index].geometry == NULL) ||
+            (map->objects[index].propertyCount > 0 &&
+             map->objects[index].properties == NULL) ||
+            (map->objects[index].triggerCount > 0 &&
+             map->objects[index].triggers == NULL))
             {
-            setMapError(error, errorSize, "Invalid map actor storage");
+            setMapError(error, errorSize, "Invalid map object storage");
             return 0;
             }
-        for (nested = 0; nested < map->actors[index].triggerCount; nested++)
-            if (memchr(map->actors[index].triggers[nested].event, '\0',
-                       sizeof(map->actors[index].triggers[nested].event)) ==
+        for (nested = 0; nested < map->objects[index].propertyCount; nested++)
+            if (memchr(map->objects[index].properties[nested].name, '\0',
+                       sizeof(map->objects[index].properties[nested].name)) ==
                     NULL ||
-                memchr(map->actors[index].triggers[nested].target, '\0',
-                       sizeof(map->actors[index].triggers[nested].target)) ==
+                memchr(map->objects[index].properties[nested].value, '\0',
+                       sizeof(map->objects[index].properties[nested].value)) ==
+                    NULL)
+                {
+                setMapError(error, errorSize, "Invalid property storage");
+                return 0;
+                }
+        for (nested = 0; nested < map->objects[index].triggerCount; nested++)
+            if (memchr(map->objects[index].triggers[nested].event, '\0',
+                       sizeof(map->objects[index].triggers[nested].event)) ==
+                    NULL ||
+                memchr(map->objects[index].triggers[nested].target, '\0',
+                       sizeof(map->objects[index].triggers[nested].target)) ==
                     NULL)
                 {
                 setMapError(error, errorSize, "Invalid trigger route storage");
                 return 0;
                 }
         }
-    for (index = 0; index < map->roadCount; index++)
-        if (!validFloat(map->roads[index].x) ||
-            !validFloat(map->roads[index].z))
-            {
-            setMapError(error, errorSize, "Invalid road coordinates");
-            return 0;
-            }
-    for (index = 0; index < map->structureCount; index++)
-        if (!validFloat(map->structures[index].x) ||
-            !validFloat(map->structures[index].z))
-            {
-            setMapError(error, errorSize, "Invalid structure coordinates");
-            return 0;
-            }
-    return validateActors(map, error, errorSize);
+    return validateObjects(map, error, errorSize);
     }
 
 void battalionMapPackageInit(struct BattalionMapPackage *map)
@@ -816,7 +1001,7 @@ void battalionMapPackageInit(struct BattalionMapPackage *map)
     if (map != NULL)
         {
         memset(map, 0, sizeof(*map));
-        map->version = 1;
+        map->version = 2;
         }
     }
 
@@ -826,14 +1011,14 @@ void battalionMapPackageFree(struct BattalionMapPackage *map)
 
     if (map == NULL)
         return;
-    free(map->roads);
-    free(map->structures);
-    for (index = 0; index < map->actorCount; index++)
+    for (index = 0; index < map->objectCount; index++)
         {
-        free(map->actors[index].waypoints);
-        free(map->actors[index].triggers);
+        free(map->objects[index].waypoints);
+        free(map->objects[index].geometry);
+        free(map->objects[index].properties);
+        free(map->objects[index].triggers);
         }
-    free(map->actors);
+    free(map->objects);
     battalionMapPackageInit(map);
     }
 
@@ -886,6 +1071,7 @@ int battalionMapPackageLoad(const char *path,
     int versionToken;
     int idToken;
     int nameToken;
+    int objectsToken;
     int roadsToken;
     int structuresToken;
     int unitsToken;
@@ -893,6 +1079,8 @@ int battalionMapPackageLoad(const char *path,
     int version;
     struct BattalionMapPackage loaded;
 
+    if (error != NULL && errorSize > 0)
+        error[0] = '\0';
     battalionMapPackageInit(&loaded);
     if (!readFile(path, &json, &length, error, errorSize))
         return 0;
@@ -917,17 +1105,16 @@ int battalionMapPackageLoad(const char *path,
     structuresToken = objectValue(json, tokens, tokenCount, 0, "structures");
     unitsToken = objectValue(json, tokens, tokenCount, 0, "units");
     actorsToken = objectValue(json, tokens, tokenCount, 0, "actors");
+    objectsToken = objectValue(json, tokens, tokenCount, 0, "objects");
     if (formatToken < 0 || versionToken < 0 || idToken < 0 || nameToken < 0 ||
-        unitsToken >= 0 ||
+        roadsToken >= 0 || structuresToken >= 0 || unitsToken >= 0 ||
+        actorsToken >= 0 || objectsToken < 0 ||
         !tokenEquals(json, &tokens[formatToken], "battalion-map") ||
         !tokenInt(json, &tokens[versionToken], &version) ||
-        (version != 1 && version != 2) ||
+        version != 2 ||
         !copyString(json, &tokens[idToken], loaded.id, sizeof(loaded.id)) ||
         !copyString(json, &tokens[nameToken], loaded.name, sizeof(loaded.name)) ||
-        !loadRoads(json, tokens, tokenCount, roadsToken, &loaded) ||
-        !loadStructures(json, tokens, tokenCount, structuresToken, &loaded) ||
-        (version == 2 && !loadActors(json, tokens, tokenCount, actorsToken,
-                                    &loaded)))
+        !loadObjects(json, tokens, tokenCount, objectsToken, &loaded))
         goto invalid;
     loaded.version = version;
     if (!battalionMapPackageValidate(&loaded, error, errorSize))
@@ -943,7 +1130,9 @@ invalid:
     battalionMapPackageFree(&loaded);
     free(tokens);
     free(json);
-    setMapError(error, errorSize, "Invalid or unsupported battalion-map JSON");
+    if (error == NULL || errorSize == 0 || error[0] == '\0')
+        setMapError(error, errorSize,
+                    "Invalid or unsupported battalion-map JSON");
     return 0;
     }
 
@@ -977,47 +1166,118 @@ static const char *patrolModeName(int patrolMode)
     return "loop";
     }
 
-static void writeActors(FILE *file, const struct BattalionMapPackage *map)
+static const char *alarmResponseName(int response)
     {
-    size_t actorIndex;
+    if (response == ENTITY_ALARM_CONTINUE)
+        return "continue";
+    if (response == ENTITY_ALARM_ATTACK)
+        return "attack";
+    if (response == ENTITY_ALARM_RETREAT)
+        return "retreat";
+    if (response == ENTITY_ALARM_RANDOM)
+        return "random";
+    return "inherit";
+    }
+
+static void writeObjects(FILE *file, const struct BattalionMapPackage *map)
+    {
+    size_t objectIndex;
     size_t waypointIndex;
+    size_t geometryIndex;
+    size_t propertyIndex;
     size_t triggerIndex;
-    const struct BattalionMapActor *actor;
+    const struct BattalionMapObject *object;
     const struct BattalionMapTrigger *trigger;
 
-    fputs(",\n  \"actors\": [\n", file);
-    for (actorIndex = 0; actorIndex < map->actorCount; actorIndex++)
+    fputs(",\n  \"objects\": [\n", file);
+    for (objectIndex = 0; objectIndex < map->objectCount; objectIndex++)
         {
-        actor = &map->actors[actorIndex];
-        fputs("    {\"id\": ", file);
-        writeJsonString(file, actor->id);
-        fputs(", \"archetype\": ", file);
-        writeJsonString(file, actor->archetype);
-        if (actor->group[0] != '\0')
+        object = &map->objects[objectIndex];
+        fputs("    {", file);
+        if (object->id[0] != '\0')
+            {
+            fputs("\"id\": ", file);
+            writeJsonString(file, object->id);
+            fputs(", ", file);
+            }
+        fputs("\"archetype\": ", file);
+        writeJsonString(file, object->archetype);
+        if (object->description[0] != '\0')
+            {
+            fputs(", \"description\": ", file);
+            writeJsonString(file, object->description);
+            }
+        if (object->group[0] != '\0')
             {
             fputs(", \"group\": ", file);
-            writeJsonString(file, actor->group);
+            writeJsonString(file, object->group);
             }
-        fprintf(file, ", \"x\": %.9g, \"z\": %.9g, \"heading\": %.9g, "
+        if (object->faction[0] != '\0')
+            {
+            fputs(", \"faction\": ", file);
+            writeJsonString(file, object->faction);
+            }
+        if (object->patrolRoute[0] != '\0')
+            {
+            fputs(", \"patrol-route\": ", file);
+            writeJsonString(file, object->patrolRoute);
+            }
+        if (object->alarmResponse != ENTITY_ALARM_INHERIT)
+            {
+            fputs(", \"alarm-response\": ", file);
+            writeJsonString(file,
+                            alarmResponseName(object->alarmResponse));
+            if (object->safeZone[0] != '\0')
+                {
+                fputs(", \"safe-zone\": ", file);
+                writeJsonString(file, object->safeZone);
+                }
+            fprintf(file, ", \"safe-wait-seconds\": %.9g",
+                    object->safeWaitSeconds);
+            }
+        fprintf(file, ", \"x\": %.9g, \"y\": %.9g, \"z\": %.9g, "
+                      "\"heading\": %.9g, \"scale\": %.9g, "
                       "\"active\": %s, \"patrol-mode\": ",
-                actor->x, actor->z, actor->heading,
-                actor->active ? "true" : "false");
-        writeJsonString(file, patrolModeName(actor->patrolMode));
+                object->x, object->y, object->z, object->heading,
+                object->scale, object->active ? "true" : "false");
+        writeJsonString(file, patrolModeName(object->patrolMode));
         fputs(",\n      \"path\": [", file);
-        for (waypointIndex = 0; waypointIndex < actor->waypointCount;
+        for (waypointIndex = 0; waypointIndex < object->waypointCount;
              waypointIndex++)
             {
             if (waypointIndex > 0)
                 fputs(", ", file);
             fprintf(file, "{\"x\": %.9g, \"z\": %.9g}",
-                    actor->waypoints[waypointIndex].x,
-                    actor->waypoints[waypointIndex].z);
+                    object->waypoints[waypointIndex].x,
+                    object->waypoints[waypointIndex].z);
+            }
+        fputs("],\n      \"geometry\": [", file);
+        for (geometryIndex = 0; geometryIndex < object->geometryCount;
+             geometryIndex++)
+            {
+            if (geometryIndex > 0)
+                fputs(", ", file);
+            fprintf(file, "{\"x\": %.9g, \"z\": %.9g}",
+                    object->geometry[geometryIndex].x,
+                    object->geometry[geometryIndex].z);
+            }
+        fputs("],\n      \"properties\": [", file);
+        for (propertyIndex = 0; propertyIndex < object->propertyCount;
+             propertyIndex++)
+            {
+            if (propertyIndex > 0)
+                fputs(", ", file);
+            fputs("{\"name\": ", file);
+            writeJsonString(file, object->properties[propertyIndex].name);
+            fputs(", \"value\": ", file);
+            writeJsonString(file, object->properties[propertyIndex].value);
+            fputc('}', file);
             }
         fputs("],\n      \"triggers\": [", file);
-        for (triggerIndex = 0; triggerIndex < actor->triggerCount;
+        for (triggerIndex = 0; triggerIndex < object->triggerCount;
              triggerIndex++)
             {
-            trigger = &actor->triggers[triggerIndex];
+            trigger = &object->triggers[triggerIndex];
             if (triggerIndex > 0)
                 fputs(", ", file);
             fputs("{\"event\": ", file);
@@ -1030,7 +1290,7 @@ static void writeActors(FILE *file, const struct BattalionMapPackage *map)
             fputc('}', file);
             }
         fprintf(file, "]}%s\n",
-                actorIndex + 1 < map->actorCount ? "," : "");
+                objectIndex + 1 < map->objectCount ? "," : "");
         }
     fputs("  ]", file);
     }
@@ -1040,15 +1300,10 @@ int battalionMapPackageWrite(const char *path,
                              char *error, size_t errorSize)
     {
     FILE *file;
-    size_t index;
-    int version;
-
     if (!battalionMapPackageValidate(map, error, errorSize))
         {
         return 0;
         }
-    version = map->version == 2 || map->actorCount > 0 ? 2 : 1;
-
     file = fopen(path, "wb");
     if (file == NULL)
         {
@@ -1056,25 +1311,11 @@ int battalionMapPackageWrite(const char *path,
         return 0;
         }
     fputs("{\n  \"format\": \"battalion-map\",\n  \"version\": ", file);
-    fprintf(file, "%d,\n  \"id\": ", version);
+    fprintf(file, "2,\n  \"id\": ");
     writeJsonString(file, map->id);
     fputs(",\n  \"name\": ", file);
     writeJsonString(file, map->name);
-    fputs(",\n  \"roads\": [\n", file);
-    for (index = 0; index < map->roadCount; index++)
-        fprintf(file, "    {\"x\": %.9g, \"z\": %.9g, \"type\": %d}%s\n",
-                map->roads[index].x, map->roads[index].z,
-                map->roads[index].type,
-                index + 1 < map->roadCount ? "," : "");
-    fputs("  ],\n  \"structures\": [\n", file);
-    for (index = 0; index < map->structureCount; index++)
-        fprintf(file, "    {\"x\": %.9g, \"z\": %.9g, \"type\": %d, \"shape\": %d}%s\n",
-                map->structures[index].x, map->structures[index].z,
-                map->structures[index].type, map->structures[index].shape,
-                index + 1 < map->structureCount ? "," : "");
-    fputs("  ]", file);
-    if (version == 2)
-        writeActors(file, map);
+    writeObjects(file, map);
     fputs("\n}\n", file);
     if (fclose(file) != 0)
         {

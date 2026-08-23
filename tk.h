@@ -243,6 +243,7 @@ extern void unGrabPointer(void);
 extern int tkGetColorMapSize(void);
 extern void tkGetMouseLoc(int *, int *);
 extern void tkGetMouseDelta(float *, float *);
+extern float tkDisplayScale(void);
 #ifndef MACOSVERSION
 extern Display *tkGetXDisplay(void);
 extern Window tkGetXWindow(void);

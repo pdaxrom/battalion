@@ -1,10 +1,22 @@
 battalion-entity 1
 id techs
+display-name Techs
+description Ground creature that attacks with a catalog projectile.
+editor-category creatures
+editor-color red
+wreck-fire-projectile projectile-flame
+destruction-projectile projectile-debris
+destruction-effect explosion-standard
+destruction-sound crash
+destruction-debris-count 7
+destruction-fire-count 3
+destruction-effect-count 1
+debris-life 420
 kind creature
+collision-footprint model
 controllable yes
 control-mode free
 shortcut 7
-network-code 2
 model techs
 render-node body
 render-node head
@@ -14,7 +26,6 @@ aim-yaw-node head
 aim-pitch-node head
 muzzle-node muzzle
 faction monster
-hostile-faction army
 movement ground
 speed 0.06
 turn-rate 0.2
@@ -24,7 +35,9 @@ scale 1
 vertical-offset 1
 collision-radius 0.3
 collision-height 1.3
-weapon plasma
+weapon projectile
+projectile projectile-plasma
+fire-sound tech
 weapon-color orange
 weapon-range 4
 weapon-min-range 0

@@ -1,0 +1,27 @@
+battalion-entity 1
+id building-hangar-alternate
+display-name Hangar Alternate
+description Authored GLB structure with editable transform, properties, and trigger routes.
+property role string storage
+kind structure
+editor-category buildings
+editor-color brown
+editor-placeable yes
+placement tile
+model building-30-high
+model-low building-30-low
+collision-mode solid
+collision-footprint model
+movement stationary
+collision-radius 0.25
+collision-height 1
+destructible yes
+destruction-projectile projectile-debris
+destruction-effect explosion-standard
+destruction-sound crash
+destruction-debris-count 7
+destruction-fire-count 3
+destruction-effect-count 1
+debris-life 420
+destruction-fire-projectile projectile-flame
+casts-shadow yes

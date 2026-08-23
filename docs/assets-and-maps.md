@@ -39,14 +39,17 @@ arrays. This policy is the same on every supported platform.
 `assets/config/render.bindings` is the versioned bridge between stable engine
 roles and replaceable manifest entries. It maps model, texture, animation, and
 auxiliary-file slots without putting catalog keys or paths in gameplay code.
-For example, `building-satellite-dish` selects the current satellite-dish GLB,
-and `help-sgi-showcase` selects the historical Showcase document. Replacing a
-model does not require changing or recompiling the engine.
+For example, `ui-title-high` selects the title GLB and `help-sgi-showcase`
+selects the historical Showcase document. Authored world models, including
+buildings, roads, terrain, and actors, are selected by their entity descriptors
+instead of renderer bindings. Replacing a model does not require changing or
+recompiling the engine.
 
 Renderer colours, HUD rectangles, the complete stroke font, effect parameters,
 and gameplay animation controller values are external assets as well. Audio
 file variants, mixer slots, and music ordering live in
-`assets/audio/catalog.txt`. `make test` rejects any return of immediate-mode
+`assets/audio/catalog.txt`; an optional `unique` entry flag prevents a looping
+or sustained effect from stacking copies of itself. `make test` rejects any return of immediate-mode
 model geometry or direct model, texture, sound, and music paths to gameplay
 source files.
 
@@ -108,7 +111,7 @@ gameplay state.
 Each battlefield now also has a self-contained
 `assets/maps/<id>/map.json`. `default` is the historical unnumbered map;
 numbered maps use two-digit IDs. Version 2 keeps authored record order and
-uses actors for every gameplay entity:
+uses one generic `objects` array for every authored world item:
 
 ```json
 {
@@ -116,17 +119,21 @@ uses actors for every gameplay entity:
   "version": 2,
   "id": "01",
   "name": "Andyville",
-  "roads": [{"x": 17.5, "z": 21.5, "type": 3}],
-  "structures": [{"x": -24, "z": -19.6, "type": 2, "shape": 3}],
-  "actors": [{"id": "guard-a", "archetype": "tank-standard",
-               "x": 5, "z": 40}]
+  "objects": [
+    {"archetype": "road-paved-tile", "x": 17.5, "y": 0, "z": 21.5},
+    {"archetype": "building-office-white", "x": -24, "y": 0,
+     "z": -19.6},
+    {"id": "guard-a", "archetype": "tank-standard", "x": 5,
+     "y": 0, "z": 40}
+  ]
 }
 ```
 
 Map and model data remain separate: map records identify authored gameplay
-type/shape data, while geometry and animation live in renderer-neutral GLB
-files under `assets/models`. Historical numeric `units` were migrated to
-catalog archetypes and are rejected to prevent silent data loss.
+archetypes, while geometry and animation live in renderer-neutral GLB files
+under `assets/models`. Historical numeric `roads`, `structures`, `units`, and
+split `actors` arrays were migrated to catalog archetypes and are rejected to
+prevent silent data loss.
 
 JSON packages are required on every platform. `make test` validates every
 package and performs JSON write/read round trips.
@@ -144,17 +151,20 @@ build/macos-metal-coreaudio/map_editor assets/maps/default/map.json
 build/macos-metal-coreaudio/map_editor --validate assets/maps/default/map.json
 ```
 
-Use the archetype palette to enter actor placement mode, then click in the
-viewport. Left-drag moves actors or selected patrol waypoints, right- or
+Use the archetype palette to enter object placement mode, then click in the
+viewport. Left-drag moves objects or selected route/area points, right- or
 middle-drag pans, and the mouse wheel zooms around the cursor. File, Edit, and
 View provide new/open/save, deletion, grid/snap, fit, validation, and a
-`make test` command. The properties panel edits the v2 actor fields, patrol
-path, and trigger routes. Roads and structures retain their compact runtime
-arrays; all editable gameplay objects use the same actor representation.
+`make test` command. The properties panel edits the same v2 object record used
+by runtime: description, transform, faction, typed properties, shared patrol
+assignment, route/area points, patrol state, and trigger routes. Roads,
+structures, lakes, hills, logic zones/routes, vehicles, creatures, and NPCs
+are all catalog archetype instances; there is no compact
+numeric side array or editor-only representation.
 
 The editor uses the same `battalionMapPackageValidate` routine as package
-loading and writing. Its additional catalog check only verifies that every
-actor archetype exists in `assets/entities/catalog.txt`, matching runtime
+loading and writing. Its catalog checks also verify archetypes, faction ids,
+route ownership/reference rules, and protected-area geometry, matching runtime
 startup behavior.
 
 ## Extensible gameplay entities
@@ -164,7 +174,7 @@ gameplay catalog, not a tank table: `vehicle`, `npc`, `creature`, `object`,
 `device`, and `structure` all enter the same generic runtime. An archetype
 selects its model plus idle, move, and attack clips through manifest keys.
 Destroyed entities use runtime debris and fire, while shadows are projected
-from collision bounds. The archetype also declares faction relationships, movement,
+from collision bounds. The archetype also declares a default faction, movement,
 collision dimensions, health, score, weapon, random-spawn policy, and whether
 the player may control it.
 
@@ -190,9 +200,10 @@ entity-id branches. The selector frames the current animated GLB from the
 bounds of the nodes it actually renders, so differently sized or offset models
 remain centred at a consistent visual size.
 
-The reusable weapon capabilities are `none`, `shell`, `rocket`, `beam`, `fire`,
-and `plasma`. Projectile choice and player firing are based on that capability,
-not on an archetype id. `tactic standoff|flyby` controls generic approach
+The reusable weapon capabilities are `none`, `projectile`, and `beam`.
+Shells, rockets, plasma, fire, water, debris, and future projectile visuals are
+ordinary `kind projectile` archetypes selected by the weapon descriptor, not
+by a C enum or entity id. `tactic standoff|flyby` controls generic approach
 behavior and `burst-count` controls projectiles per attack. `player-fire-cost`
 is the per-shot energy cost, separate
 from `player-move-cost`; `fire-interval` is the post-shot reload period rather
@@ -252,7 +263,8 @@ Destroyed structures stop participating in movement collision immediately;
 their collapse, explosion, or removal animation may continue independently.
 
 An entity may declare multiple named perception sensors. The current sensor
-types are `proximity`, forward `vision`, `hearing`, and `damage`. Each sensor
+types are `proximity`, forward `vision`, `hearing`, `damage`, and polygonal
+`area`. Each sensor
 has its own range, cone angle, and faction filter. Vision is blocked by intact
 world structures; hearing reacts to moving or recently firing contacts and is
 not blocked by those structures.
@@ -269,7 +281,7 @@ sensor sight vision 8 120 hostile
 on-enter sight attack base-alarm
 on-exit sight investigate target-lost
 on-trigger base-alarm activate none
-on-trigger base-alarm attack none
+on-trigger base-alarm investigate none
 ```
 
 Multiple rules may consume the same trigger. `activate` and `deactivate` are
@@ -278,14 +290,24 @@ an attack or movement reaction by the same event. Trigger delivery is
 two-phase: all actors finish the current simulation step before routed events
 are queued for the next one, making behavior independent of actor list order.
 
-Map package version 2 adds generic `actors`. Every actor references an entity
-archetype and defines an instance id/group, position, heading, active state,
-optional patrol mode/waypoints, and zero or more trigger routes. A route sends
-an emitted event to a configured target actor id or group and carries the
-original perceived contact. Thus one guard can raise an alarm that activates or
-retargets any number of other configured actors. Actor positions and paths are
+Map package version 2 has generic `objects`. Every object references a catalog
+archetype and may define an instance id/description/group/faction, transform,
+active state, typed property overrides, a shared patrol-route reference, route
+or area points, and trigger routes. A `kind route` object owns patrol points;
+one or more actors reference its id without copying those points. A trigger sends an
+emitted event to a configured target object id or group and carries the
+original perceived contact. Thus one guard can raise an alarm that activates
+or retargets any number of configured objects. Object positions and points are
 authored in map-world coordinates. Those coordinates remain stable while the
 player moves; trigger contacts and paths therefore never depend on the camera.
+
+Patrolling actors can select a per-instance `alarm-response`: inherit the
+archetype reaction, continue patrolling, attack the transmitted intruder,
+retreat to a referenced `kind zone`, or choose randomly between the three
+explicit actions for each new alarm. Retreating actors wait for
+`safe-wait-seconds` of simulation time and then resume their shared route.
+Because the safe area is another catalog/map object, no faction, actor, route,
+or zone id is compiled into the AI.
 
 A minimal actor looks like this:
 
@@ -299,7 +321,7 @@ A minimal actor looks like this:
   "heading": 0,
   "active": true,
   "patrol-mode": "loop",
-  "path": [{"x": 5, "z": 5}, {"x": 8, "z": 5}],
+  "patrol-route": "base-perimeter-route",
   "triggers": [
     {"event": "base-alarm", "target-group": "base-guards"}
   ]

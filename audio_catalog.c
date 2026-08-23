@@ -109,7 +109,7 @@ int audioCatalogBuildPath(const char *dataPath,
 
 static int appendAudioEntry(struct AudioCatalog *catalog,
                             const char *key, const char *backend,
-                            int slot, const char *path)
+                            int slot, const char *path, int unique)
     {
     struct AudioCatalogEntry *expanded;
     struct AudioCatalogEntry *entry;
@@ -124,6 +124,7 @@ static int appendAudioEntry(struct AudioCatalog *catalog,
     entry->backend = copyAudioString(backend);
     entry->path = copyAudioString(path);
     entry->slot = slot;
+    entry->unique = unique;
     if (entry->key == NULL || entry->backend == NULL || entry->path == NULL)
         {
         free(entry->key);
@@ -143,6 +144,7 @@ int audioCatalogLoad(const char *dataPath, const char *catalogPath,
     char key[64];
     char backend[32];
     char path[256];
+    char mode[32];
     char fullPath[512];
     char extra;
     FILE *file;
@@ -151,6 +153,8 @@ int audioCatalogLoad(const char *dataPath, const char *catalogPath,
     int header;
     int version;
     int slot;
+    int fields;
+    int unique;
 
     if (dataPath == NULL || catalogPath == NULL || catalog == NULL)
         return 0;
@@ -180,12 +184,16 @@ int audioCatalogLoad(const char *dataPath, const char *catalogPath,
             header = 1;
             continue;
             }
-        if (sscanf(lineText, " entry %63s %31s %d %255s %c",
-                   key, backend, &slot, path, &extra) != 4 ||
+        fields = sscanf(lineText, " entry %63s %31s %d %255s %31s %c",
+                        key, backend, &slot, path, mode, &extra);
+        unique = fields == 5 && strcmp(mode, "unique") == 0;
+        if ((fields != 4 && fields != 5) ||
+            (fields == 5 && strcmp(mode, "unique") != 0 &&
+             strcmp(mode, "overlap") != 0) ||
             !validAudioName(key, 0) || !validAudioName(backend, 0) ||
             !validAudioName(path, 1) || slot < 0 || slot > 255 ||
             audioCatalogFind(catalog, key, backend) != NULL ||
-            !appendAudioEntry(catalog, key, backend, slot, path))
+            !appendAudioEntry(catalog, key, backend, slot, path, unique))
             {
             setAudioError(error, errorSize,
                           "Invalid or duplicate audio entry", line);
