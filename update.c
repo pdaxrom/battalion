@@ -237,9 +237,7 @@ void updateBeam(struct monsterInfo * g, struct targetInfo * t,
     loc1[0] = muzzleOrigin[0];
 	loc1[1] = muzzleOrigin[1];
 	loc1[2] = muzzleOrigin[2];
-	loc3[0] = loc1[0] + R * muzzleDirection[0];
-    loc3[1] = loc1[1] + R * muzzleDirection[1];
-    loc3[2] = loc1[2] + R * muzzleDirection[2];
+    worldClippedRayEndpoint(loc1, muzzleDirection, R, PLANEY, loc3);
 
     /**********************************/
     /* does beam touch ground         */
@@ -328,9 +326,11 @@ void updateBeam(struct monsterInfo * g, struct targetInfo * t,
 	switch(ttank->type){
 	    case TANK:
 	    case LAUNCHER:
-	    case MASERTANK: if ((fabs(ttank->z - loc3[2]) <= BEAMKILL) &&
-				(fabs(ttank->y - loc3[1]) <= 0.3) &&
-				(fabs(ttank->x - loc3[0]) <= BEAMKILL))
+	    case MASERTANK: if (worldSegmentIntersectsCylinder(
+				loc1[0], loc1[1], loc1[2],
+				loc3[0], loc3[1], loc3[2],
+				ttank->x, ttank->z, BEAMKILL,
+				ttank->y - 0.1f, ttank->y + 0.5f))
 				itsDead = 1;
 			    break;
 			    

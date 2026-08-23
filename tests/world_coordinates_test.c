@@ -26,6 +26,10 @@ static int require(int condition, const char *message)
 
 int main(void)
     {
+    float beamOrigin[3];
+    float beamDirection[3];
+    float beamEndpoint[3];
+
     if (!require(worldDistanceSquared(10.0f, -4.0f, 13.0f, 0.0f) ==
                      25.0f,
                  "world distance must not depend on the camera origin"))
@@ -52,6 +56,44 @@ int main(void)
         return 1;
     if (!require(!worldVerticalIntervalsOverlap(1.0f, 1.5f, 0.0f, 1.0f),
                  "touching vertical bounds must not be a collision"))
+        return 1;
+    if (!require(worldSegmentIntersectsCylinder(
+                     0.0f, 0.0f, 0.0f, 0.0f, -2.0f, 10.0f,
+                     0.0f, 4.0f, 0.31f, -1.1f, -0.5f),
+                 "a descending beam passed through a ground vehicle"))
+        return 1;
+    if (!require(worldSegmentIntersectsCylinder(
+                     -2.0f, -0.8f, 4.0f, 2.0f, -0.8f, 4.0f,
+                     0.0f, 4.0f, 0.31f, -1.1f, -0.5f),
+                 "a horizontal beam passed through a ground vehicle"))
+        return 1;
+    if (!require(!worldSegmentIntersectsCylinder(
+                     0.0f, 0.2f, 0.0f, 0.0f, 0.2f, 10.0f,
+                     0.0f, 4.0f, 0.31f, -1.1f, -0.5f),
+                 "a beam above a ground vehicle caused damage"))
+        return 1;
+    if (!require(!worldSegmentIntersectsCylinder(
+                     0.0f, -0.8f, 0.0f, 0.0f, -0.8f, 2.0f,
+                     0.0f, 4.0f, 0.31f, -1.1f, -0.5f),
+                 "a beam damaged a vehicle beyond its endpoint"))
+        return 1;
+    beamOrigin[0] = 0.0f;
+    beamOrigin[1] = 0.0f;
+    beamOrigin[2] = 0.0f;
+    beamDirection[0] = 0.0f;
+    beamDirection[1] = -0.5f;
+    beamDirection[2] = 1.0f;
+    worldClippedRayEndpoint(beamOrigin, beamDirection, 4.0f, -1.0f,
+                            beamEndpoint);
+    if (!require(beamEndpoint[0] == 0.0f &&
+                 beamEndpoint[1] == -1.0f && beamEndpoint[2] == 2.0f,
+                 "a downward beam was visually extended past the ground"))
+        return 1;
+    if (!require(worldSegmentIntersectsCylinder(
+                     beamOrigin[0], beamOrigin[1], beamOrigin[2],
+                     beamEndpoint[0], beamEndpoint[1], beamEndpoint[2],
+                     0.0f, 2.0f, 0.31f, -1.1f, -0.5f),
+                 "a vehicle touching the visible beam endpoint was missed"))
         return 1;
     return 0;
     }

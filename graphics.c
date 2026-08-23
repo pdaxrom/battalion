@@ -3268,16 +3268,11 @@ void drawBeam(const struct EntityArchetype *archetype, int detail,
     /* if line widths are integral Mesa chokes in a large window */
     glLineWidth(effectScalar("monster-beam-line-width"));
 
-    R = beamRange;
 	loc1[0] = muzzleOrigin[0];
 	loc1[1] = muzzleOrigin[1];
 	loc1[2] = muzzleOrigin[2];
-	loc3[0] = loc1[0] + R * muzzleDirection[0];
-    loc3[1] = loc1[1] + R * muzzleDirection[1];
-    loc3[2] = loc1[2] + R * muzzleDirection[2];
- 
-    if (loc3[1] < PLANEY)
-	loc3[1] = PLANEY;
+    R = beamRange;
+    worldClippedRayEndpoint(loc1, muzzleDirection, R, PLANEY, loc3);
 
     c[0] = col[0] * effectScalar("monster-beam-primary");
     c[1] = col[1] * effectScalar("monster-beam-primary");
